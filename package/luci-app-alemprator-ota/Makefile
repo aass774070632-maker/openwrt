@@ -1,4 +1,4 @@
-include $(TOPDIR)/rules.mk
+.0clude $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-alemprator-ota
 PKG_VERSION:=1.0
