@@ -1,0 +1,17 @@
+#!/bin/sh
+
+changed=0
+
+for section in $(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.=]*\)=wifi-iface$/\1/p"); do
+	[ "$(uci -q get wireless.$section.mode)" = 'ap' ] || continue
+	[ "$(uci -q get wireless.$section.disassoc_low_ack)" = '0' ] && continue
+	uci -q set wireless.$section.disassoc_low_ack='0'
+	changed=1
+done
+
+if [ "$changed" = 1 ]; then
+	uci -q commit wireless
+	wifi reload >/dev/null 2>&1 || /etc/init.d/network reload >/dev/null 2>&1 || true
+fi
+
+exit 0

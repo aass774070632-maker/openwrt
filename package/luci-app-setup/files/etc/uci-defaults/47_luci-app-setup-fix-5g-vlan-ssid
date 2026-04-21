@@ -1,0 +1,35 @@
+#!/bin/sh
+
+base_ssid="$(uci -q get setup.default.wifi_ssid)"
+manual_ssid="$(uci -q get setup.default.wifi_ssid_vlan)"
+secondary_2g="${manual_ssid:-${base_ssid}_VLAN}"
+secondary_5g="${manual_ssid:+${manual_ssid}_5G}"
+secondary_5g="${secondary_5g:-${base_ssid}_VLAN_5G}"
+changed=0
+
+[ -n "$base_ssid" ] || exit 0
+
+for section in $(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.=]*\)=wifi-iface$/\1/p"); do
+	[ "$(uci -q get wireless.$section.mode)" = 'ap' ] || continue
+	[ "$(uci -q get wireless.$section.network)" = 'wizardvlan' ] || continue
+
+	device="$(uci -q get wireless.$section.device)"
+	[ -n "$device" ] || continue
+	band="$(uci -q get wireless.$device.band)"
+	[ "$band" = '2g' ] || [ "$band" = '5g' ] || continue
+
+	ssid="$(uci -q get wireless.$section.ssid)"
+	new_ssid="$secondary_2g"
+	[ "$band" = '5g' ] && new_ssid="$secondary_5g"
+	[ "$ssid" = "$new_ssid" ] && continue
+
+	uci -q set wireless.$section.ssid="$new_ssid"
+	changed=1
+done
+
+if [ "$changed" = 1 ]; then
+	uci -q commit wireless
+	wifi reload >/dev/null 2>&1 || /etc/init.d/network reload >/dev/null 2>&1 || true
+fi
+
+exit 0

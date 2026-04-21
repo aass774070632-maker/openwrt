@@ -1,0 +1,37 @@
+{
+	"unauthenticated": {
+		"description": "Allow OTA status display without login when no password is set",
+		"read": {
+			"file": {
+				"/usr/libexec/alemprator-ota/status-json": [ "exec" ]
+			},
+			"ubus": {
+				"file": [ "exec" ],
+				"system": [ "board" ]
+			}
+		}
+	},
+
+	"luci-app-alemprator-ota": {
+		"description": "ALemprator OTA monitor and control",
+		"read": {
+			"uci": [ "alemprator_ota" ],
+			"file": {
+				"/usr/libexec/alemprator-ota/status-json": [ "exec" ]
+			},
+			"ubus": {
+				"file": [ "exec" ],
+				"system": [ "board" ]
+			}
+		},
+		"write": {
+			"uci": [ "alemprator_ota" ],
+			"file": {
+				"/usr/libexec/alemprator-ota/run-once": [ "exec" ]
+			},
+			"ubus": {
+				"file": [ "exec" ]
+			}
+		}
+	}
+}

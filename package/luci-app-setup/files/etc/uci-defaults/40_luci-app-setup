@@ -10,15 +10,45 @@ wifi_key="$(uci -q get wireless.@wifi-iface[0].key)"
 
 [ -n "$lan_ipaddr" ] || lan_ipaddr="192.168.1.1"
 [ -n "$lan_netmask" ] || lan_netmask="255.255.255.0"
-[ -n "$wifi_ssid" ] || wifi_ssid="OpenWrt"
+[ -n "$wifi_ssid" ] || wifi_ssid="ALemprator-KT-KM14-102H"
+[ "$wifi_ssid" = "OpenWrt" ] && wifi_ssid="ALemprator-KT-KM14-102H"
+
+default_setup_ipaddr="192.168.1.20"
+default_setup_netmask="255.255.255.0"
+
+has_setup_default=0
+uci -q get setup.default >/dev/null && has_setup_default=1
+
+if [ "$has_setup_default" = 1 ]; then
+	uci -q get setup.default.AlwSettings >/dev/null || uci -q set setup.default.AlwSettings='AL'
+	uci -q get setup.default.wifi_ssid_5g_mode >/dev/null || uci -q set setup.default.wifi_ssid_5g_mode='derived'
+	uci -q get setup.default.wifi_ssid_5g >/dev/null || uci -q set setup.default.wifi_ssid_5g=''
+	uci -q get setup.default.wifi_ssid_vlan >/dev/null || uci -q set setup.default.wifi_ssid_vlan=''
+	uci -q get setup.default.channel_2g >/dev/null || uci -q set setup.default.channel_2g='auto'
+	uci -q get setup.default.channel_5g >/dev/null || uci -q set setup.default.channel_5g='auto'
+	uci -q get setup.default.wifi_mode_2g >/dev/null || uci -q set setup.default.wifi_mode_2g='ax'
+	uci -q get setup.default.wifi_width_2g >/dev/null || uci -q set setup.default.wifi_width_2g='20'
+	uci -q get setup.default.wifi_mode_5g >/dev/null || uci -q set setup.default.wifi_mode_5g='ax'
+	uci -q get setup.default.wifi_width_5g >/dev/null || uci -q set setup.default.wifi_width_5g='80'
+	uci -q get setup.default.reset_button_disabled >/dev/null || uci -q set setup.default.reset_button_disabled='0'
+	uci -q get setup.default.reset_hold_seconds >/dev/null || uci -q set setup.default.reset_hold_seconds='5'
+	uci -q get setup.default.wps_button_disabled >/dev/null || uci -q set setup.default.wps_button_disabled='0'
+	uci -q get setup.default.initial_setup_complete >/dev/null || uci -q set setup.default.initial_setup_complete='0'
+	uci -q commit setup
+	rm -f /tmp/luci-indexcache
+	exit 0
+fi
 
 uci -q batch <<EOF >/dev/null
 	set setup.default=setup
 	set setup.default.AlwSettings='AL'
-	set setup.default.lan_ipaddr='$lan_ipaddr'
-	set setup.default.lan_netmask='$lan_netmask'
+	set setup.default.lan_ipaddr='$default_setup_ipaddr'
+	set setup.default.lan_netmask='$default_setup_netmask'
 	set setup.default.mode='ap'
 	set setup.default.wifi_ssid='$wifi_ssid'
+	set setup.default.wifi_ssid_5g_mode='derived'
+	set setup.default.wifi_ssid_5g=''
+	set setup.default.wifi_ssid_vlan=''
 	set setup.default.wifi_key='$wifi_key'
 	set setup.default.uplink_ssid=''
 	set setup.default.uplink_key=''
@@ -28,16 +58,18 @@ uci -q batch <<EOF >/dev/null
 	set setup.default.mesh_band='2g'
 	set setup.default.is_vlan='0'
 	set setup.default.vlan_id='10'
+	set setup.default.wifi_ssid_vlan=''
 	set setup.default.channel_2g='auto'
 	set setup.default.channel_5g='auto'
+	set setup.default.wifi_mode_2g='ax'
+	set setup.default.wifi_width_2g='20'
+	set setup.default.wifi_mode_5g='ax'
+	set setup.default.wifi_width_5g='80'
 	set setup.default.reset_button_disabled='0'
 	set setup.default.reset_hold_seconds='5'
 	set setup.default.wps_button_disabled='0'
-	delete ucitrack.alemprator_setup
-	set ucitrack.alemprator_setup=setup
-	set ucitrack.alemprator_setup.init='setup'
+	set setup.default.initial_setup_complete='0'
 	commit setup
-	commit ucitrack
 EOF
 
 rm -f /tmp/luci-indexcache

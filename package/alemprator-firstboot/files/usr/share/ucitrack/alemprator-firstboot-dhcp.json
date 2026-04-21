@@ -1,0 +1,4 @@
+{
+	"config": "dhcp",
+	"affects": [ "alemprator_firstboot" ]
+}

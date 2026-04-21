@@ -4,18 +4,18 @@ changed=0
 
 if [ -n "$(uci -q get network.wizardvlan)" ]; then
 	uci -q set network.wizardvlan.proto='none'
-	uci -q unset network.wizardvlan.ipaddr
-	uci -q unset network.wizardvlan.netmask
-	uci -q unset network.wizardvlan.gateway
-	uci -q unset network.wizardvlan.broadcast
-	uci -q unset network.wizardvlan.delegate
-	uci -q unset network.wizardvlan.dns
-	uci -q unset network.wizardvlan.defaultroute
-	uci -q unset network.wizardvlan.ip6addr
-	uci -q unset network.wizardvlan.ip6gw
-	uci -q unset network.wizardvlan.ip6assign
-	uci -q unset network.wizardvlan.ip6hint
-	uci -q unset network.wizardvlan.ip6class
+	uci -q delete network.wizardvlan.ipaddr
+	uci -q delete network.wizardvlan.netmask
+	uci -q delete network.wizardvlan.gateway
+	uci -q delete network.wizardvlan.broadcast
+	uci -q delete network.wizardvlan.delegate
+	uci -q delete network.wizardvlan.dns
+	uci -q delete network.wizardvlan.defaultroute
+	uci -q delete network.wizardvlan.ip6addr
+	uci -q delete network.wizardvlan.ip6gw
+	uci -q delete network.wizardvlan.ip6assign
+	uci -q delete network.wizardvlan.ip6hint
+	uci -q delete network.wizardvlan.ip6class
 	changed=1
 fi
 

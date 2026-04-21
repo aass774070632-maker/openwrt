@@ -1,0 +1,5 @@
+ALemprator OTA smoke-test artifact
+Model: AR-07-102H
+Version: 1.1.0-test
+This file exists only to validate release delivery paths.
+Do not flash this artifact to devices.

@@ -1,0 +1,4 @@
+{
+	"config": "wireless",
+	"affects": [ "alemprator_firstboot" ]
+}

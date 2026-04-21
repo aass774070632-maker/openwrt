@@ -1,0 +1,128 @@
+#!/bin/sh
+
+strip_generated_suffix() {
+	local value="$1"
+
+	value="${value%_VLAN_5G}"
+	value="${value%_VLAN}"
+	value="${value%_5G}"
+	printf '%s' "$value"
+}
+
+find_ap_iface_by_network_band() {
+	local network_name="$1"
+	local band_name="$2"
+	local section
+	local device
+
+	for section in $(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.=]*\)=wifi-iface$/\1/p"); do
+		[ "$(uci -q get wireless.$section.mode)" = 'ap' ] || continue
+		[ "$(uci -q get wireless.$section.network)" = "$network_name" ] || continue
+
+		device="$(uci -q get wireless.$section.device)"
+		[ -n "$device" ] || continue
+		[ "$(uci -q get wireless.$device.band)" = "$band_name" ] || continue
+
+		printf '%s\n' "$section"
+		return 0
+	done
+
+	return 1
+}
+
+lan_2g="$(find_ap_iface_by_network_band lan 2g)"
+lan_5g="$(find_ap_iface_by_network_band lan 5g)"
+vlan_2g="$(find_ap_iface_by_network_band wizardvlan 2g)"
+vlan_5g="$(find_ap_iface_by_network_band wizardvlan 5g)"
+
+base_ssid="$(uci -q get setup.default.wifi_ssid)"
+[ -n "$base_ssid" ] || base_ssid="$(strip_generated_suffix "$(uci -q get wireless.$lan_2g.ssid)")"
+[ -n "$base_ssid" ] || base_ssid="$(strip_generated_suffix "$(uci -q get wireless.$lan_5g.ssid)")"
+[ -n "$base_ssid" ] || exit 0
+
+wifi_key="$(uci -q get setup.default.wifi_key)"
+[ -n "$wifi_key" ] || wifi_key="$(uci -q get wireless.$lan_2g.key)"
+[ -n "$wifi_key" ] || wifi_key="$(uci -q get wireless.$lan_5g.key)"
+
+mode='ap'
+if uci -q get wireless.wizard_uplink >/dev/null; then
+	mode='sta_wds'
+elif uci -q get wireless.wizard_mesh >/dev/null; then
+	mode='mesh'
+elif [ "$(uci -q get wireless.$lan_2g.wds)" = '1' ] || [ "$(uci -q get wireless.$lan_5g.wds)" = '1' ]; then
+	mode='ap_wds'
+fi
+
+is_vlan='0'
+[ -n "$vlan_2g$vlan_5g" ] && is_vlan='1'
+
+ssid_5g="$(uci -q get wireless.$lan_5g.ssid)"
+ssid_5g_mode='derived'
+ssid_5g_custom=''
+if [ -n "$ssid_5g" ] && [ "$ssid_5g" != "${base_ssid}_5G" ]; then
+	ssid_5g_mode='custom'
+	ssid_5g_custom="$ssid_5g"
+fi
+
+ssid_vlan=''
+ssid_vlan_2g="$(uci -q get wireless.$vlan_2g.ssid)"
+ssid_vlan_5g="$(uci -q get wireless.$vlan_5g.ssid)"
+if [ -n "$ssid_vlan_2g" ] && [ "$ssid_vlan_2g" != "${base_ssid}_VLAN" ]; then
+	ssid_vlan="$ssid_vlan_2g"
+elif [ -n "$ssid_vlan_5g" ]; then
+	derived_vlan_5g="${ssid_vlan_5g%_5G}"
+	if [ "$ssid_vlan_5g" != "$derived_vlan_5g" ] && [ "$derived_vlan_5g" != "${base_ssid}_VLAN" ]; then
+		ssid_vlan="$derived_vlan_5g"
+	fi
+fi
+
+channel_2g="$(uci -q get wireless.radio0.channel)"
+channel_5g="$(uci -q get wireless.radio1.channel)"
+htmode_2g="$(uci -q get wireless.radio0.htmode)"
+htmode_5g="$(uci -q get wireless.radio1.htmode)"
+[ -n "$channel_2g" ] || channel_2g='auto'
+[ -n "$channel_5g" ] || channel_5g='auto'
+
+mode_2g='ax'
+width_2g='20'
+case "$htmode_2g" in
+	HE40|HT40) mode_2g='ax'; [ "$htmode_2g" = 'HT40' ] && mode_2g='n'; width_2g='40' ;;
+	HE20|HT20) mode_2g='ax'; [ "$htmode_2g" = 'HT20' ] && mode_2g='n'; width_2g='20' ;;
+	*) ;;
+esac
+
+mode_5g='ax'
+width_5g='80'
+case "$htmode_5g" in
+	HE20) mode_5g='ax'; width_5g='20' ;;
+	HE40) mode_5g='ax'; width_5g='40' ;;
+	HE80|HE160) mode_5g='ax'; width_5g='80' ;;
+	VHT20) mode_5g='ac'; width_5g='20' ;;
+	VHT40) mode_5g='ac'; width_5g='40' ;;
+	VHT80|VHT160) mode_5g='ac'; width_5g='80' ;;
+	HT20) mode_5g='n'; width_5g='20' ;;
+	HT40) mode_5g='n'; width_5g='40' ;;
+	*) ;;
+esac
+
+uci -q batch <<EOF >/dev/null
+	set setup.default=setup
+	set setup.default.AlwSettings='AL'
+	set setup.default.mode='$mode'
+	set setup.default.wifi_ssid='$base_ssid'
+	set setup.default.wifi_ssid_5g_mode='$ssid_5g_mode'
+	set setup.default.wifi_ssid_5g='$ssid_5g_custom'
+	set setup.default.wifi_ssid_vlan='$ssid_vlan'
+	set setup.default.wifi_key='$wifi_key'
+	set setup.default.is_vlan='$is_vlan'
+	set setup.default.channel_2g='$channel_2g'
+	set setup.default.channel_5g='$channel_5g'
+	set setup.default.wifi_mode_2g='$mode_2g'
+	set setup.default.wifi_width_2g='$width_2g'
+	set setup.default.wifi_mode_5g='$mode_5g'
+	set setup.default.wifi_width_5g='$width_5g'
+	commit setup
+EOF
+
+rm -f /tmp/luci-indexcache
+exit 0

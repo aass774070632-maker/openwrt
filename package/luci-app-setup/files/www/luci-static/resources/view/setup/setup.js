@@ -40,9 +40,27 @@ var callSetPassword = rpc.declare({
 
 var WATCHCAT_SID = 'alemprator_periodic_reboot';
 var STEP_KEYS = [ 'lan', 'mode', 'wifi', 'vlan', 'channel' ];
+var WIZARD_BUILD_TAG = 'r84';
+var WIZARD_ROUTE = '/cgi-bin/luci/admin/applications/alemprator';
+var VIDEO_EXPLAIN_URL = 'https://www.facebook.com/people/%D8%AC%D9%84%D8%A7%D9%84-%D8%A7%D8%AD%D9%85%D8%AF-%D8%A7%D9%84%D9%82%D8%AD%D9%85/100010720113363/';
+var FIRSTBOOT_DEFAULT_NETWORK = 'alemprator_setup';
+var FIRSTBOOT_DEFAULT_WIRELESS = 'alemprator_firstboot';
 
 function notify(message) {
 	ui.addNotification(null, E('p', message));
+}
+
+function buildWizardUrl(lanIpaddr) {
+	var protocol = /^https?:$/.test(window.location.protocol || '') ? window.location.protocol : 'http:';
+	var host = String(lanIpaddr || '').trim() || window.location.hostname;
+
+	return protocol + '//' + host + WIZARD_ROUTE + '?v=' + encodeURIComponent(WIZARD_BUILD_TAG);
+}
+
+function scheduleWizardRedirect(lanIpaddr, delayMs) {
+	window.setTimeout(function() {
+		window.location.replace(buildWizardUrl(lanIpaddr));
+	}, delayMs || 0);
 }
 
 function isIPv4(value) {
@@ -50,7 +68,10 @@ function isIPv4(value) {
 }
 
 function strip5GSuffix(value) {
-	return String(value || '').replace(/[ _-]?5g(?:hz)?$/i, '');
+	return String(value || '')
+		.replace(/[ _-]?vlan[ _-]?5g(?:hz)?$/i, '')
+		.replace(/[ _-]?vlan$/i, '')
+		.replace(/[ _-]?5g(?:hz)?$/i, '');
 }
 
 function normalizeMode(value) {
@@ -77,7 +98,7 @@ function deriveVlanGateway(baseIp, vlanId) {
 function describeSecondaryVlanBinding(vlanId) {
 	var normalizedId = Math.min(Math.max(parseInt(vlanId, 10) || 10, 1), 4094);
 
-	return 'wizardvlan -> vlan_' + normalizedId + ' (' + _('Unmanaged') + ')';
+	return 'wizardvlan -> vlan_' + normalizedId + ' (' + _('غير مُدار') + ')';
 }
 
 function normalizeList(value) {
@@ -143,11 +164,39 @@ function findWifiIface(deviceName) {
 	return fallback;
 }
 
+function findLanApIface(deviceName) {
+	var sections = uci.sections('wireless', 'wifi-iface');
+	var i;
+
+	for (i = 0; i < sections.length; i++) {
+		var section = sections[i];
+
+		if (section.device != deviceName)
+			continue;
+
+		if ((section.mode == null || section.mode == 'ap') && section.network == 'lan')
+			return section['.name'];
+	}
+
+	return null;
+}
+
 function ensureWifiIface(deviceName) {
-	var ifaceName = findWifiIface(deviceName);
+	var ifaceName = findLanApIface(deviceName);
+	var networks;
 
 	if (ifaceName != null)
 		return ifaceName;
+
+	ifaceName = findWifiIface(deviceName);
+
+	if (ifaceName != null) {
+		networks = normalizeList(uci.get('wireless', ifaceName, 'network'));
+
+		// Do not reuse a pure wizardvlan iface as the primary LAN AP section.
+		if (networks.indexOf('lan') > -1 || networks.indexOf('wizardvlan') == -1)
+			return ifaceName;
+	}
 
 	ifaceName = uci.add('wireless', 'wifi-iface');
 	uci.set('wireless', ifaceName, 'device', deviceName);
@@ -164,12 +213,34 @@ function secondaryApSectionName(deviceName) {
 }
 
 function secondarySsid(baseSsid, band) {
-	var normalizedBase = String(baseSsid || 'OpenWrt').trim() || 'OpenWrt';
+	var state = (baseSsid != null && typeof baseSsid == 'object') ? baseSsid : null;
+	var normalizedBase = String(state ? state.wifiSsid : baseSsid || 'OpenWrt').trim() || 'OpenWrt';
 
 	if (band == '5g')
 		return normalizedBase + '_VLAN_5G';
 
 	return normalizedBase + '_VLAN';
+}
+
+function previewSecondaryBaseSsid(state) {
+	var manualBase = String(state ? state.wifiSsidVlan : '').trim();
+
+	if (manualBase)
+		return manualBase;
+
+	return '';
+}
+
+function previewSecondarySsid(state, band) {
+	var manualBase = previewSecondaryBaseSsid(state);
+
+	if (!manualBase)
+		return secondarySsid(state, band);
+
+	if (band == '5g')
+		return manualBase + '_5G';
+
+	return manualBase;
 }
 
 function primarySsid(baseSsid, band) {
@@ -199,11 +270,32 @@ function applyWifiIfaceFlag(conf, sid, optionName, enabled) {
 }
 
 function getLocalApPolicy(state, networkName) {
+	var requestedMode = normalizeMode(state && state.mode);
+	var hideLocalAp = (requestedMode == 'ap_wds' && state && state.isVlan);
+	var enableWds = (requestedMode == 'ap_wds' || requestedMode == 'sta_wds');
+
+	if (requestedMode == 'sta_wds')
+		hideLocalAp = true;
+
+	if (requestedMode == 'mesh' && state && !state.isVlan) {
+		enableWds = true;
+		hideLocalAp = true;
+	}
+
+	if (networkName == 'wizardvlan') {
+		return {
+			network: 'wizardvlan',
+			enableWds: false,
+			hidden: false,
+			isolate: true
+		};
+	}
+
 	return {
 		network: networkName || 'lan',
-		enableWds: (normalizeMode(state.mode) == 'ap_wds'),
-		hidden: null,
-		isolate: null
+		enableWds: enableWds,
+		hidden: hideLocalAp,
+		isolate: false
 	};
 }
 
@@ -261,19 +353,12 @@ function describeAppliedSecondaryNetworkResult(state, radios) {
 		return null;
 
 	if (!remainingCount)
-		return _('The secondary unmanaged VLAN bridge configuration was saved, but no radio remains available for a local AP in the selected mode, so no secondary Wi-Fi SSID was created. Primary LAN and backhaul stay on LAN.');
-
-	if (state.mode == 'ap_wds') {
-		if (remainingCount == 1)
-			return _('The secondary unmanaged VLAN bridge is active. Primary Wi-Fi stays on LAN, and the VLAN-backed secondary SSID is now served on the local AP on ') + bandLabel(onlyBand) + _(' with WDS enabled.');
-
-		return _('The secondary unmanaged VLAN bridge is active. Primary Wi-Fi stays on LAN, and the VLAN-backed secondary SSIDs are now served on both local AP radios with WDS enabled.');
-	}
+		return _('تم حفظ إعداد جسر VLAN الثانوي غير المُدار، لكن لا يوجد راديو متبقٍ متاح لنقطة وصول محلية في الوضع المحدد، لذا لم يتم إنشاء SSID واي فاي ثانوي. تبقى الشبكة الأساسية LAN والربط الصاعد على LAN.');
 
 	if (remainingCount == 1)
-		return _('The secondary unmanaged VLAN bridge is active. Primary Wi-Fi stays on LAN, and only the remaining local AP on ') + bandLabel(onlyBand) + _(' is serving the VLAN-backed secondary SSID.');
+		return _('الجسر الثانوي غير المُدار نشط. تبقى شبكة الواي فاي الأساسية على LAN، ونقطة الوصول المحلية المتبقية على ') + bandLabel(onlyBand) + _(' تخدم SSID ثانوي معزول مدعوم بـ VLAN.');
 
-	return _('The secondary unmanaged VLAN bridge is active. Primary Wi-Fi stays on LAN, and the VLAN-backed secondary SSIDs are now served on the remaining local AP radios.');
+	return _('الجسر الثانوي غير المُدار نشط. تبقى شبكة الواي فاي الأساسية على LAN، وتُخدم SSIDs الثانوية المعزولة المدعومة بـ VLAN الآن على راديوهات نقاط الوصول المحلية المتبقية.');
 }
 
 function describeAppliedModeResult(state, radios) {
@@ -285,36 +370,36 @@ function describeAppliedModeResult(state, radios) {
 
 	if (state.mode == 'ap_wds') {
 		if (!remainingBands.length)
-			return _('Access Point + WDS mode was saved, but no local AP radio is currently available for Wi-Fi service.');
+			return _('تم حفظ وضع نقطة الوصول + WDS، لكن لا يوجد حاليًا راديو محلي متاح لتقديم خدمة الواي فاي.');
 
 		if (remainingBands.length == 1)
-			return _('Access Point + WDS mode has been applied on the local AP on ') + bandLabel(onlyBand) + _('.');
+			return _('تم تطبيق وضع نقطة الوصول + WDS على نقطة الوصول المحلية على ') + bandLabel(onlyBand) + _('.');
 
-		return _('Access Point + WDS mode has been applied on both local AP radios.');
+		return _('تم تطبيق وضع نقطة الوصول + WDS على راديوي نقطة الوصول المحليين.');
 	}
 
 	if (state.mode == 'sta_wds') {
 		if (!remainingBands.length)
-			return _('Client + WDS is using ') + bandLabel(uplinkBand) + _(' for the uplink, so no local AP remains active on Wi-Fi. LAN access remains available.');
+			return _('وضع عميل + WDS يستخدم ') + bandLabel(uplinkBand) + _(' كربط صاعد، لذلك لا تبقى أي نقطة وصول محلية نشطة على الواي فاي. ويظل الوصول عبر LAN متاحًا.');
 
 		if (remainingBands.length == 1)
-			return _('Client + WDS mode has been applied on ') + bandLabel(uplinkBand) + _(' for the uplink, while the local AP on ') + bandLabel(onlyBand) + _(' remains active.');
+			return _('تم تطبيق وضع عميل + WDS باستخدام ') + bandLabel(uplinkBand) + _(' للربط الصاعد، بينما تبقى نقطة الوصول المحلية على ') + bandLabel(onlyBand) + _(' نشطة.');
 
-		return _('Client + WDS mode has been applied on ') + bandLabel(uplinkBand) + _(' for the uplink, while the remaining local AP radios stay active.');
+		return _('تم تطبيق وضع عميل + WDS باستخدام ') + bandLabel(uplinkBand) + _(' للربط الصاعد، بينما تبقى الراديوهات المحلية الأخرى نشطة كنقاط وصول.');
 	}
 
 	if (state.mode == 'mesh') {
 		if (!remainingBands.length)
-			return _('Mesh is using ') + bandLabel(meshBand) + _(' as the backhaul radio, so no local AP remains active on Wi-Fi. LAN access remains available.');
+			return _('وضع الميش يستخدم ') + bandLabel(meshBand) + _(' كراديو backhaul، لذلك لا تبقى أي نقطة وصول محلية نشطة على الواي فاي. ويظل الوصول عبر LAN متاحًا.');
 
 		if (remainingBands.length == 1)
-			return _('Mesh mode has been applied on ') + bandLabel(meshBand) + _(' as the backhaul radio, while the local AP on ') + bandLabel(onlyBand) + _(' remains active.');
+			return _('تم تطبيق وضع الميش باستخدام ') + bandLabel(meshBand) + _(' كراديو backhaul، بينما تبقى نقطة الوصول المحلية على ') + bandLabel(onlyBand) + _(' نشطة.');
 
-		return _('Mesh mode has been applied on ') + bandLabel(meshBand) + _(' as the backhaul radio, while the remaining local AP radios stay active.');
+		return _('تم تطبيق وضع الميش باستخدام ') + bandLabel(meshBand) + _(' كراديو backhaul، بينما تبقى الراديوهات المحلية الأخرى نشطة كنقاط وصول.');
 	}
 
 	if (modeNeedsDeferredApply(state.mode))
-		return _('The selected operating mode was saved, but its specialized network behavior will be added in a later stage. Wireless remains on Access Point behavior for now.');
+		return _('تم حفظ وضع التشغيل المحدد، لكن سلوكه الشبكي المتخصص سيُضاف في مرحلة لاحقة. ويبقى الواي فاي حاليًا على سلوك نقطة الوصول.');
 
 	return null;
 }
@@ -333,9 +418,9 @@ function describeReconnectHint(state, radios, oldBaseSsid) {
 	});
 
 	if (activeSsids.length == 1)
-		return _('Reconnect manually to the active local SSID: ') + activeSsids[0] + _('.');
+		return _('أعد الاتصال يدويًا بشبكة SSID المحلية النشطة: ') + activeSsids[0] + _('.');
 
-	return _('Reconnect manually to one of the active local SSIDs: ') + activeSsids.join(', ') + _('.');
+	return _('أعد الاتصال يدويًا بإحدى شبكات SSID المحلية النشطة: ') + activeSsids.join(', ') + _('.');
 }
 
 function describePrimaryWifiPlan(state, radios) {
@@ -344,34 +429,43 @@ function describePrimaryWifiPlan(state, radios) {
 	var secondBand = remainingBands[1];
 
 	if (!remainingBands.length)
-		return _('In the selected mode, no local primary Wi-Fi SSID will remain active. LAN access stays available.');
+		return _('في وضع التشغيل المحدد لن تبقى أي شبكة واي فاي أساسية محلية نشطة، وسيظل الوصول متاحا عبر LAN.');
 
 	if (remainingBands.length == 1)
-		return _('The active local primary SSID will be ') + primarySsid(state, firstBand) + _(' on ') + bandLabel(firstBand) + _('.');
+		return _('اسم الشبكة الأساسية المحلية النشطة سيكون ') + primarySsid(state, firstBand) + _(' على ') + bandLabel(firstBand) + _('.');
 
-	return _('The local primary SSIDs will be ') + primarySsid(state, firstBand) + _(' on ') + bandLabel(firstBand) + _(' and ') + primarySsid(state, secondBand) + _(' on ') + bandLabel(secondBand) + _('.');
+	return _('أسماء الشبكات الأساسية المحلية ستكون ') + primarySsid(state, firstBand) + _(' على ') + bandLabel(firstBand) + _(' و ') + primarySsid(state, secondBand) + _(' على ') + bandLabel(secondBand) + _('.');
 }
 
 function describePrimaryWifiNamingHelp(state, radios) {
 	var remainingBands = getRemainingLocalBands(radios, state);
+	var automatic5gName = primarySsid({
+		wifiSsid: state ? state.wifiSsid : '',
+		wifiSsid5gMode: 'derived',
+		wifiSsid5g: ''
+	}, '5g');
 
 	if (!remainingBands.length)
-		return _('In this mode, no local primary Wi-Fi SSID remains active. The base name is still saved, and LAN access stays available.');
+		return _('في هذا الوضع لن تبقى أي شبكة واي فاي أساسية محلية نشطة. مع ذلك سيبقى الاسم الأساسي محفوظا، وسيظل الوصول متاحا عبر LAN.');
 
 	if (remainingBands.length == 1) {
 		if (remainingBands[0] == '5g')
-			return _('In this mode, only the 5GHz radio remains available for the local AP, so the active local primary SSID uses the generated 5GHz name.');
+			return (state && state.wifiSsid5gMode == 'custom')
+				? _('في هذا الوضع سيبقى فقط راديو 5GHz متاحا كنقطة وصول محلية، لذلك سيكون الاسم الأساسي الفعلي هو الاسم المخصص الذي تدخله هنا.')
+				: _('في هذا الوضع سيبقى فقط راديو 5GHz متاحا كنقطة وصول محلية، لذلك سيُنشأ الاسم الأساسي الفعلي تلقائيا بهذا الشكل: ') + automatic5gName + _(' .');
 
-		return _('In this mode, only the 2.4GHz radio remains available for the local AP, so the active local primary SSID uses the base name.');
+		return _('في هذا الوضع سيبقى فقط راديو 2.4GHz متاحا كنقطة وصول محلية، لذلك سيُستخدم الاسم الأساسي كما هو.');
 	}
 
-	return _('The 2.4GHz radio uses the base name, and the 5GHz name is generated automatically.');
+	if (state && state.wifiSsid5gMode == 'custom')
+		return _('سيستخدم راديو 2.4GHz الاسم الأساسي، بينما سيستخدم راديو 5GHz الاسم المخصص الذي تدخله هنا.');
+
+	return _('سيستخدم راديو 2.4GHz الاسم الأساسي، وسيُنشأ اسم 5GHz تلقائيا بإضافة اللاحقة المناسبة. الاسم المتوقع حاليا هو: ') + automatic5gName + _(' .');
 }
 
 function describeSecondaryNetworkNotice(state, radios) {
 	var remainingBands = getRemainingLocalBands(radios, state);
 	var onlyBand = remainingBands[0];
-	var baseSsid = String(state.wifiSsid || '').trim() || 'OpenWrt';
 	var firstBand = remainingBands[0];
 	var secondBand = remainingBands[1];
 
@@ -379,54 +473,46 @@ function describeSecondaryNetworkNotice(state, radios) {
 		return '';
 
 	if (!remainingBands.length)
-		return _('In this mode, no local AP radio remains available for an extra secondary SSID. The unmanaged secondary VLAN bridge can still be configured, but no secondary Wi-Fi SSID will be broadcast unless a local AP radio remains available.');
+		return _('في هذا الوضع لن يبقى أي راديو لنقطة وصول محلية متاحًا لإضافة SSID ثانوي. ما زال يمكن إعداد جسر VLAN الثانوي غير المُدار، لكن لن يتم بث أي شبكة واي فاي ثانوية ما لم يبقَ راديو محلي متاح.');
 
 	if (remainingBands.length == 1) {
-		if (state.mode == 'ap_wds')
-			return _('Only the remaining local AP on ') + bandLabel(onlyBand) + _(' can host the secondary VLAN-backed SSID ') + secondarySsid(baseSsid, onlyBand) + _(' on the unmanaged wizardvlan bridge in this mode, and that secondary local AP interface will also keep WDS enabled.');
-
-		return _('Only the remaining local AP on ') + bandLabel(onlyBand) + _(' can host the secondary VLAN-backed SSID ') + secondarySsid(baseSsid, onlyBand) + _(' on the unmanaged wizardvlan bridge in this mode. Radios reserved for uplink or Mesh backhaul stay unchanged.');
+		return _('فقط نقطة الوصول المحلية المتبقية على ') + bandLabel(onlyBand) + _(' يمكنها استضافة SSID الثانوي المعزول ') + previewSecondarySsid(state, onlyBand) + _(' المرتبط بـ VLAN على جسر wizardvlan غير المُدار في هذا الوضع. أما الراديوهات المحجوزة للربط الصاعد أو Mesh backhaul فتبقى بدون تغيير.');
 	}
 
-	if (state.mode == 'ap_wds')
-		return _('Both remaining local AP radios can host the secondary VLAN-backed SSIDs ') + secondarySsid(baseSsid, firstBand) + _(' on ') + bandLabel(firstBand) + _(' and ') + secondarySsid(baseSsid, secondBand) + _(' on ') + bandLabel(secondBand) + _(' on the unmanaged wizardvlan bridge in this mode, and those secondary local AP interfaces will also keep WDS enabled.');
-
-	return _('The remaining local AP radios can host the secondary VLAN-backed SSIDs ') + secondarySsid(baseSsid, firstBand) + _(' on ') + bandLabel(firstBand) + _(' and ') + secondarySsid(baseSsid, secondBand) + _(' on ') + bandLabel(secondBand) + _(' on the unmanaged wizardvlan bridge in this mode while primary LAN service and any uplink or Mesh backhaul stay unchanged.');
+	return _('يمكن للراديوهات المحلية المتبقية لنقاط الوصول استضافة شبكات SSID الثانوية المعزولة المرتبطة بـ VLAN: ') + previewSecondarySsid(state, firstBand) + _(' على ') + bandLabel(firstBand) + _(' و ') + previewSecondarySsid(state, secondBand) + _(' على ') + bandLabel(secondBand) + _(' فوق جسر wizardvlan غير المُدار في هذا الوضع، مع بقاء خدمة LAN الأساسية وأي ربط صاعد أو Mesh backhaul بدون تغيير.');
 }
 
 function describeSecondarySubnetHelp(state, radios) {
 	var remainingBands = getRemainingLocalBands(radios, state);
 	var onlyBand = remainingBands[0];
-	var baseSsid = String(state.wifiSsid || '').trim() || 'OpenWrt';
 	var firstBand = remainingBands[0];
 	var secondBand = remainingBands[1];
 
 	if (!state.isVlan)
-		return _('When enabled, the secondary SSIDs will attach to this unmanaged VLAN bridge while the main LAN remains unchanged on the primary SSIDs.');
+		return _('عند التفعيل، سترتبط شبكات SSID الثانوية بهذا الجسر غير المُدار لـ VLAN بينما تبقى الشبكة الرئيسية LAN بدون تغيير على شبكات SSID الأساسية.');
 
 	if (!remainingBands.length)
-		return _('This unmanaged VLAN bridge will be prepared for the secondary VLAN configuration, but no secondary Wi-Fi SSID can use it unless a local AP radio remains available in the selected mode.');
+		return _('سيُجهز هذا الجسر غير المُدار لـ VLAN من أجل إعداد الشبكة الثانوية، لكن لن تتمكن أي شبكة واي فاي ثانوية من استخدامه ما لم يبقَ راديو محلي لنقطة وصول متاحًا في الوضع المحدد.');
 
 	if (remainingBands.length == 1)
-		return _('Clients joining the secondary SSID ') + secondarySsid(baseSsid, onlyBand) + _(' on ') + bandLabel(onlyBand) + _(' will attach to this unmanaged VLAN bridge while the main LAN remains unchanged on the primary SSIDs.');
+		return _('سيتم ربط العملاء الذين ينضمون إلى شبكة SSID الثانوية ') + previewSecondarySsid(state, onlyBand) + _(' على ') + bandLabel(onlyBand) + _(' بهذا الجسر غير المُدار لـ VLAN، بينما تبقى الشبكة الرئيسية LAN بدون تغيير على شبكات SSID الأساسية.');
 
-	return _('Clients joining the secondary SSIDs ') + secondarySsid(baseSsid, firstBand) + _(' on ') + bandLabel(firstBand) + _(' and ') + secondarySsid(baseSsid, secondBand) + _(' on ') + bandLabel(secondBand) + _(' will attach to this unmanaged VLAN bridge while the main LAN remains unchanged on the primary SSIDs.');
+	return _('سيتم ربط العملاء الذين ينضمون إلى شبكتي SSID الثانويتين ') + previewSecondarySsid(state, firstBand) + _(' على ') + bandLabel(firstBand) + _(' و ') + previewSecondarySsid(state, secondBand) + _(' على ') + bandLabel(secondBand) + _(' بهذا الجسر غير المُدار لـ VLAN، بينما تبقى الشبكة الرئيسية LAN بدون تغيير على شبكات SSID الأساسية.');
 }
 
 function describeSecondaryNetworkIntro(state, radios) {
 	var remainingBands = getRemainingLocalBands(radios, state);
 	var onlyBand = remainingBands[0];
-	var baseSsid = String(state.wifiSsid || '').trim() || 'OpenWrt';
 	var firstBand = remainingBands[0];
 	var secondBand = remainingBands[1];
 
 	if (!remainingBands.length)
-		return _('Your primary LAN and any mode-specific backhaul remain on LAN. In the selected mode, this step can prepare an extra unmanaged VLAN bridge, but no secondary Wi-Fi SSID can be broadcast because no local AP radio remains available.');
+		return _('ستبقى الشبكة الرئيسية LAN وأي backhaul خاص بالوضع المحدد على LAN. في هذا الوضع يمكن لهذه الخطوة تجهيز جسر VLAN إضافي غير مُدار، لكن لن يتم بث أي SSID ثانوي لأن أي راديو محلي لنقطة وصول لم يعد متاحًا.');
 
 	if (remainingBands.length == 1)
-		return _('Your primary LAN and any mode-specific backhaul remain on LAN. In the selected mode, this step adds an extra unmanaged VLAN-backed Wi-Fi attachment using the secondary SSID ') + secondarySsid(baseSsid, onlyBand) + _(' on the remaining local AP on ') + bandLabel(onlyBand) + _('.');
+		return _('ستبقى الشبكة الرئيسية LAN وأي backhaul خاص بالوضع المحدد على LAN. في هذا الوضع تضيف هذه الخطوة ربط واي فاي إضافيًا غير مُدار ومدعومًا بـ VLAN باستخدام SSID الثانوي ') + previewSecondarySsid(state, onlyBand) + _(' على نقطة الوصول المحلية المتبقية على ') + bandLabel(onlyBand) + _('.');
 
-	return _('Your primary LAN and any mode-specific backhaul remain on LAN. This step adds an extra unmanaged VLAN-backed Wi-Fi attachment using the secondary SSIDs ') + secondarySsid(baseSsid, firstBand) + _(' on ') + bandLabel(firstBand) + _(' and ') + secondarySsid(baseSsid, secondBand) + _(' on ') + bandLabel(secondBand) + _(' without moving the main Wi-Fi away from LAN.');
+	return _('ستبقى الشبكة الرئيسية LAN وأي backhaul خاص بالوضع المحدد على LAN. تضيف هذه الخطوة ربط واي فاي إضافيًا غير مُدار ومدعومًا بـ VLAN باستخدام شبكتي SSID الثانويتين ') + previewSecondarySsid(state, firstBand) + _(' على ') + bandLabel(firstBand) + _(' و ') + previewSecondarySsid(state, secondBand) + _(' على ') + bandLabel(secondBand) + _(' بدون نقل الواي فاي الرئيسي بعيدًا عن LAN.');
 }
 
 function describeUplinkSettingsHelp(state, radios) {
@@ -436,12 +522,12 @@ function describeUplinkSettingsHelp(state, radios) {
 	var onlyBand = remainingBands[0];
 
 	if (!remainingBands.length)
-		return _('These values control the real uplink used by Client + WDS mode. The selected radio on ') + bandLabel(uplinkBand) + _(' becomes the client bridge uplink, and no local AP radio remains active on Wi-Fi in this configuration.');
+		return _('تتحكم هذه القيم في الربط الصاعد الفعلي المستخدم في وضع Client + WDS. سيصبح الراديو المحدد على ') + bandLabel(uplinkBand) + _(' هو ربط الجسر العميل، ولن تبقى أي نقطة وصول محلية نشطة على الواي فاي في هذا التكوين.');
 
 	if (remainingBands.length == 1)
-		return _('These values control the real uplink used by Client + WDS mode. The selected radio on ') + bandLabel(uplinkBand) + _(' becomes the client bridge uplink, and the remaining local AP on ') + bandLabel(onlyBand) + _(' stays available for the local Wi-Fi network.');
+		return _('تتحكم هذه القيم في الربط الصاعد الفعلي المستخدم في وضع Client + WDS. سيصبح الراديو المحدد على ') + bandLabel(uplinkBand) + _(' هو ربط الجسر العميل، بينما ستبقى نقطة الوصول المحلية المتبقية على ') + bandLabel(onlyBand) + _(' متاحة لشبكة الواي فاي المحلية.');
 
-	return _('These values control the real uplink used by Client + WDS mode. The selected radio becomes the client bridge uplink, while any remaining radio stays available for the local AP.');
+	return _('تتحكم هذه القيم في الربط الصاعد الفعلي المستخدم في وضع Client + WDS. سيصبح الراديو المحدد هو ربط الجسر العميل، بينما يبقى أي راديو متبقٍ متاحًا لنقطة الوصول المحلية.');
 }
 
 function describeMeshSettingsHelp(state, radios) {
@@ -451,12 +537,12 @@ function describeMeshSettingsHelp(state, radios) {
 	var onlyBand = remainingBands[0];
 
 	if (!remainingBands.length)
-		return _('The selected Mesh radio on ') + bandLabel(meshBand) + _(' joins or creates the Mesh, and no local AP radio remains active on Wi-Fi in this configuration.');
+		return _('سينضم راديو Mesh المحدد على ') + bandLabel(meshBand) + _(' إلى شبكة الـ Mesh أو ينشئها، ولن تبقى أي نقطة وصول محلية نشطة على الواي فاي في هذا التكوين.');
 
 	if (remainingBands.length == 1)
-		return _('The selected Mesh radio on ') + bandLabel(meshBand) + _(' joins or creates the Mesh, while the remaining local AP on ') + bandLabel(onlyBand) + _(' stays available for the local Wi-Fi network.');
+		return _('سينضم راديو Mesh المحدد على ') + bandLabel(meshBand) + _(' إلى شبكة الـ Mesh أو ينشئها، بينما تبقى نقطة الوصول المحلية المتبقية على ') + bandLabel(onlyBand) + _(' متاحة لشبكة الواي فاي المحلية.');
 
-	return _('The selected Mesh radio joins or creates a Mesh on the chosen band, while any remaining radio stays available for the local AP.');
+	return _('سينضم راديو Mesh المحدد إلى شبكة Mesh أو ينشئها على النطاق المختار، بينما يبقى أي راديو متبقٍ متاحًا لنقطة الوصول المحلية.');
 }
 
 function describeMeshChannelHelp(state, radios) {
@@ -465,9 +551,9 @@ function describeMeshChannelHelp(state, radios) {
 	var meshChannel = meshBand == '5g' ? state.channel5g : state.channel2g;
 
 	if (meshChannel && meshChannel != 'auto')
-		return _('Mesh will use the fixed ') + bandLabel(meshBand) + _(' channel ') + meshChannel + _('.');
+		return _('ستستخدم شبكة Mesh القناة الثابتة ') + meshChannel + _(' على ') + bandLabel(meshBand) + _('.');
 
-	return _('Mesh requires a fixed channel on ') + bandLabel(meshBand) + _('. Auto cannot be used for the Mesh band.');
+	return _('تتطلب شبكة Mesh قناة ثابتة على ') + bandLabel(meshBand) + _('، ولا يمكن استخدام Auto لهذا النطاق.');
 }
 
 function configureApIface(sid, deviceName, networkName, ssid, key, enableWds) {
@@ -483,6 +569,7 @@ function configureApIface(sid, deviceName, networkName, ssid, key, enableWds) {
 	uci.set('wireless', sid, 'disabled', '0');
 	uci.set('wireless', sid, 'ssid', ssid);
 	uci.unset('wireless', sid, 'mesh_id');
+	uci.set('wireless', sid, 'disassoc_low_ack', '0');
 	setWifiSecurity('wireless', sid, key);
 
 	if (policy.enableWds)
@@ -590,7 +677,7 @@ function formatRebootPeriod(hours) {
 }
 
 function radioLabel(device) {
-	var label = _('Radio') + ' ' + device['.name'];
+	var label = _('الراديو') + ' ' + device['.name'];
 
 	if (device.band)
 		label += ' (' + String(device.band).toUpperCase() + ')';
@@ -600,9 +687,9 @@ function radioLabel(device) {
 
 function bandLabel(band) {
 	if (band == '5g')
-		return _('5GHz radio');
+		return _('راديو 5GHz');
 
-	return _('2.4GHz radio');
+	return _('راديو 2.4GHz');
 }
 
 function getRadioByBand(radios, band) {
@@ -622,8 +709,132 @@ function getRadioByBand(radios, band) {
 	return null;
 }
 
+function wifiModeChoices(band) {
+	if (band == '2g') {
+		return [
+			{ value: 'ax', label: 'AX' },
+			{ value: 'n', label: 'N' }
+		];
+	}
+
+	return [
+		{ value: 'ax', label: 'AX' },
+		{ value: 'ac', label: 'AC' },
+		{ value: 'n', label: 'N' }
+	];
+}
+
+function defaultWifiWidth(band, mode) {
+	if (band == '2g')
+		return '20';
+
+	if (mode == 'n')
+		return '40';
+
+	return '80';
+}
+
+function wifiWidthChoices(band, mode) {
+	var values = (band == '2g' || mode == 'n')
+		? [ '20', '40' ]
+		: [ '20', '40', '80' ];
+
+	return values.map(function(value) {
+		return { value: value, label: value + ' MHz' };
+	});
+}
+
+function normalizeWifiModeForBand(band, value) {
+	var normalized = String(value || '').toLowerCase();
+	var allowed = wifiModeChoices(band).map(function(choice) { return choice.value; });
+
+	if (allowed.indexOf(normalized) > -1)
+		return normalized;
+
+	return 'ax';
+}
+
+function normalizeWifiWidthForBand(band, mode, value) {
+	var normalized = String(value || '');
+	var allowed = wifiWidthChoices(band, mode).map(function(choice) { return choice.value; });
+
+	if (allowed.indexOf(normalized) > -1)
+		return normalized;
+
+	return defaultWifiWidth(band, mode);
+}
+
+function inferWifiModeFromHtmode(band, htmode) {
+	var normalized = String(htmode || '').toUpperCase();
+
+	if (normalized.indexOf('HE') === 0 || normalized.indexOf('EHT') === 0)
+		return 'ax';
+
+	if (normalized.indexOf('VHT') === 0)
+		return (band == '5g') ? 'ac' : 'n';
+
+	if (normalized.indexOf('HT') === 0)
+		return 'n';
+
+	return 'ax';
+}
+
+function inferWifiWidthFromHtmode(band, htmode) {
+	var normalized = String(htmode || '').toUpperCase();
+	var inferredMode = inferWifiModeFromHtmode(band, htmode);
+
+	if (normalized.indexOf('160') > -1 || normalized.indexOf('80') > -1)
+		return normalizeWifiWidthForBand(band, inferredMode, '80');
+
+	if (normalized.indexOf('40') > -1)
+		return normalizeWifiWidthForBand(band, inferredMode, '40');
+
+	if (normalized.indexOf('20') > -1)
+		return normalizeWifiWidthForBand(band, inferredMode, '20');
+
+	return defaultWifiWidth(band, inferredMode);
+}
+
+function wifiHtmodeFromSelection(band, mode, width) {
+	var normalizedMode = normalizeWifiModeForBand(band, mode);
+	var normalizedWidth = normalizeWifiWidthForBand(band, normalizedMode, width);
+
+	if (band == '2g') {
+		if (normalizedMode == 'n')
+			return normalizedWidth == '40' ? 'HT40' : 'HT20';
+
+		return normalizedWidth == '40' ? 'HE40' : 'HE20';
+	}
+
+	if (normalizedMode == 'n')
+		return normalizedWidth == '40' ? 'HT40' : 'HT20';
+
+	if (normalizedMode == 'ac') {
+		if (normalizedWidth == '80')
+			return 'VHT80';
+
+		return normalizedWidth == '40' ? 'VHT40' : 'VHT20';
+	}
+
+	if (normalizedWidth == '80')
+		return 'HE80';
+
+	return normalizedWidth == '40' ? 'HE40' : 'HE20';
+}
+
+function applyRadioHtmode(radio, band, state) {
+	var radioName = radio && radio['.name'];
+	var modeKey = band == '5g' ? 'wifiMode5g' : 'wifiMode2g';
+	var widthKey = band == '5g' ? 'wifiWidth5g' : 'wifiWidth2g';
+
+	if (!radioName)
+		return;
+
+	uci.set('wireless', radioName, 'htmode', wifiHtmodeFromSelection(band, state[modeKey], state[widthKey]));
+}
+
 function channelChoices(band, freqlist) {
-	var choices = [ { value: 'auto', label: _('Auto') } ];
+	var choices = [ { value: 'auto', label: _('تلقائي') } ];
 	var seen = { auto: true };
 	var fallback;
 
@@ -681,7 +892,7 @@ function renderWirelessSummary(status) {
 	var i;
 
 	if (!keys.length)
-		return E('p', _('No wireless runtime information is currently available.'));
+		return E('p', _('لا تتوفر حاليًا معلومات تشغيل مباشرة عن الواي فاي.'));
 
 	for (i = 0; i < keys.length; i++) {
 		var radioName = keys[i];
@@ -694,13 +905,13 @@ function renderWirelessSummary(status) {
 			var iface = interfaces[j] || {};
 			var ssid = iface.ssid || (iface.config && iface.config.ssid) || '?';
 			var mode = iface.mode || (iface.config && iface.config.mode) || '?';
-			var state = iface.up ? _('up') : _('down');
+			var state = iface.up ? _('نشط') : _('متوقف');
 
 			ifaceSummary.push(ssid + ' [' + mode + ', ' + state + ']');
 		}
 
 		if (!ifaceSummary.length)
-			ifaceSummary.push(radio.up ? _('up') : _('down'));
+			ifaceSummary.push(radio.up ? _('نشط') : _('متوقف'));
 
 		entries.push(E('li', radioLabel({ '.name': radioName, band: radio.config && radio.config.band }) + ': ' + ifaceSummary.join(', ')));
 	}
@@ -720,26 +931,62 @@ function renderStatusPanel(board, lanStatus, wirelessStatus) {
 	}
 
 	return E('div', { 'class': 'cbi-section' }, [
-		E('h3', _('Runtime Status')),
+		E('h3', _('الحالة الحالية')),
 		E('div', { 'class': 'cbi-section-node' }, [
 			E('p', [
-				E('strong', _('Model') + ': '),
+				E('strong', _('الموديل') + ': '),
 				(board && board.model) || (board && board.system) || '-'
 			]),
 			E('p', [
-				E('strong', _('Target') + ': '),
+				E('strong', _('المنصة') + ': '),
 				(board && board.release && board.release.target) || '-'
 			]),
 			E('p', [
-				E('strong', _('LAN address') + ': '),
+				E('strong', _('عنوان LAN') + ': '),
 				ipv4
 			]),
 			E('div', [
-				E('strong', _('Wireless') + ': '),
+				E('strong', _('الواي فاي') + ': '),
 				renderWirelessSummary(wirelessStatus)
 			])
 		])
 	]);
+}
+
+function renderWizardCard(title, description, children) {
+	var headerChildren = [ E('h4', { 'style': 'margin:0; color:#102a43;' }, title) ];
+	var bodyChildren = Array.isArray(children) ? children.filter(function(child) { return child != null; }) : [];
+
+	if (description)
+		headerChildren.push(E('p', { 'style': 'margin:6px 0 0 0; color:#52606d;' }, description));
+
+	return E('div', {
+		'style': 'margin-top:14px; padding:14px 16px; border:1px solid #d8dee9; border-radius:12px; background:linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%); box-shadow:0 1px 2px rgba(15,23,42,0.04);'
+	}, [
+		E('div', { 'style': 'margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #e5e7eb;' }, headerChildren),
+		E('div', bodyChildren)
+	]);
+}
+
+function disableFirstbootProvisioning() {
+	var enabled = uci.get('alemprator_firstboot', 'main', 'enabled');
+	var networkSection = uci.get('alemprator_firstboot', 'main', 'network_section') || FIRSTBOOT_DEFAULT_NETWORK;
+	var wirelessSection = uci.get('alemprator_firstboot', 'main', 'wireless_section') || FIRSTBOOT_DEFAULT_WIRELESS;
+	var dhcpSection = uci.get('alemprator_firstboot', 'main', 'dhcp_section') || networkSection;
+	var firewallSection = uci.get('alemprator_firstboot', 'main', 'firewall_section') || networkSection;
+
+	if (enabled != '1')
+		return false;
+
+	uci.remove('dhcp', dhcpSection);
+	uci.remove('network', networkSection);
+	uci.remove('wireless', wirelessSection);
+	uci.remove('firewall', firewallSection);
+	uci.set('network', 'lan', 'proto', 'static');
+	uci.unset('dhcp', 'lan', 'ignore');
+	uci.set('alemprator_firstboot', 'main', 'enabled', '0');
+
+	return true;
 }
 
 return view.extend({
@@ -748,6 +995,7 @@ return view.extend({
 			L.resolveDefault(callBoard(), {}),
 			L.resolveDefault(callLanStatus(), {}),
 			L.resolveDefault(callWirelessStatus(), {}),
+			L.resolveDefault(uci.load('alemprator_firstboot'), null),
 			uci.load('setup'),
 			L.resolveDefault(uci.load('watchcat'), null),
 			uci.load('network'),
@@ -785,7 +1033,13 @@ return view.extend({
 	readState: function(radios) {
 		var radio2g = getRadioByBand(radios, '2g');
 		var radio5g = getRadioByBand(radios, '5g');
-		var iface2g = radio2g ? findWifiIface(radio2g['.name']) : null;
+		var htmode2g = radio2g ? (uci.get('wireless', radio2g['.name'], 'htmode') || '') : '';
+		var htmode5g = radio5g ? (uci.get('wireless', radio5g['.name'], 'htmode') || '') : '';
+		var firstbootEnabled = uci.get('alemprator_firstboot', 'main', 'enabled') == '1';
+		var firstbootLanIpaddr = uci.get('alemprator_firstboot', 'main', 'lan_ipaddr') || '';
+		var firstbootLanNetmask = uci.get('alemprator_firstboot', 'main', 'lan_netmask') || '';
+		var iface2g = radio2g ? (findLanApIface(radio2g['.name']) || findWifiIface(radio2g['.name'])) : null;
+		var iface5g = radio5g ? (findLanApIface(radio5g['.name']) || findWifiIface(radio5g['.name'])) : null;
 		var mode = normalizeMode(uci.get('setup', 'default', 'mode'));
 		var baseSsid = uci.get('setup', 'default', 'wifi_ssid') || '';
 		var key = uci.get('setup', 'default', 'wifi_key') || '';
@@ -794,20 +1048,25 @@ return view.extend({
 
 		if (!baseSsid && iface2g)
 			baseSsid = strip5GSuffix(uci.get('wireless', iface2g, 'ssid') || '');
+		else if (!baseSsid && iface5g)
+			baseSsid = strip5GSuffix(uci.get('wireless', iface5g, 'ssid') || '');
 
 		if (!baseSsid)
 			baseSsid = 'OpenWrt';
 
 		if (!key && iface2g)
 			key = uci.get('wireless', iface2g, 'key') || '';
+		else if (!key && iface5g)
+			key = uci.get('wireless', iface5g, 'key') || '';
 
 		return {
-			lanIpaddr: uci.get('network', 'lan', 'ipaddr') || uci.get('setup', 'default', 'lan_ipaddr') || '192.168.1.1',
-			lanNetmask: uci.get('network', 'lan', 'netmask') || uci.get('setup', 'default', 'lan_netmask') || '255.255.255.0',
+			lanIpaddr: (firstbootEnabled ? firstbootLanIpaddr : '') || uci.get('network', 'lan', 'ipaddr') || uci.get('setup', 'default', 'lan_ipaddr') || '192.168.1.1',
+			lanNetmask: (firstbootEnabled ? firstbootLanNetmask : '') || uci.get('network', 'lan', 'netmask') || uci.get('setup', 'default', 'lan_netmask') || '255.255.255.0',
 			mode: mode,
 			wifiSsid: baseSsid,
 			wifiSsid5gMode: uci.get('setup', 'default', 'wifi_ssid_5g_mode') == 'custom' ? 'custom' : 'derived',
 			wifiSsid5g: uci.get('setup', 'default', 'wifi_ssid_5g') || '',
+			wifiSsidVlan: uci.get('setup', 'default', 'wifi_ssid_vlan') || '',
 			wifiKey: key,
 			uplinkSsid: uci.get('setup', 'default', 'uplink_ssid') || '',
 			uplinkKey: uci.get('setup', 'default', 'uplink_key') || '',
@@ -819,6 +1078,10 @@ return view.extend({
 			vlanId: uci.get('setup', 'default', 'vlan_id') || '10',
 			channel2g: (radio2g && uci.get('wireless', radio2g['.name'], 'channel')) || uci.get('setup', 'default', 'channel_2g') || 'auto',
 			channel5g: (radio5g && uci.get('wireless', radio5g['.name'], 'channel')) || uci.get('setup', 'default', 'channel_5g') || 'auto',
+			wifiMode2g: normalizeWifiModeForBand('2g', uci.get('setup', 'default', 'wifi_mode_2g') || inferWifiModeFromHtmode('2g', htmode2g)),
+			wifiWidth2g: normalizeWifiWidthForBand('2g', uci.get('setup', 'default', 'wifi_mode_2g') || inferWifiModeFromHtmode('2g', htmode2g), uci.get('setup', 'default', 'wifi_width_2g') || inferWifiWidthFromHtmode('2g', htmode2g)),
+			wifiMode5g: normalizeWifiModeForBand('5g', uci.get('setup', 'default', 'wifi_mode_5g') || inferWifiModeFromHtmode('5g', htmode5g)),
+			wifiWidth5g: normalizeWifiWidthForBand('5g', uci.get('setup', 'default', 'wifi_mode_5g') || inferWifiModeFromHtmode('5g', htmode5g), uci.get('setup', 'default', 'wifi_width_5g') || inferWifiWidthFromHtmode('5g', htmode5g)),
 			resetDisabled: uci.get('setup', 'default', 'reset_button_disabled') == '1',
 			resetHoldSeconds: uci.get('setup', 'default', 'reset_hold_seconds') || '5',
 			wpsDisabled: uci.get('setup', 'default', 'wps_button_disabled') == '1',
@@ -836,6 +1099,7 @@ return view.extend({
 		this.state.wifiSsid = this.refs.wifiSsid.value.trim();
 		this.state.wifiSsid5gMode = this.refs.wifiSsid5gMode ? this.refs.wifiSsid5gMode.value : (this.state.wifiSsid5gMode || 'derived');
 		this.state.wifiSsid5g = this.refs.wifiSsid5g ? this.refs.wifiSsid5g.value.trim() : (this.state.wifiSsid5g || '');
+		this.state.wifiSsidVlan = this.refs.wifiSsidVlan ? this.refs.wifiSsidVlan.value.trim() : (this.state.wifiSsidVlan || '');
 		this.state.wifiKey = this.refs.wifiKey.value;
 		this.state.uplinkSsid = this.refs.uplinkSsid ? this.refs.uplinkSsid.value.trim() : '';
 		this.state.uplinkKey = this.refs.uplinkKey ? this.refs.uplinkKey.value : '';
@@ -847,6 +1111,10 @@ return view.extend({
 		this.state.vlanId = this.refs.vlanId.value.trim();
 		this.state.channel2g = this.refs.channel2g ? this.refs.channel2g.value : 'auto';
 		this.state.channel5g = this.refs.channel5g ? this.refs.channel5g.value : 'auto';
+		this.state.wifiMode2g = this.refs.wifiMode2g ? this.refs.wifiMode2g.value : (this.state.wifiMode2g || 'ax');
+		this.state.wifiWidth2g = this.refs.wifiWidth2g ? this.refs.wifiWidth2g.value : (this.state.wifiWidth2g || '20');
+		this.state.wifiMode5g = this.refs.wifiMode5g ? this.refs.wifiMode5g.value : (this.state.wifiMode5g || 'ax');
+		this.state.wifiWidth5g = this.refs.wifiWidth5g ? this.refs.wifiWidth5g.value : (this.state.wifiWidth5g || '80');
 		this.state.resetDisabled = this.refs.resetDisabled.checked;
 		this.state.resetHoldSeconds = this.refs.resetHoldSeconds.value;
 		this.state.wpsDisabled = this.refs.wpsDisabled.checked;
@@ -865,66 +1133,80 @@ return view.extend({
 
 		if (this.state.mode == 'ap_wds') {
 			if (!remainingBands.length)
-				return _('No local AP radio is currently available to host Access Point + WDS mode.');
+				return _('لا يوجد حاليًا راديو محلي متاح لاستضافة وضع نقطة الوصول + WDS.');
 
 			if (remainingBands.length == 1)
-				return _('Access Point + WDS will stay active on the local AP on ') + bandLabel(onlyBand) + _(', and WDS will be enabled on that interface.');
+				return _('سيبقى وضع نقطة الوصول + WDS نشطًا على نقطة الوصول المحلية على ') + bandLabel(onlyBand) + _('، وسيُفعَّل WDS على هذه الواجهة.');
 
-			return _('Access Point + WDS will stay active on both local AP radios, and WDS will be enabled on both interfaces.');
+			return _('سيبقى وضع نقطة الوصول + WDS نشطًا على راديوي نقطة الوصول المحليين، وسيُفعَّل WDS على الواجهتين.');
 		}
 
 		if (this.state.mode == 'sta_wds') {
 			if (!remainingBands.length)
-				return _('Client + WDS will use ') + bandLabel(uplinkBand) + _(' for the uplink. No local AP will remain active on Wi-Fi, but LAN access stays available.');
+				return _('سيستخدم وضع عميل + WDS ') + bandLabel(uplinkBand) + _(' للربط الصاعد. لن تبقى أي نقطة وصول محلية نشطة على الواي فاي، لكن يبقى الوصول عبر LAN متاحًا.');
 
 			if (remainingBands.length == 1)
-				return _('Client + WDS will use ') + bandLabel(uplinkBand) + _(' for the uplink, while the remaining local AP on ') + bandLabel(onlyBand) + _(' stays available.');
+				return _('سيستخدم وضع عميل + WDS ') + bandLabel(uplinkBand) + _(' للربط الصاعد، بينما تبقى نقطة الوصول المحلية المتبقية على ') + bandLabel(onlyBand) + _(' متاحة.');
 
-			return _('Client + WDS will use ') + bandLabel(uplinkBand) + _(' for the uplink, while the remaining local AP radios stay available.');
+			return _('سيستخدم وضع عميل + WDS ') + bandLabel(uplinkBand) + _(' للربط الصاعد، بينما تبقى الراديوهات المحلية الأخرى متاحة.');
 		}
 
 		if (this.state.mode == 'mesh') {
 			if (!remainingBands.length)
-				return _('Mesh will use ') + bandLabel(meshBand) + _(' as the backhaul radio. No local AP will remain active on Wi-Fi, but LAN access stays available.');
+				return _('سيستخدم وضع الميش ') + bandLabel(meshBand) + _(' كراديو backhaul. لن تبقى أي نقطة وصول محلية نشطة على الواي فاي، لكن يبقى الوصول عبر LAN متاحًا.');
 
 			if (remainingBands.length == 1)
-				return _('Mesh will use ') + bandLabel(meshBand) + _(' as the backhaul radio, while the remaining local AP on ') + bandLabel(onlyBand) + _(' stays available.');
+				return _('سيستخدم وضع الميش ') + bandLabel(meshBand) + _(' كراديو backhaul، بينما تبقى نقطة الوصول المحلية المتبقية على ') + bandLabel(onlyBand) + _(' متاحة.');
 
-			return _('Mesh will use ') + bandLabel(meshBand) + _(' as the backhaul radio, while the remaining local AP radios stay available.');
+			return _('سيستخدم وضع الميش ') + bandLabel(meshBand) + _(' كراديو backhaul، بينما تبقى الراديوهات المحلية الأخرى متاحة.');
 		}
 
 		if (!remainingBands.length)
-			return _('No local AP radio is currently available for Access Point mode.');
+			return _('لا يوجد حاليًا راديو محلي متاح لوضع نقطة الوصول.');
 
 		if (remainingBands.length == 1)
-			return _('Access Point mode will stay active on the local AP on ') + bandLabel(onlyBand) + _('.');
+			return _('سيبقى وضع نقطة الوصول نشطًا على نقطة الوصول المحلية على ') + bandLabel(onlyBand) + _('.');
 
-		return _('Access Point mode will stay active on both local AP radios.');
+		return _('سيبقى وضع نقطة الوصول نشطًا على راديوي نقطة الوصول المحليين.');
 	},
 
 	describeSecondaryNetworkPlan: function() {
 		var vlanId = this.state.vlanId || '10';
 		var vlanBinding = describeSecondaryVlanBinding(vlanId);
 		
-		var secondary2g = secondarySsid(this.state.wifiSsid, '2g');
-		var secondary5g = secondarySsid(this.state.wifiSsid, '5g');
+			var secondary2g = previewSecondarySsid(this.state, '2g');
+			var secondary5g = previewSecondarySsid(this.state, '5g');
 		var remainingBands = getRemainingLocalBands(this.radios || [], this.state);
 		var remainingCount = remainingBands.length;
 		var onlyBand = remainingCount ? remainingBands[0] : null;
-		var wdsSummary = (this.state.mode == 'ap_wds')
-			? _(' In Access Point + WDS mode, the secondary local AP interfaces will also keep WDS enabled.')
-			: '';
+		var isolateSummary = _(' تبقى واجهات نقاط الوصول المحلية الثانوية على wizardvlan مرئية ومعزولة عن بعضها وبدون WDS.');
 
 		if (!this.state.isVlan)
-			return _('Disabled. The primary LAN and the selected operating mode stay on the main LAN only.');
+			return _('معطل. تبقى الشبكة الرئيسية LAN ووضع التشغيل المحدد على الشبكة الرئيسية فقط.');
 
 		if (!remainingCount)
-			return _('Enabled, but no radio will remain available for a local AP in the selected mode. The primary LAN and any WDS, uplink, or Mesh backhaul stay on LAN, and ') + vlanBinding + _(' will be prepared without a secondary Wi-Fi SSID.');
+			return _('مفعّل، لكن لن يبقى أي راديو متاحًا لنقطة وصول محلية في الوضع المحدد. ستبقى الشبكة الرئيسية LAN وأي WDS أو uplink أو Mesh backhaul على LAN، وسيتم تجهيز ') + vlanBinding + _(' بدون شبكة واي فاي ثانوية.');
 
 		if (remainingCount == 1)
-			return _('Enabled. The primary LAN and any WDS, uplink, or Mesh backhaul stay on LAN. Only the remaining local AP on ') + bandLabel(onlyBand) + _(' will host the secondary SSID ') + secondarySsid(this.state.wifiSsid, onlyBand) + _(' attached to ') + vlanBinding + _('.') + wdsSummary;
+			return _('مفعّل. تبقى الشبكة الرئيسية LAN وأي WDS أو uplink أو Mesh backhaul على LAN. فقط نقطة الوصول المحلية المتبقية على ') + bandLabel(onlyBand) + _(' ستستضيف SSID الثانوي ') + previewSecondarySsid(this.state, onlyBand) + _(' المرتبط بـ ') + vlanBinding + _('.') + isolateSummary;
 
-		return _('Enabled. The primary LAN and any WDS, uplink, or Mesh backhaul stay on LAN. Additional local AP SSIDs ') + secondary2g + _(' and ') + secondary5g + _(' will be attached to ') + vlanBinding + _(' on radios that remain available for local AP service.') + wdsSummary;
+		return _('مفعّل. تبقى الشبكة الرئيسية LAN وأي WDS أو uplink أو Mesh backhaul على LAN. سيتم ربط شبكات SSID المحلية الإضافية ') + secondary2g + _(' و ') + secondary5g + _(' بـ ') + vlanBinding + _(' على الراديوهات التي تبقى متاحة لخدمة نقطة الوصول المحلية.') + isolateSummary;
+	},
+
+	syncRadioModeWidthUi: function() {
+		if (this.refs.wifiMode2g && this.refs.wifiWidth2g) {
+			this.state.wifiMode2g = normalizeWifiModeForBand('2g', this.state.wifiMode2g);
+			populateSelectOptions(this.refs.wifiMode2g, wifiModeChoices('2g'), this.state.wifiMode2g);
+			this.state.wifiWidth2g = normalizeWifiWidthForBand('2g', this.state.wifiMode2g, this.state.wifiWidth2g);
+			populateSelectOptions(this.refs.wifiWidth2g, wifiWidthChoices('2g', this.state.wifiMode2g), this.state.wifiWidth2g);
+		}
+
+		if (this.refs.wifiMode5g && this.refs.wifiWidth5g) {
+			this.state.wifiMode5g = normalizeWifiModeForBand('5g', this.state.wifiMode5g);
+			populateSelectOptions(this.refs.wifiMode5g, wifiModeChoices('5g'), this.state.wifiMode5g);
+			this.state.wifiWidth5g = normalizeWifiWidthForBand('5g', this.state.wifiMode5g, this.state.wifiWidth5g);
+			populateSelectOptions(this.refs.wifiWidth5g, wifiWidthChoices('5g', this.state.wifiMode5g), this.state.wifiWidth5g);
+		}
 	},
 
 	updateStepUi: function() {
@@ -935,6 +1217,7 @@ return view.extend({
 		var meshChannel;
 
 		this.collectState();
+		this.syncRadioModeWidthUi();
 		vlanBinding = describeSecondaryVlanBinding(this.state.vlanId);
 		meshBandIs5g = (this.state.meshBand == '5g');
 		meshChannel = meshBandIs5g ? this.state.channel5g : this.state.channel2g;
@@ -951,6 +1234,8 @@ return view.extend({
 		this.refs.uplinkSettingsWrapper.style.display = (this.state.mode == 'sta_wds') ? '' : 'none';
 		this.refs.meshSettingsWrapper.style.display = (this.state.mode == 'mesh') ? '' : 'none';
 		this.refs.vlanIdWrapper.style.display = this.refs.isVlan.checked ? '' : 'none';
+		if (this.refs.vlanSsidRow)
+			this.refs.vlanSsidRow.style.display = this.refs.isVlan.checked ? '' : 'none';
 		this.refs.vlanPreviewWrapper.style.display = this.refs.isVlan.checked ? '' : 'none';
 		this.refs.resetHoldWrapper.style.display = this.refs.resetDisabled.checked ? 'none' : '';
 		this.refs.rebootHoursWrapper.style.display = this.refs.rebootEnabled.checked ? '' : 'none';
@@ -1019,19 +1304,19 @@ return view.extend({
 
 		if (STEP_KEYS[index] == 'lan') {
 			if (!isIPv4(this.state.lanIpaddr)) {
-				notify(_('Please enter a valid LAN IPv4 address.'));
+				notify(_('أدخل عنوان LAN IPv4 صالحًا.'));
 				return false;
 			}
 
 			if (!isIPv4(this.state.lanNetmask)) {
-				notify(_('Please enter a valid LAN netmask.'));
+				notify(_('أدخل قناع شبكة LAN صالحًا.'));
 				return false;
 			}
 		}
 
 		if (STEP_KEYS[index] == 'mode') {
 			if (normalizeMode(this.state.mode) != this.state.mode) {
-				notify(_('Please choose a valid operating mode.'));
+				notify(_('اختر وضع تشغيل صالحًا.'));
 				return false;
 			}
 		}
@@ -1042,60 +1327,60 @@ return view.extend({
 			var hasLocal5g = (getRemainingLocalBands(this.radios || [], this.state).indexOf('5g') != -1);
 
 			if (!this.state.wifiSsid) {
-				notify(_('Please enter a base wireless name.'));
+				notify(_('أدخل اسم الشبكة اللاسلكية الأساسي.'));
 				return false;
 			}
 
 			if (hasLocal5g && this.state.wifiSsid5gMode == 'custom' && !this.state.wifiSsid5g) {
-				notify(_('Please enter a custom 5GHz SSID or switch back to automatic naming.'));
+				notify(_('أدخل اسما مخصصا لشبكة 5GHz أو اختر التسمية التلقائية.'));
 				return false;
 			}
 
 			if (this.state.wifiKey && this.state.wifiKey.length < 8) {
-				notify(_('Wireless password must be at least 8 characters or empty for open Wi-Fi.'));
+				notify(_('يجب أن تتكون كلمة مرور الواي فاي من 8 أحرف على الأقل، أو اتركها فارغة إذا كنت تريد شبكة مفتوحة.'));
 				return false;
 			}
 
 			if (this.state.mode == 'sta_wds') {
 				if (!this.state.uplinkSsid) {
-					notify(_('Please enter the uplink SSID for Client + WDS mode.'));
+					notify(_('أدخل اسم شبكة الربط الصاعد لوضع Client + WDS.'));
 					return false;
 				}
 
 				if (this.state.uplinkBand != '2g' && this.state.uplinkBand != '5g') {
-					notify(_('Please choose the uplink radio band.'));
+					notify(_('اختر نطاق راديو الربط الصاعد.'));
 					return false;
 				}
 
 				if (!uplinkRadio) {
-					notify(_('The selected uplink band is not available on this device.'));
+					notify(_('نطاق الربط الصاعد المحدد غير متوفر على هذا الجهاز.'));
 					return false;
 				}
 
 				if (this.state.uplinkKey && this.state.uplinkKey.length < 8) {
-					notify(_('Uplink password must be at least 8 characters or empty for open uplink Wi-Fi.'));
+					notify(_('يجب أن تتكون كلمة مرور الربط الصاعد من 8 أحرف على الأقل، أو اتركها فارغة إذا كانت الشبكة مفتوحة.'));
 					return false;
 				}
 			}
 
 			if (this.state.mode == 'mesh') {
 				if (!this.state.meshId) {
-					notify(_('Please enter the Mesh ID.'));
+					notify(_('أدخل معرف Mesh.'));
 					return false;
 				}
 
 				if (this.state.meshBand != '2g' && this.state.meshBand != '5g') {
-					notify(_('Please choose the Mesh radio band.'));
+					notify(_('اختر نطاق راديو Mesh.'));
 					return false;
 				}
 
 				if (!meshRadio) {
-					notify(_('The selected Mesh band is not available on this device.'));
+					notify(_('نطاق Mesh المحدد غير متوفر على هذا الجهاز.'));
 					return false;
 				}
 
 				if (this.state.meshKey && this.state.meshKey.length < 8) {
-					notify(_('Mesh password must be at least 8 characters or empty for open Mesh.'));
+					notify(_('يجب أن تتكون كلمة مرور Mesh من 8 أحرف على الأقل، أو اتركها فارغة إذا كنت تريد شبكة Mesh مفتوحة.'));
 					return false;
 				}
 			}
@@ -1103,36 +1388,66 @@ return view.extend({
 
 		if (STEP_KEYS[index] == 'vlan' && this.state.isVlan) {
 			var vlanId = +this.state.vlanId;
+			var manualSecondaryBase = previewSecondaryBaseSsid(this.state);
+			var activeBands = getRemainingLocalBands(this.radios || [], this.state);
+			var manualSecondary2g = previewSecondarySsid(this.state, '2g');
+			var manualSecondary5g = previewSecondarySsid(this.state, '5g');
+			var primary2g = primarySsid(this.state, '2g');
+			var primary5g = primarySsid(this.state, '5g');
 
 			if (!(vlanId >= 1 && vlanId <= 4094)) {
-				notify(_('Please choose a VLAN ID between 1 and 4094.'));
+				notify(_('اختر قيمة VLAN ID بين 1 و4094.'));
 				return false;
+			}
+
+			if (manualSecondaryBase) {
+				if (manualSecondary2g == primary2g || manualSecondary2g == primary5g) {
+					notify(_('اسم الشبكة يتعارض مع اسم شبكة أساسية موجودة. اختر اسمًا مختلفًا.'));
+					return false;
+				}
+
+				if (activeBands.indexOf('5g') != -1 && (manualSecondary5g == primary2g || manualSecondary5g == primary5g)) {
+					notify(_('اسم الشبكة على 5GHz سيتعارض مع اسم شبكة أساسية موجودة. اختر اسمًا مختلفًا.'));
+					return false;
+				}
 			}
 		}
 
 		if (STEP_KEYS[index] == 'channel') {
+			if (this.refs.wifiMode2g)
+				this.state.wifiMode2g = normalizeWifiModeForBand('2g', this.state.wifiMode2g);
+
+			if (this.refs.wifiMode5g)
+				this.state.wifiMode5g = normalizeWifiModeForBand('5g', this.state.wifiMode5g);
+
+			if (this.refs.wifiWidth2g)
+				this.state.wifiWidth2g = normalizeWifiWidthForBand('2g', this.state.wifiMode2g, this.state.wifiWidth2g);
+
+			if (this.refs.wifiWidth5g)
+				this.state.wifiWidth5g = normalizeWifiWidthForBand('5g', this.state.wifiMode5g, this.state.wifiWidth5g);
+
 			if (this.state.mode == 'mesh') {
 				var meshChannel = (this.state.meshBand == '5g') ? this.state.channel5g : this.state.channel2g;
 
 				if (!meshChannel || meshChannel == 'auto') {
-					notify(_('Please select a fixed channel for the chosen Mesh band.'));
+					notify(_('اختر قناة ثابتة للنطاق المحدد للميش.'));
 					return false;
 				}
 			}
 
 			if (this.state.rebootEnabled && !/^[1-9][0-9]*$/.test(this.state.rebootHours)) {
-				notify(_('Please enter the periodic reboot interval as whole hours greater than zero.'));
+				notify(_('أدخل مدة إعادة التشغيل الدوري بعدد ساعات صحيح أكبر من صفر.'));
 				return false;
 			}
 
 			if ((this.state.adminPassword || this.state.adminPasswordConfirm) &&
 			    (!this.state.adminPassword || !this.state.adminPasswordConfirm)) {
-				notify(_('Please enter and confirm the administrator password.'));
+				notify(_('أدخل كلمة مرور الجهاز الجديدة ثم أكدها.'));
 				return false;
 			}
 
 			if (this.state.adminPassword != this.state.adminPasswordConfirm) {
-				notify(_('Administrator password confirmation did not match.'));
+				notify(_('تأكيد كلمة مرور الجهاز غير مطابق.'));
 				return false;
 			}
 		}
@@ -1162,6 +1477,7 @@ return view.extend({
 		var radio2g = getRadioByBand(radios, '2g');
 		var radio5g = getRadioByBand(radios, '5g');
 		var requestedMode = normalizeMode(state.mode);
+		var vlanOnlyAp = ((requestedMode == 'ap' || requestedMode == 'mesh') && state.isVlan);
 		var lanPolicy = getLocalApPolicy(state, 'lan');
 		var vlanPolicy = getLocalApPolicy(state, 'wizardvlan');
 		var uplinkRadio = null;
@@ -1174,6 +1490,9 @@ return view.extend({
 		var secondaryIface5g = radio5g ? secondaryApSectionName(radio5g['.name']) : null;
 		var iface;
 		var localRadios;
+
+		applyRadioHtmode(radio2g, '2g', state);
+		applyRadioHtmode(radio5g, '5g', state);
 
 		if (requestedMode == 'sta_wds') {
 			uplinkRadio = getRadioByBand(radios, state.uplinkBand);
@@ -1193,8 +1512,10 @@ return view.extend({
 
 			uplinkApIface = uplinkRadio ? findWifiIface(uplinkRadio['.name']) : null;
 
-			if (uplinkApIface && uplinkApIface != uplinkStaIface)
+			if (uplinkApIface && uplinkApIface != uplinkStaIface) {
+				uci.set('wireless', uplinkApIface, 'disassoc_low_ack', '0');
 				uci.set('wireless', uplinkApIface, 'disabled', '1');
+			}
 
 			if (uplinkRadio)
 				uci.set('wireless', uplinkRadio['.name'], 'channel', 'auto');
@@ -1229,8 +1550,10 @@ return view.extend({
 
 			meshApIface = meshRadio ? findWifiIface(meshRadio['.name']) : null;
 
-			if (meshApIface && meshApIface != meshIface)
+			if (meshApIface && meshApIface != meshIface) {
+				uci.set('wireless', meshApIface, 'disassoc_low_ack', '0');
 				uci.set('wireless', meshApIface, 'disabled', '1');
+			}
 
 			if (meshRadio) {
 				uci.set('wireless', meshRadio['.name'], 'channel', state.meshBand == '5g' ? (state.channel5g || 'auto') : (state.channel2g || 'auto'));
@@ -1246,13 +1569,17 @@ return view.extend({
 
 		if (radio2g && (!uplinkRadio || radio2g['.name'] != uplinkRadio['.name']) && (!meshRadio || radio2g['.name'] != meshRadio['.name'])) {
 			iface = ensureWifiIface(radio2g['.name']);
-			configureApIface(iface, radio2g['.name'], 'lan', primarySsid(state, '2g'), state.wifiKey, lanPolicy);
+
+			if (vlanOnlyAp)
+				uci.remove('wireless', iface);
+			else
+				configureApIface(iface, radio2g['.name'], 'lan', primarySsid(state, '2g'), state.wifiKey, lanPolicy);
 
 			uci.set('wireless', radio2g['.name'], 'channel', state.channel2g || 'auto');
 
 			if (state.isVlan) {
 				ensureNamedWifiIface(secondaryIface2g);
-				configureApIface(secondaryIface2g, radio2g['.name'], 'wizardvlan', secondarySsid(state.wifiSsid, '2g'), state.wifiKey, vlanPolicy);
+				configureApIface(secondaryIface2g, radio2g['.name'], 'wizardvlan', previewSecondarySsid(state, '2g'), state.wifiKey, vlanPolicy);
 			}
 			else {
 				uci.remove('wireless', secondaryIface2g);
@@ -1264,13 +1591,17 @@ return view.extend({
 
 		if (radio5g && (!uplinkRadio || radio5g['.name'] != uplinkRadio['.name']) && (!meshRadio || radio5g['.name'] != meshRadio['.name'])) {
 			iface = ensureWifiIface(radio5g['.name']);
-			configureApIface(iface, radio5g['.name'], 'lan', primarySsid(state, '5g'), state.wifiKey, lanPolicy);
+
+			if (vlanOnlyAp)
+				uci.remove('wireless', iface);
+			else
+				configureApIface(iface, radio5g['.name'], 'lan', primarySsid(state, '5g'), state.wifiKey, lanPolicy);
 
 			uci.set('wireless', radio5g['.name'], 'channel', state.channel5g || 'auto');
 
 			if (state.isVlan) {
 				ensureNamedWifiIface(secondaryIface5g);
-				configureApIface(secondaryIface5g, radio5g['.name'], 'wizardvlan', secondarySsid(state.wifiSsid, '5g'), state.wifiKey, vlanPolicy);
+				configureApIface(secondaryIface5g, radio5g['.name'], 'wizardvlan', previewSecondarySsid(state, '5g'), state.wifiKey, vlanPolicy);
 			}
 			else {
 				uci.remove('wireless', secondaryIface5g);
@@ -1279,6 +1610,44 @@ return view.extend({
 		else if (secondaryIface5g) {
 			uci.remove('wireless', secondaryIface5g);
 		}
+
+		uci.sections('wireless', 'wifi-iface').forEach(function(section) {
+			var sid = section['.name'];
+			var sectionNetworks = normalizeList(section.network);
+			var isLocalRadio = localRadios.some(function(radio) {
+				return section.device == radio['.name'];
+			});
+
+			if (!isLocalRadio)
+				return;
+
+			if (section.mode != null && section.mode != 'ap')
+				return;
+
+			if (vlanOnlyAp && sectionNetworks.indexOf('lan') > -1) {
+				uci.remove('wireless', sid);
+				return;
+			}
+
+			if (sectionNetworks.indexOf('lan') > -1) {
+				if (lanPolicy.enableWds)
+					uci.set('wireless', sid, 'wds', '1');
+				else
+					uci.unset('wireless', sid, 'wds');
+
+				applyWifiIfaceFlag('wireless', sid, 'hidden', lanPolicy.hidden);
+				applyWifiIfaceFlag('wireless', sid, 'isolate', lanPolicy.isolate);
+			}
+			else if (sectionNetworks.indexOf('wizardvlan') > -1) {
+				if (vlanPolicy.enableWds)
+					uci.set('wireless', sid, 'wds', '1');
+				else
+					uci.unset('wireless', sid, 'wds');
+
+				applyWifiIfaceFlag('wireless', sid, 'hidden', vlanPolicy.hidden);
+				applyWifiIfaceFlag('wireless', sid, 'isolate', vlanPolicy.isolate);
+			}
+		});
 
 	},
 
@@ -1364,10 +1733,12 @@ return view.extend({
 
 		uci.set('setup', 'default', 'lan_ipaddr', this.state.lanIpaddr);
 		uci.set('setup', 'default', 'lan_netmask', this.state.lanNetmask);
+		uci.set('setup', 'default', 'initial_setup_complete', '1');
 		uci.set('setup', 'default', 'mode', this.state.mode);
 		uci.set('setup', 'default', 'wifi_ssid', this.state.wifiSsid);
 		uci.set('setup', 'default', 'wifi_ssid_5g_mode', this.state.wifiSsid5gMode || 'derived');
 		uci.set('setup', 'default', 'wifi_ssid_5g', this.state.wifiSsid5g || '');
+		uci.set('setup', 'default', 'wifi_ssid_vlan', this.state.wifiSsidVlan || '');
 		uci.set('setup', 'default', 'wifi_key', this.state.wifiKey);
 		uci.set('setup', 'default', 'uplink_ssid', this.state.uplinkSsid);
 		uci.set('setup', 'default', 'uplink_key', this.state.uplinkKey);
@@ -1379,18 +1750,24 @@ return view.extend({
 		uci.set('setup', 'default', 'vlan_id', this.state.vlanId || '10');
 		uci.set('setup', 'default', 'channel_2g', this.state.channel2g || 'auto');
 		uci.set('setup', 'default', 'channel_5g', this.state.channel5g || 'auto');
+		uci.set('setup', 'default', 'wifi_mode_2g', normalizeWifiModeForBand('2g', this.state.wifiMode2g));
+		uci.set('setup', 'default', 'wifi_width_2g', normalizeWifiWidthForBand('2g', this.state.wifiMode2g, this.state.wifiWidth2g));
+		uci.set('setup', 'default', 'wifi_mode_5g', normalizeWifiModeForBand('5g', this.state.wifiMode5g));
+		uci.set('setup', 'default', 'wifi_width_5g', normalizeWifiWidthForBand('5g', this.state.wifiMode5g, this.state.wifiWidth5g));
 		uci.set('setup', 'default', 'reset_button_disabled', this.state.resetDisabled ? '1' : '0');
 		uci.set('setup', 'default', 'reset_hold_seconds', this.state.resetHoldSeconds || '5');
 		uci.set('setup', 'default', 'wps_button_disabled', this.state.wpsDisabled ? '1' : '0');
 
+		uci.set('network', 'lan', 'proto', 'static');
 		uci.set('network', 'lan', 'ipaddr', this.state.lanIpaddr);
 		uci.set('network', 'lan', 'netmask', this.state.lanNetmask);
+		disableFirstbootProvisioning();
 		this.applyVlanSettings(this.state);
 		this.applyWifiSettings(this.state, this.radios);
 		this.applyPeriodicRebootSettings(this.state);
 
 		this.refs.saveButton.disabled = true;
-		this.refs.saveButton.textContent = _('Applying...');
+		this.refs.saveButton.textContent = _('جارٍ التطبيق...');
 
 		uci.save().then(function() {
 			return ui.changes.apply();
@@ -1411,22 +1788,21 @@ return view.extend({
 				};
 			});
 		}).then(function(result) {
-			var nextUrl;
 			var modeMessage = describeAppliedModeResult(self.state, self.radios || []);
 			var secondaryNetworkMessage = describeAppliedSecondaryNetworkResult(self.state, self.radios || []);
 			var reconnectMessage = describeReconnectHint(self.state, self.radios || [], oldSsid);
 
 			self.refs.saveButton.disabled = false;
-			self.refs.saveButton.textContent = _('Save & Apply');
+			self.refs.saveButton.textContent = _('حفظ وتطبيق');
 			self.refs.adminPassword.value = '';
 			self.refs.adminPasswordConfirm.value = '';
 			self.state.adminPassword = '';
 			self.state.adminPasswordConfirm = '';
 
 			if (result.passwordChanged === true)
-				notify(_('Administrator password changed successfully.'));
+				notify(_('تم تغيير كلمة مرور الجهاز بنجاح.'));
 			else if (result.passwordChanged === false)
-				notify(_('Settings were applied, but changing the administrator password failed.'));
+				notify(_('تم تطبيق الإعدادات، لكن تعذر تغيير كلمة مرور الجهاز.'));
 
 			if (modeMessage)
 				notify(modeMessage);
@@ -1435,22 +1811,20 @@ return view.extend({
 				notify(secondaryNetworkMessage);
 
 			if (result.changedIp) {
-				notify(_('Settings applied. The LAN IP changed to ') + self.state.lanIpaddr + _('. The page will reopen on the new address in a few seconds.'));
-				nextUrl = window.location.protocol + '//' + self.state.lanIpaddr + '/cgi-bin/luci/admin/applications/alemprator';
-				window.setTimeout(function() {
-					window.location.href = nextUrl;
-				}, 8000);
+				notify(_('تم تطبيق الإعدادات. تغيّر عنوان LAN إلى ') + self.state.lanIpaddr + _('، وستُعاد فتح الصفحة على العنوان الجديد خلال بضع ثوانٍ.'));
+				scheduleWizardRedirect(self.state.lanIpaddr, 8000);
 			}
 			else {
-				notify(_('Settings applied successfully.'));
+				notify(_('تم تطبيق الإعدادات بنجاح. سيتم تحديث الصفحة تلقائيًا لتحميل أحدث نسخة من المعالج.'));
+				scheduleWizardRedirect(self.state.lanIpaddr, 2500);
 			}
 
 			if (reconnectMessage)
 				notify(reconnectMessage);
 		}).catch(function(err) {
 			self.refs.saveButton.disabled = false;
-			self.refs.saveButton.textContent = _('Save & Apply');
-			notify(_('Unable to apply the wizard settings.') + ' ' + (err || ''));
+			self.refs.saveButton.textContent = _('حفظ وتطبيق');
+			notify(_('تعذر تطبيق إعدادات المعالج.') + ' ' + (err || ''));
 		});
 	},
 
@@ -1467,7 +1841,7 @@ return view.extend({
 		var actions = E('div', { 'style': 'display:flex; gap:10px; justify-content:flex-end; margin-top:18px;' });
 		var panel = E('div');
 		var wizardIntro;
-		var stepTitles = [ _('Step 1: LAN'), _('Step 2: Mode'), _('Step 3: Wi-Fi'), _('Step 4: Secondary Network'), _('Step 5: Channels') ];
+		var stepTitles = [ _('الخطوة 1: الشبكة المحلية'), _('الخطوة 2: وضع التشغيل'), _('الخطوة 3: الواي فاي'), _('الخطوة 4: اعداد الشبكة VLAN'), _('الخطوة 5: الاعدادات المتقدمه') ];
 		var stepPanels = [];
 		var stepBadges = [];
 		var i;
@@ -1483,8 +1857,17 @@ return view.extend({
 		panel.appendChild(statusContainer);
 
 		wizardIntro = E('div', { 'class': 'cbi-section-node', 'style': 'margin-bottom:14px;' }, [
-			E('h3', _('Quick Setup Wizard')),
-			E('p', _('This wizard guides you through the LAN IP, operating mode, Wi-Fi settings, an optional secondary client network plan, and channel selection step by step.'))
+			E('h3', { 'style': 'margin-bottom:8px;' }, _('برمجة سريعه')),
+			E('p', { 'style': 'margin:0; color:#52606d;' }, _('واجهة مختصرة ومنظمة لإعداد الشبكة المحلية، ووضع التشغيل، والواي فاي، وشبكة VLAN الثانوية، ثم الاعدادات المتقدمه بخطوات واضحة.')),
+			E('div', { 'style': 'display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-top:14px;' }, [
+				E('a', {
+					'href': VIDEO_EXPLAIN_URL,
+					'target': '_blank',
+					'rel': 'noopener noreferrer',
+					'style': 'display:inline-flex; align-items:center; justify-content:center; padding:9px 16px; border-radius:10px; background:linear-gradient(180deg, #0f766e 0%, #0d9488 100%); color:#fff; text-decoration:none; font-weight:600; box-shadow:0 1px 2px rgba(15,118,110,0.25);'
+				}, _('صفحة الشرح')),
+				E('span', { 'style': 'color:#52606d;' }, _('سيتم تنزيل الشرح في الصفحة قريبًا.'))
+			])
 		]);
 
 		wizardContainer.appendChild(wizardIntro);
@@ -1508,31 +1891,32 @@ return view.extend({
 		this.refs.lanIpaddr = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.lanIpaddr, 'style': 'max-width:280px;' });
 		this.refs.lanNetmask = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.lanNetmask, 'style': 'max-width:280px;' });
 		this.refs.mode = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:280px;' }, [
-			E('option', { 'value': 'ap' }, _('Access Point')),
-			E('option', { 'value': 'ap_wds' }, _('Access Point + WDS')),
-			E('option', { 'value': 'sta_wds' }, _('Client + WDS')),
-			E('option', { 'value': 'mesh' }, _('Mesh'))
+			E('option', { 'value': 'ap' }, _('نقطة وصول')),
+			E('option', { 'value': 'ap_wds' }, _('نقطة وصول + WDS')),
+			E('option', { 'value': 'sta_wds' }, _('عميل + WDS')),
+			E('option', { 'value': 'mesh' }, _('ميش'))
 		]);
 		this.refs.mode.value = this.state.mode;
 		this.refs.wifiSsid = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.wifiSsid, 'style': 'max-width:280px;' });
 		this.refs.wifiSsid5gMode = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' }, [
-			E('option', { 'value': 'derived' }, _('Generate 5GHz name automatically')),
-			E('option', { 'value': 'custom' }, _('Set a custom 5GHz name'))
+			E('option', { 'value': 'derived' }, _('تلقائي من الاسم الأساسي')),
+			E('option', { 'value': 'custom' }, _('اسم مخصص'))
 		]);
 		this.refs.wifiSsid5gMode.value = this.state.wifiSsid5gMode || 'derived';
 		this.refs.wifiSsid5g = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.wifiSsid5g, 'style': 'max-width:280px;' });
+		this.refs.wifiSsidVlan = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.wifiSsidVlan, 'style': 'max-width:280px;' });
 		this.refs.wifiKey = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.wifiKey, 'style': 'max-width:280px;' });
 		this.refs.uplinkSsid = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.uplinkSsid, 'style': 'max-width:280px;' });
 		this.refs.uplinkKey = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.uplinkKey, 'style': 'max-width:280px;' });
 		this.refs.meshId = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.meshId, 'style': 'max-width:280px;' });
 		this.refs.meshKey = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.meshKey, 'style': 'max-width:280px;' });
 		this.refs.uplinkBand = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }, [
-			radio2g ? E('option', { 'value': '2g' }, _('2.4GHz radio')) : null,
-			radio5g ? E('option', { 'value': '5g' }, _('5GHz radio')) : null
+			radio2g ? E('option', { 'value': '2g' }, _('راديو 2.4GHz')) : null,
+			radio5g ? E('option', { 'value': '5g' }, _('راديو 5GHz')) : null
 		]);
 		this.refs.meshBand = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }, [
-			radio2g ? E('option', { 'value': '2g' }, _('2.4GHz radio')) : null,
-			radio5g ? E('option', { 'value': '5g' }, _('5GHz radio')) : null
+			radio2g ? E('option', { 'value': '2g' }, _('راديو 2.4GHz')) : null,
+			radio5g ? E('option', { 'value': '5g' }, _('راديو 5GHz')) : null
 		]);
 
 		if ((this.state.uplinkBand == '5g' && !radio5g) || (this.state.uplinkBand == '2g' && !radio2g))
@@ -1555,15 +1939,19 @@ return view.extend({
 		}, describeSecondaryNetworkNotice(this.state, this.radios || []));
 		this.refs.channel2g = radio2g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
 		this.refs.channel5g = radio5g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
+		this.refs.wifiMode2g = radio2g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
+		this.refs.wifiWidth2g = radio2g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
+		this.refs.wifiMode5g = radio5g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
+		this.refs.wifiWidth5g = radio5g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
 		this.refs.resetDisabled = E('input', { 'type': 'checkbox' });
 		this.refs.resetDisabled.checked = this.state.resetDisabled;
 		this.refs.resetHoldSeconds = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }, [
-			E('option', { 'value': '5' }, _('5 seconds')),
-			E('option', { 'value': '10' }, _('10 seconds')),
-			E('option', { 'value': '20' }, _('20 seconds')),
-			E('option', { 'value': '30' }, _('30 seconds')),
-			E('option', { 'value': '40' }, _('40 seconds')),
-			E('option', { 'value': '60' }, _('60 seconds'))
+			E('option', { 'value': '5' }, _('5 ثوان')),
+			E('option', { 'value': '10' }, _('10 ثوان')),
+			E('option', { 'value': '20' }, _('20 ثانية')),
+			E('option', { 'value': '30' }, _('30 ثانية')),
+			E('option', { 'value': '40' }, _('40 ثانية')),
+			E('option', { 'value': '60' }, _('60 ثانية'))
 		]);
 		this.refs.resetHoldSeconds.value = this.state.resetHoldSeconds;
 		this.refs.wpsDisabled = E('input', { 'type': 'checkbox' });
@@ -1590,59 +1978,62 @@ return view.extend({
 			);
 		}
 
+		this.syncRadioModeWidthUi();
+
 		stepPanels.push(E('div', { 'class': 'cbi-section-node' }, [
-			E('h4', _('Set the router LAN address')),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('LAN IPv4 address')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.lanIpaddr ]) ]),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('LAN netmask')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.lanNetmask ]) ])
+			E('h4', _('تحديد عنوان الشبكة المحلية')),
+			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عنوان LAN IPv4')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.lanIpaddr ]) ]),
+			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('قناع الشبكة LAN')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.lanNetmask ]) ])
 		]));
 
 		stepPanels.push(E('div', { 'class': 'cbi-section-node', 'style': 'display:none;' }, [
-			E('h4', _('Choose the operating mode')),
-			E('p', _('All operating modes below can be applied directly from this wizard.')),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Operating mode')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.mode ]) ]),
+			E('h4', _('اختر وضع التشغيل')),
+			E('p', _('يمكن تطبيق جميع أوضاع التشغيل التالية مباشرة من هذا المعالج.')),
+			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('وضع التشغيل')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.mode ]) ]),
 			E('div', { 'style': 'margin-top:12px; padding:10px 12px; border:1px solid #d0d7de; border-radius:8px; background:#f6f8fa; color:#333;' }, [
-				E('strong', _('Mode preview') + ': '),
+				E('strong', _('معاينة الوضع') + ': '),
 				(this.refs.modePlan = E('span'))
 			])
 		]));
 
 		stepPanels.push(E('div', { 'class': 'cbi-section-node', 'style': 'display:none;' }, [
-			E('h4', _('Choose the wireless name')),
+			E('h4', _('اختر اسم الشبكة اللاسلكية')),
 			(this.refs.wifiNameHelp = E('p', describePrimaryWifiNamingHelp(this.state, this.radios || []))),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Base SSID')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsid ]) ]),
-			(this.refs.ssid5gModeRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('5GHz naming')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsid5gMode ]) ])),
-			(this.refs.ssid5gCustomRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Custom 5GHz SSID')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsid5g ]) ])),
-			(this.refs.ssidPreviewRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Generated 5GHz SSID')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.ssidPreview ]) ])),
+			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم SSID الأساسي')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsid ]) ]),
+			(this.refs.ssid5gModeRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('طريقة تعيين اسم 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsid5gMode ]) ])),
+			(this.refs.ssid5gCustomRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم المخصص لشبكة 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsid5g ]) ])),
+			(this.refs.ssidPreviewRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم النهائي لشبكة 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.ssidPreview ]) ])),
 			E('div', { 'style': 'margin-top:12px; padding:10px 12px; border:1px solid #d0d7de; border-radius:8px; background:#f6f8fa; color:#333;' }, [
-				E('strong', _('Primary Wi-Fi preview') + ': '),
+				E('strong', _('معاينة الواي فاي الأساسي') + ': '),
 				this.refs.primaryWifiPlan
 			]),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Wireless password')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiKey, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('Leave this empty if you want open Wi-Fi.')) ]) ]),
+			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة مرور الواي فاي')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiKey, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اترك هذا الحقل فارغا إذا كنت تريد شبكة واي فاي مفتوحة.')) ]) ]),
 			(this.refs.uplinkSettingsWrapper = E('div', { 'style': 'display:none;' }, [
-				E('h4', { 'style': 'margin-top:18px;' }, _('Client + WDS uplink')),
+				E('h4', { 'style': 'margin-top:18px;' }, _('إعدادات الربط الصاعد للعميل + WDS')),
 				(this.refs.uplinkHelp = E('p', describeUplinkSettingsHelp(this.state, this.radios || []))),
-				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Uplink band')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.uplinkBand ]) ]),
-				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Uplink SSID')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.uplinkSsid ]) ]),
-				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Uplink password')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.uplinkKey, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('Leave this empty if the uplink Wi-Fi is open.')) ]) ])
+				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('نطاق الربط الصاعد')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.uplinkBand ]) ]),
+				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم شبكة الربط الصاعد')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.uplinkSsid ]) ]),
+				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة مرور الربط الصاعد')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.uplinkKey, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اترك هذا الحقل فارغا إذا كانت شبكة الربط الصاعد مفتوحة.')) ]) ])
 			])),
 			(this.refs.meshSettingsWrapper = E('div', { 'style': 'display:none;' }, [
-				E('h4', { 'style': 'margin-top:18px;' }, _('Mesh settings')),
+				E('h4', { 'style': 'margin-top:18px;' }, _('إعدادات الميش')),
 				(this.refs.meshHelp = E('p', describeMeshSettingsHelp(this.state, this.radios || []))),
-				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Mesh band')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.meshBand ]) ]),
-				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Mesh ID')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.meshId ]) ]),
-				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Mesh password')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.meshKey, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('Leave this empty if you want open Mesh.')) ]) ])
+				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('نطاق الميش')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.meshBand ]) ]),
+				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('معرف الميش')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.meshId ]) ]),
+				E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة مرور الميش')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.meshKey, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اترك هذا الحقل فارغا إذا كنت تريد شبكة ميش مفتوحة.')) ]) ])
 			]))
 		]));
 
 		this.refs.vlanIdWrapper = E('div', { 'class': 'cbi-value-field' }, [ this.refs.vlanId ]);
 		stepPanels.push(E('div', { 'class': 'cbi-section-node', 'style': 'display:none;' }, [
-			E('h4', _('Configure the secondary client network')),
+			E('h4', _('اعداد الشبكة VLAN')),
 			(this.refs.secondaryNetworkIntro = E('p', describeSecondaryNetworkIntro(this.state, this.radios || []))),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Enable a secondary client network on VLAN')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.isVlan ]) ]),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Secondary VLAN ID')), this.refs.vlanIdWrapper ]),
-			(this.refs.vlanPreviewWrapper = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Secondary VLAN bridge')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.vlanPreview, (this.refs.secondarySubnetHelp = E('div', { 'style': 'margin-top:6px; color:#666;' }, describeSecondarySubnetHelp(this.state, this.radios || []))) ]) ])),
+			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل شبكة VLAN')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.isVlan ]) ]),
+			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('VLAN ID')), this.refs.vlanIdWrapper ]),
+			(this.refs.vlanSsidRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم الشبكة')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsidVlan, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اترك الحقل فارغًا إذا أردت الاستمرار باسم الشبكة الثانوية التلقائي الحالي.')) ]) ])),
+			(this.refs.vlanPreviewWrapper = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('جسر VLAN الثانوي')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.vlanPreview, (this.refs.secondarySubnetHelp = E('div', { 'style': 'margin-top:6px; color:#666;' }, describeSecondarySubnetHelp(this.state, this.radios || []))) ]) ])),
 			E('div', { 'style': 'margin-top:12px; padding:10px 12px; border:1px solid #d0d7de; border-radius:8px; background:#f6f8fa; color:#333;' }, [
-				E('strong', _('Secondary network preview') + ': '),
+				E('strong', _('معاينة شبكة VLAN') + ': '),
 				this.refs.secondaryNetworkPlan
 			]),
 			this.refs.secondaryNetworkNotice
@@ -1650,21 +2041,46 @@ return view.extend({
 
 		this.refs.resetHoldWrapper = E('div', { 'class': 'cbi-value-field' }, [ this.refs.resetHoldSeconds ]);
 		stepPanels.push(E('div', { 'class': 'cbi-section-node', 'style': 'display:none;' }, [
-			E('h4', _('Select wireless channels')),
-			(this.refs.meshChannelHelp = E('p', { 'style': 'display:none; color:#666;' })),
-			radio2g ? (this.refs.channel2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio2g)), E('div', { 'class': 'cbi-value-field' }, [ this.refs.channel2g ]) ])) : E('p', _('No 2.4GHz radio detected.')),
-			radio5g ? (this.refs.channel5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio5g)), E('div', { 'class': 'cbi-value-field' }, [ this.refs.channel5g ]) ])) : E('p', _('No 5GHz radio detected.')),
-			E('h4', { 'style': 'margin-top:18px;' }, _('Advanced button policies')),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Disable reset button')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.resetDisabled ]) ]),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Factory reset hold time')), this.refs.resetHoldWrapper ]),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Disable WPS/Mesh button')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wpsDisabled ]) ]),
-			E('h4', { 'style': 'margin-top:18px;' }, _('Automatic periodic reboot')),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Enable automatic reboot')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.rebootEnabled ]) ]),
-			(this.refs.rebootHoursWrapper = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Reboot every how many hours')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.rebootHours, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('This creates one ALemprator-only periodic reboot rule and leaves any other Watchcat rules untouched.')) ]) ])),
-			E('h4', { 'style': 'margin-top:18px;' }, _('Administrator password')),
-			E('p', _('Leave both fields empty if you want to keep the current root password.')),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('New password')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.adminPassword ]) ]),
-			E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Confirm password')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.adminPasswordConfirm ]) ])
+			E('h4', _('الاعدادات المتقدمه')),
+			E('p', _('من هنا تضبط القنوات وعرض النطاق وسياسات الأزرار وخيارات إعادة التشغيل وكلمة مرور الجهاز من صفحة واحدة.')),
+			renderWizardCard(
+				_('القنوات وإعدادات الراديو'),
+				_('اختر القناة والنمط وعرض القناة لكل راديو. وعند استخدام وضع الميش يجب تثبيت قناة النطاق المختار وعدم تركها على تلقائي.'),
+				[
+					(this.refs.meshChannelHelp = E('p', { 'style': 'display:none; margin:0 0 12px 0; color:#52606d;' })),
+					radio2g ? (this.refs.channel2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio2g)), E('div', { 'class': 'cbi-value-field' }, [ this.refs.channel2g ]) ])) : E('p', _('لم يتم اكتشاف راديو 2.4GHz.')),
+					radio2g ? (this.refs.mode2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('النمط (2.4GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiMode2g ]) ])) : null,
+					radio2g ? (this.refs.width2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عرض القناة (2.4GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiWidth2g ]) ])) : null,
+					radio5g ? (this.refs.channel5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio5g)), E('div', { 'class': 'cbi-value-field' }, [ this.refs.channel5g ]) ])) : E('p', _('لم يتم اكتشاف راديو 5GHz.')),
+					radio5g ? (this.refs.mode5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('النمط (5GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiMode5g ]) ])) : null,
+					radio5g ? (this.refs.width5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عرض القناة (5GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiWidth5g ]) ])) : null
+				]
+			),
+			renderWizardCard(
+				_('سياسات الأزرار'),
+				_('تحكم في استجابة أزرار الجهاز لتقليل التغييرات غير المقصودة أو ضبط سلوكها بما يناسب بيئتك.'),
+				[
+					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تعطيل زر إعادة الضبط')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.resetDisabled ]) ]),
+					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('مدة الضغط لإعادة ضبط المصنع')), this.refs.resetHoldWrapper ]),
+					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تعطيل زر WPS/ميش')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wpsDisabled ]) ])
+				]
+			),
+			renderWizardCard(
+				_('اعادة تشغيل الجهاز'),
+				_('ينشئ هذا القسم قاعدة إعادة تشغيل دورية خاصة بـ ALemprator فقط من دون تعديل أي قواعد Watchcat أخرى موجودة مسبقًا.'),
+				[
+					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل إعادة التشغيل التلقائية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.rebootEnabled ]) ]),
+					(this.refs.rebootHoursWrapper = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إعادة التشغيل كل كم ساعة')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.rebootHours, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يقوم هذا الزر بتوقيت اعادة تشغيل الجهاز مع إنشاء قاعدة دورية خاصة بـ ALemprator فقط، من دون تعديل أي قواعد Watchcat أخرى.')) ]) ]))
+				]
+			),
+			renderWizardCard(
+				_('كلمة مرور الجهاز'),
+				_('يمكنك ترك الحقلين فارغين إذا كنت تريد الإبقاء على كلمة مرور الجهاز الحالية من دون تغيير.'),
+				[
+					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة المرور الجديدة')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.adminPassword ]) ]),
+					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تأكيد كلمة المرور')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.adminPasswordConfirm ]) ])
+				]
+			)
 		]));
 
 		stepPanels.forEach(function(stepPanel) {
@@ -1673,9 +2089,9 @@ return view.extend({
 
 		wizardContainer.appendChild(stepsWrap);
 
-		this.refs.backButton = E('button', { 'class': 'cbi-button cbi-button-neutral' }, _('Back'));
-		this.refs.nextButton = E('button', { 'class': 'cbi-button cbi-button-action important' }, _('Next'));
-		this.refs.saveButton = E('button', { 'class': 'cbi-button cbi-button-save important', 'style': 'display:none;' }, _('Save & Apply'));
+		this.refs.backButton = E('button', { 'class': 'cbi-button cbi-button-neutral' }, _('السابق'));
+		this.refs.nextButton = E('button', { 'class': 'cbi-button cbi-button-action important' }, _('التالي'));
+		this.refs.saveButton = E('button', { 'class': 'cbi-button cbi-button-save important', 'style': 'display:none;' }, _('حفظ وتطبيق'));
 
 		this.refs.backButton.addEventListener('click', function(ev) {
 			ev.preventDefault();
@@ -1693,6 +2109,14 @@ return view.extend({
 		});
 
 		this.refs.wifiSsid.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.wifiSsid5gMode.addEventListener('change', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.wifiSsid5g.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
@@ -1740,11 +2164,39 @@ return view.extend({
 			});
 		}
 
+		if (this.refs.wifiMode2g) {
+			this.refs.wifiMode2g.addEventListener('change', function() {
+				self.updateStepUi();
+			});
+		}
+
+		if (this.refs.wifiWidth2g) {
+			this.refs.wifiWidth2g.addEventListener('change', function() {
+				self.updateStepUi();
+			});
+		}
+
+		if (this.refs.wifiMode5g) {
+			this.refs.wifiMode5g.addEventListener('change', function() {
+				self.updateStepUi();
+			});
+		}
+
+		if (this.refs.wifiWidth5g) {
+			this.refs.wifiWidth5g.addEventListener('change', function() {
+				self.updateStepUi();
+			});
+		}
+
 		this.refs.isVlan.addEventListener('change', function() {
 			self.updateStepUi();
 		});
 
 		this.refs.vlanId.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.wifiSsidVlan.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 

@@ -1,0 +1,257 @@
+#!/bin/sh /etc/rc.common
+
+USE_PROCD=1
+START=98
+EXTRA_COMMANDS="finalize_cleanup monitor_once force_cleanup"
+EXTRA_HELP="    finalize_cleanup  Finalize deferred firstboot cleanup\n    monitor_once      Check tracked configs and cleanup if firstboot changed\n    force_cleanup     Immediately cleanup temporary firstboot provisioning"
+
+. /lib/functions.sh
+
+CFG="alemprator_firstboot"
+CLEANUP_TOKEN_FILE="/tmp/alemprator-firstboot-cleanup.token"
+BASELINE_FILE="/etc/alemprator-firstboot-baseline.md5"
+TRACKED_CONFIGS="network wireless dhcp firewall setup"
+
+write_baseline_file() {
+	local config
+	: > "$BASELINE_FILE"
+	for config in $TRACKED_CONFIGS; do
+		[ -f "/etc/config/$config" ] || continue
+		md5sum "/etc/config/$config" >> "$BASELINE_FILE"
+	done
+	[ -s "$BASELINE_FILE" ] || rm -f "$BASELINE_FILE"
+}
+
+ensure_baseline_file() {
+	[ -f "$BASELINE_FILE" ] && return 0
+	write_baseline_file
+	logger -t alemprator-firstboot "baseline was missing; bootstrap snapshot created"
+	return 1
+}
+
+baseline_changed() {
+	local line
+	local digest
+	local path
+	local current
+
+	[ -f "$BASELINE_FILE" ] || return 1
+
+	while IFS= read -r line; do
+		digest="${line%% *}"
+		path="${line#*  }"
+		[ -n "$path" ] || continue
+		[ -f "$path" ] || return 0
+		current="$(md5sum "$path" 2>/dev/null | awk '{print $1}')"
+		[ -n "$current" ] || return 0
+		[ "$current" = "$digest" ] || return 0
+	done < "$BASELINE_FILE"
+
+	return 1
+}
+
+set_cleanup_pending() {
+	uci -q set ${CFG}.main.auto_cleanup_pending='1'
+	uci -q commit ${CFG}
+}
+
+clear_cleanup_pending() {
+	uci -q set ${CFG}.main.auto_cleanup_pending='0'
+	uci -q commit ${CFG}
+}
+
+load_firstboot_config() {
+	config_load "$CFG"
+	config_get enabled main enabled 1
+	config_get auto_cleanup_armed main auto_cleanup_armed 0
+	config_get auto_cleanup_delay main auto_cleanup_delay 15
+	config_get auto_cleanup_pending main auto_cleanup_pending 0
+	config_get configured_flag main configured_flag "/etc/configured"
+	config_get pending_flag main pending_flag "/etc/alemprator-firstboot-pending"
+	config_get network_section main network_section "alemprator_setup"
+	config_get dhcp_section main dhcp_section "alemprator_setup"
+	config_get wireless_section main wireless_section "alemprator_firstboot"
+	config_get firewall_section main firewall_section "alemprator_setup"
+}
+
+schedule_deferred_cleanup() {
+	local delay
+	local token
+
+	delay="$auto_cleanup_delay"
+	case "$delay" in
+		''|*[!0-9]*) delay=15 ;;
+		0) delay=15 ;;
+	esac
+
+	token="$(date +%s%N 2>/dev/null || date +%s)$$"
+	printf '%s\n' "$token" > "$CLEANUP_TOKEN_FILE"
+	uci -q set ${CFG}.main.auto_cleanup_pending='1'
+	uci -q commit ${CFG}
+
+	(
+		sleep "$delay"
+		[ -f "$CLEANUP_TOKEN_FILE" ] || exit 0
+		[ "$(cat "$CLEANUP_TOKEN_FILE" 2>/dev/null)" = "$token" ] || exit 0
+		/etc/init.d/alemprator-firstboot finalize_cleanup >/dev/null 2>&1 || true
+	) &
+}
+
+cleanup_firstboot_runtime() {
+	local changed_network=0
+	local changed_dhcp=0
+	local changed_wireless=0
+	local changed_firewall=0
+	local current_lan_ipaddr
+	local current_lan_netmask
+
+	uci -q set ${CFG}.main.enabled='0'
+	uci -q set ${CFG}.main.auto_cleanup_armed='0'
+	uci -q set ${CFG}.main.auto_cleanup_pending='0'
+	uci -q commit ${CFG}
+
+	current_lan_ipaddr="$(uci -q get network.lan.ipaddr)"
+	current_lan_netmask="$(uci -q get network.lan.netmask)"
+	if uci -q get setup.default >/dev/null; then
+		uci -q set setup.default.initial_setup_complete='1'
+		[ -n "$current_lan_ipaddr" ] && uci -q set setup.default.lan_ipaddr="$current_lan_ipaddr"
+		[ -n "$current_lan_netmask" ] && uci -q set setup.default.lan_netmask="$current_lan_netmask"
+		uci -q commit setup
+	fi
+
+	if uci -q get network.${network_section} >/dev/null; then
+		uci -q delete network.${network_section}
+		changed_network=1
+	fi
+
+	if uci -q get dhcp.${dhcp_section} >/dev/null; then
+		uci -q delete dhcp.${dhcp_section}
+		changed_dhcp=1
+	fi
+
+	if uci -q get wireless.${wireless_section} >/dev/null; then
+		uci -q delete wireless.${wireless_section}
+		changed_wireless=1
+	fi
+
+	if uci -q get firewall.${firewall_section} >/dev/null; then
+		uci -q delete firewall.${firewall_section}
+		changed_firewall=1
+	fi
+
+	[ "$changed_network" = 1 ] && uci -q commit network
+	[ "$changed_dhcp" = 1 ] && uci -q commit dhcp
+	[ "$changed_wireless" = 1 ] && uci -q commit wireless
+	[ "$changed_firewall" = 1 ] && uci -q commit firewall
+
+	touch "$configured_flag"
+	rm -f "$pending_flag"
+	rm -f "$CLEANUP_TOKEN_FILE"
+	rm -f "$BASELINE_FILE"
+
+	[ "$changed_network" = 1 ] && /etc/init.d/network reload >/dev/null 2>&1 || true
+	[ "$changed_dhcp" = 1 ] && /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+	[ "$changed_firewall" = 1 ] && /etc/init.d/firewall restart >/dev/null 2>&1 || true
+	[ "$changed_wireless" = 1 ] && wifi reload >/dev/null 2>&1 || true
+}
+
+monitor_once() {
+	load_firstboot_config
+
+	if [ "$enabled" != "1" ] || [ "$auto_cleanup_armed" != "1" ]; then
+		return 0
+	fi
+
+	ensure_baseline_file >/dev/null 2>&1 || return 0
+
+	if [ "$(uci -q get setup.default.initial_setup_complete)" = "1" ]; then
+		cleanup_firstboot_runtime
+		return 0
+	fi
+
+	if baseline_changed; then
+		if [ "$auto_cleanup_pending" = "1" ]; then
+			cleanup_firstboot_runtime
+		else
+			set_cleanup_pending
+		fi
+	else
+		[ "$auto_cleanup_pending" = "1" ] && clear_cleanup_pending
+	fi
+}
+
+finalize_cleanup() {
+	load_firstboot_config
+
+	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ] && [ "$auto_cleanup_pending" = "1" ]; then
+		cleanup_firstboot_runtime
+	fi
+}
+
+force_cleanup() {
+	load_firstboot_config
+
+	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ]; then
+		cleanup_firstboot_runtime
+	fi
+}
+
+sync_firstboot_flags() {
+	local complete=0
+
+	load_firstboot_config
+
+	[ "$(uci -q get setup.default.initial_setup_complete)" = "1" ] && complete=1
+
+	if [ "$enabled" = "0" ] || [ "$complete" = "1" ]; then
+		touch "$configured_flag"
+		rm -f "$pending_flag"
+	else
+		touch "$pending_flag"
+	fi
+}
+
+boot() {
+	load_firstboot_config
+
+	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ] && [ "$auto_cleanup_pending" = "1" ]; then
+		cleanup_firstboot_runtime
+	fi
+
+	sync_firstboot_flags
+}
+
+start_service() {
+	load_firstboot_config
+
+	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ] && [ "$auto_cleanup_pending" = "1" ]; then
+		cleanup_firstboot_runtime
+	fi
+
+	sync_firstboot_flags
+
+	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ]; then
+		ensure_baseline_file >/dev/null 2>&1 || true
+	fi
+
+	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ]; then
+		procd_open_instance
+		procd_set_param command /bin/sh -c 'while true; do /etc/init.d/alemprator-firstboot monitor_once >/dev/null 2>&1 || true; sleep 5; done'
+		procd_close_instance
+	fi
+}
+
+reload_service() {
+	load_firstboot_config
+
+	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ]; then
+		ensure_baseline_file >/dev/null 2>&1 || true
+		schedule_deferred_cleanup
+	fi
+
+	sync_firstboot_flags
+}
+
+service_triggers() {
+	procd_add_reload_trigger "alemprator_firstboot" "network" "wireless" "dhcp" "firewall" "system" "setup"
+}

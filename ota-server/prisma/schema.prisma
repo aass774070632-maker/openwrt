@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Device {
+  id                Int           @id @default(autoincrement())
+  token             String        @unique
+  model             String
+  mac               String
+  board             String
+  currentVersion    String?       @map("current_version")
+  status            String?
+  lastResult        String?       @map("last_result")
+  lastError         String?       @map("last_error")
+  lastIp            String?       @map("last_ip")
+  firstRegisteredAt DateTime?     @map("first_registered_at")
+  lastSeenAt        DateTime?     @map("last_seen_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  events            DeviceEvent[]
+
+  @@map("devices")
+}
+
+model Release {
+  id             Int           @id @default(autoincrement())
+  model          String
+  version        String
+  versionCode    String?       @map("version_code")
+  downloadUrl    String        @map("download_url")
+  sha256         String
+  changelog      String?
+  force          Boolean       @default(false)
+  rolloutPercent Int           @default(100) @map("rollout_percent")
+  active         Boolean       @default(false)
+  channel        String        @default("stable")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  files          ReleaseFile[]
+
+  @@map("releases")
+}
+
+model ReleaseFile {
+  id         Int      @id @default(autoincrement())
+  releaseId  Int      @map("release_id")
+  kind       String
+  url        String
+  sha256     String
+  sizeBytes  BigInt?  @map("size_bytes")
+  createdAt  DateTime @default(now()) @map("created_at")
+  release    Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+
+  @@map("release_files")
+}
+
+model DeviceEvent {
+  id          Int      @id @default(autoincrement())
+  deviceId    Int      @map("device_id")
+  eventType   String   @map("event_type")
+  status      String?
+  message     String?
+  payloadJson Json?    @map("payload_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("device_events")
+}
+
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  sessions     AdminSession[]
+
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id               Int       @id @default(autoincrement())
+  adminUserId      Int       @map("admin_user_id")
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  userAgent        String?   @map("user_agent")
+  ipAddress        String?   @map("ip_address")
+  lastUsedAt       DateTime? @map("last_used_at")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  adminUser        AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("admin_sessions")
+}
