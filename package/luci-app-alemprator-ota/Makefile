@@ -1,8 +1,8 @@
-.0clude $(TOPDIR)/rules.mk
+include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-alemprator-ota
 PKG_VERSION:=1.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKG_LICENSE:=GPL-3.0-only
 PKG_MAINTAINER:=ALemprator
@@ -14,7 +14,7 @@ define Package/luci-app-alemprator-ota
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
   TITLE:=ALemprator OTA Agent and UI
-  DEPENDS:=+luci-base +rpcd +rpcd-mod-file +uclient-fetch +jsonfilter +libubox +ca-bundle +coreutils-sha256sum
+	DEPENDS:=+luci-base +rpcd +rpcd-mod-file +uclient-fetch +jsonfilter +libubox +ca-bundle +coreutils-sha256sum +openssl-util
 endef
 
 define Package/luci-app-alemprator-ota/description
@@ -38,6 +38,8 @@ endef
 define Package/luci-app-alemprator-ota/install
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/etc/config/alemprator_ota $(1)/etc/config/
+	$(INSTALL_DIR) $(1)/etc/alemprator
+	$(INSTALL_DATA) ./files/etc/alemprator/firmware-version $(1)/etc/alemprator/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/etc/init.d/alemprator-ota $(1)/etc/init.d/
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
@@ -48,6 +50,7 @@ define Package/luci-app-alemprator-ota/install
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/common.sh $(1)/usr/libexec/alemprator-ota/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/agent.sh $(1)/usr/libexec/alemprator-ota/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/run-once $(1)/usr/libexec/alemprator-ota/
+	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/start-update $(1)/usr/libexec/alemprator-ota/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/status-json $(1)/usr/libexec/alemprator-ota/
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	$(INSTALL_DATA) ./files/usr/share/luci/menu.d/luci-app-alemprator-ota.json $(1)/usr/share/luci/menu.d/

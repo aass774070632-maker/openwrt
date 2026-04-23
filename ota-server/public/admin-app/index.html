@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OTA Control Center</title>
+  <link rel="stylesheet" href="/admin-app/styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Alemprator Platform</p>
+        <h1>OTA Control Center</h1>
+      </div>
+      <div class="topbar-actions">
+        <div id="sessionBadge" class="session-badge muted">Not signed in</div>
+        <button id="refreshButton" class="ghost-button" type="button" hidden>Refresh Data</button>
+        <button id="logoutButton" class="ghost-button" type="button" hidden>Log Out</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="loginPanel" class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Production Rollout Console</p>
+          <h2>Operate releases, campaigns, and device targeting from one place.</h2>
+          <p>
+            This dashboard talks directly to the secured admin APIs to manage firmware models,
+            staged campaigns, device groups, and tagged rollout audiences.
+          </p>
+        </div>
+
+        <form id="loginForm" class="login-card">
+          <label>
+            <span>Email</span>
+            <input id="loginEmail" name="email" type="email" autocomplete="username" required>
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <button class="primary-button" type="submit">Sign In</button>
+          <p id="loginMessage" class="inline-message"></p>
+        </form>
+      </section>
+
+      <section id="appPanel" class="app-panel" hidden>
+        <div class="status-strip">
+          <div>
+            <p class="eyebrow">Live State</p>
+            <h2>Fleet and rollout visibility</h2>
+          </div>
+          <p id="globalMessage" class="inline-message muted">Ready</p>
+        </div>
+
+        <section id="summaryGrid" class="summary-grid"></section>
+
+        <div class="content-grid">
+          <section class="panel wide-panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Fleet</p>
+                <h3>Devices</h3>
+              </div>
+              <div class="panel-tools">
+                <label class="inline-filter">
+                  <span>Search Devices</span>
+                  <input id="deviceSearchInput" class="filter-input" type="search" placeholder="Model, MAC, token, version, group, tag">
+                </label>
+              </div>
+            </div>
+            <div id="devicesTable" class="table-wrap"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Model Catalog</p>
+                <h3>Firmware Models</h3>
+              </div>
+            </div>
+            <form id="modelForm" class="stack-form">
+              <label><span>Display Name</span><input name="display_name" required></label>
+              <label><span>Model Key</span><input name="model_key" placeholder="kt,km14-102h" required></label>
+              <label><span>Slug</span><input name="slug" placeholder="km14-102h"></label>
+              <label><span>Board Identifier</span><input name="board_identifier" placeholder="kt,km14-102h"></label>
+              <label><span>Artifact Kind</span><input name="artifact_kind" value="sysupgrade"></label>
+              <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
+              <button class="primary-button" type="submit">Create Model</button>
+            </form>
+            <div id="modelsTable" class="table-wrap compact"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Audience Controls</p>
+                <h3>Groups and Tags</h3>
+              </div>
+            </div>
+            <form id="groupForm" class="stack-form split-form">
+              <label><span>Group Name</span><input name="name" required></label>
+              <label><span>Description</span><input name="description"></label>
+              <button class="primary-button" type="submit">Create Group</button>
+            </form>
+            <form id="tagForm" class="stack-form split-form">
+              <label><span>Tag Name</span><input name="name" required></label>
+              <label><span>Description</span><input name="description"></label>
+              <label><span>Color</span><input name="color" placeholder="#147d64"></label>
+              <button class="primary-button" type="submit">Create Tag</button>
+            </form>
+            <form id="assignGroupForm" class="stack-form split-form">
+              <label><span>Device ID</span><input name="device_id" type="number" min="1" required></label>
+              <label><span>Group</span><select id="assignGroupSelect" name="group_id" required></select></label>
+              <button class="secondary-button" type="submit">Assign Group</button>
+            </form>
+            <form id="assignTagForm" class="stack-form split-form">
+              <label><span>Device ID</span><input name="device_id" type="number" min="1" required></label>
+              <label><span>Tag</span><select id="assignTagSelect" name="tag_id" required></select></label>
+              <button class="secondary-button" type="submit">Assign Tag</button>
+            </form>
+            <div class="dual-table">
+              <div id="groupsTable" class="table-wrap compact"></div>
+              <div id="tagsTable" class="table-wrap compact"></div>
+            </div>
+          </section>
+
+          <section class="panel wide-panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Release Intake</p>
+                <h3>Firmware Releases</h3>
+              </div>
+              <div class="panel-tools">
+                <label class="inline-filter">
+                  <span>Filter Releases</span>
+                  <select id="releaseFilterSelect"></select>
+                </label>
+              </div>
+            </div>
+            <form id="releaseForm" class="stack-form release-form">
+              <label><span>Firmware Model</span><select id="releaseModelSelect" name="firmware_model_id"></select></label>
+              <label><span>Fallback Model Key</span><input name="model" placeholder="Only if no model entry exists"></label>
+              <label><span>Version</span><input name="version" placeholder="24.10.4-km14-r8" required></label>
+              <label><span>Version Code</span><input name="version_code" placeholder="r8"></label>
+              <label><span>Artifact Path</span><input name="artifact_path" placeholder="/firmware/openwrt-...-r8.bin" required></label>
+              <label class="full-width"><span>Changelog</span><textarea name="changelog" rows="4"></textarea></label>
+              <label><span>Channel</span><input name="channel" value="stable"></label>
+              <label><span>Rollout Percent</span><input name="rollout_percent" type="number" min="1" max="100" value="100"></label>
+              <label class="checkbox-field"><input name="active" type="checkbox" checked><span>Mark release active</span></label>
+              <label class="checkbox-field"><input name="force" type="checkbox"><span>Force update</span></label>
+              <button class="primary-button" type="submit">Create Release</button>
+            </form>
+            <div id="releasesTable" class="table-wrap"></div>
+          </section>
+
+          <section class="panel wide-panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Targeted Rollouts</p>
+                <h3>Campaigns</h3>
+              </div>
+              <div class="panel-tools">
+                <label class="inline-toggle">
+                  <input id="showArchivedCampaignsInput" type="checkbox">
+                  <span>Show Archived</span>
+                </label>
+              </div>
+            </div>
+            <div class="panel-header compact-header">
+              <div>
+                <p class="eyebrow">Campaign Editor</p>
+                <h3 id="campaignFormTitle">Create Campaign</h3>
+              </div>
+              <button id="cancelCampaignEditButton" class="secondary-button" type="button" hidden>Cancel Edit</button>
+            </div>
+            <form id="campaignForm" class="stack-form release-form">
+              <label><span>Release</span><select id="campaignReleaseSelect" name="release_id" required></select></label>
+              <label><span>Name</span><input name="name" placeholder="KM14 pilot rollout" required></label>
+              <label><span>Channel</span><input name="channel" value="stable"></label>
+              <label><span>Priority</span><input name="priority" type="number" value="100"></label>
+              <label><span>Rollout Percent</span><input name="rollout_percent" type="number" min="1" max="100" value="100"></label>
+              <label><span>Start At</span><input name="start_at" type="datetime-local"></label>
+              <label><span>End At</span><input name="end_at" type="datetime-local"></label>
+              <label class="checkbox-field"><input name="active" type="checkbox" checked><span>Activate campaign now</span></label>
+              <label class="full-width"><span>Description</span><textarea name="description" rows="3"></textarea></label>
+              <div class="full-width rule-builder-shell">
+                <div class="rule-builder-header">
+                  <div>
+                    <span>Targeting Rules</span>
+                    <p class="builder-note">Rules are serialized to the existing API shape. Leave the list empty to target the whole firmware model.</p>
+                  </div>
+                  <button id="addCampaignRuleButton" class="secondary-button" type="button">Add Rule</button>
+                </div>
+                <div id="campaignRuleList" class="rule-builder-list"></div>
+                <div class="rule-preview-shell">
+                  <span>Rule Preview</span>
+                  <div id="campaignRulesPreview" class="pill-row"></div>
+                </div>
+              </div>
+              <button id="campaignSubmitButton" class="primary-button" type="submit">Create Campaign</button>
+            </form>
+            <div id="campaignsTable" class="table-wrap"></div>
+            <section id="campaignDetailsPanel" class="campaign-details" hidden>
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Campaign Monitor</p>
+                  <h3 id="campaignDetailsTitle">Campaign devices</h3>
+                </div>
+                <p id="campaignDetailsMeta" class="inline-message muted">Select a campaign to inspect its tracked devices.</p>
+              </div>
+              <div id="campaignDevicesTable" class="table-wrap compact"></div>
+            </section>
+            <section class="campaign-details">
+              <div class="panel-header compact-header">
+                <div>
+                  <p class="eyebrow">Audit Log</p>
+                  <h3>Recent Admin Actions</h3>
+                </div>
+                <p class="inline-message muted">Create, edit, archive, delete, and assignment events.</p>
+              </div>
+              <div id="auditLogsTable" class="table-wrap compact"></div>
+            </section>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/admin-app/app.js" defer></script>
+</body>
+</html>

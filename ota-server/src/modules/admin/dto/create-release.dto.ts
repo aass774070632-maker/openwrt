@@ -1,10 +1,15 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateReleaseDto {
   @IsString()
-  @IsNotEmpty()
-  model!: string;
+  @IsOptional()
+  model?: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @IsOptional()
+  firmware_model_id?: number;
 
   @IsString()
   @IsNotEmpty()

@@ -27,7 +27,8 @@
 		"write": {
 			"uci": [ "alemprator_ota" ],
 			"file": {
-				"/usr/libexec/alemprator-ota/run-once": [ "exec" ]
+				"/usr/libexec/alemprator-ota/run-once": [ "exec" ],
+				"/usr/libexec/alemprator-ota/start-update": [ "exec" ]
 			},
 			"ubus": {
 				"file": [ "exec" ]

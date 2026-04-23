@@ -40,6 +40,25 @@ npm run seed:test-release
 
 This seeds an active stable release that points to the placeholder firmware artifact at `/firmware/AR-07-102H-1.1.0-test.bin`. It is only for backend and delivery validation and must not be flashed to devices.
 
+## One-Command OTA Smoke Test
+
+After the API is up and the test release is seeded, run:
+
+```bash
+npm run smoke:e2e
+```
+
+This executes a full flow: health, register, update, heartbeat, and model-mismatch rejection.
+
+## OTA Security Settings
+
+Optional environment variables:
+
+- `OTA_HMAC_SECRET`: when set, OTA clients must send `X-OTA-TS` and `X-OTA-Signature` headers.
+- `OTA_HMAC_MAX_SKEW_SECONDS`: maximum allowed timestamp skew for HMAC validation.
+- `OTA_RATE_LIMIT_WINDOW_SECONDS`: sliding window duration for OTA endpoint throttling.
+- `OTA_RATE_LIMIT_MAX_REQUESTS`: max requests per token+IP+endpoint in the configured window.
+
 ## Admin Release API
 
 The backend now exposes a small admin API protected by an admin `Bearer` access token.

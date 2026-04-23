@@ -11,8 +11,10 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "echo \"No tests configured yet\" && exit 0",
+    "smoke:e2e": "bash scripts/smoke-e2e.sh",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "seed:models": "node --env-file=.env scripts/seed-firmware-models.mjs",
     "seed:test-release": "node --env-file=.env scripts/seed-test-release.mjs",
     "seed:admin": "node --env-file=.env scripts/seed-admin.mjs"
   },

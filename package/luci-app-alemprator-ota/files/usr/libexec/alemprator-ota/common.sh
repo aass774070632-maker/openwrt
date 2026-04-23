@@ -24,9 +24,12 @@ WINDOW_END="6"
 RETRY_BASE="900"
 RETRY_MAX="21600"
 TOKEN_SALT=""
+HMAC_SECRET=""
 CONNECT_TIMEOUT="20"
+UPGRADE_EXPECTED_SECONDS="180"
 MODEL_FILE="/etc/model"
 TOKEN_FILE="/etc/alemprator/device.token"
+VERSION_FILE="/etc/alemprator/firmware-version"
 STATE_FILE="/tmp/alemprator-ota/state.env"
 
 status="idle"
@@ -40,6 +43,15 @@ last_download_url=""
 current_version=""
 retry_attempts="0"
 next_retry_epoch="0"
+download_bytes="0"
+download_size_bytes="0"
+download_percent="0"
+download_rate_bps="0"
+download_eta_seconds="0"
+download_started_epoch="0"
+download_updated_epoch="0"
+upgrade_started_epoch="0"
+upgrade_expected_seconds="$UPGRADE_EXPECTED_SECONDS"
 
 log() {
 	logger -t alemprator-ota "$*"
@@ -58,6 +70,27 @@ escape_sq() {
 
 json_escape() {
 	printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e ':a;N;$!ba;s/\n/\\n/g'
+}
+
+url_encode() {
+	local input hex out ch
+	input="$1"
+	out=""
+
+	if command -v od >/dev/null 2>&1; then
+		set -- $(printf '%s' "$input" | od -An -tx1 -v)
+	else
+		set -- $(printf '%s' "$input" | hexdump -v -e '1/1 "%02x "')
+	fi
+	for hex in "$@"; do
+		ch="$(printf "\\x$hex")"
+		case "$ch" in
+			[a-zA-Z0-9.~_-]) out="$out$ch" ;;
+			*) out="$out%$(printf '%s' "$hex" | tr '[:lower:]' '[:upper:]')" ;;
+		esac
+	done
+
+	printf '%s' "$out"
 }
 
 safe_text() {
@@ -80,10 +113,13 @@ load_config() {
 	config_get RETRY_BASE "$SECTION" retry_base "900"
 	config_get RETRY_MAX "$SECTION" retry_max "21600"
 	config_get TOKEN_SALT "$SECTION" token_salt "CHANGE_ME_UNIQUE_PER_BRAND"
+	config_get HMAC_SECRET "$SECTION" hmac_secret ""
 	config_get CONNECT_TIMEOUT "$SECTION" connect_timeout "20"
 	config_get MODEL_FILE "$SECTION" model_file "/etc/model"
 	config_get TOKEN_FILE "$SECTION" token_file "/etc/alemprator/device.token"
+	config_get VERSION_FILE "$SECTION" version_file "/etc/alemprator/firmware-version"
 	config_get STATE_FILE "$SECTION" state_file "/tmp/alemprator-ota/state.env"
+	config_get UPGRADE_EXPECTED_SECONDS "$SECTION" upgrade_expected_seconds "180"
 
 	CHECK_INTERVAL="$(safe_int "$CHECK_INTERVAL" 21600)"
 	RANDOM_DELAY_MAX="$(safe_int "$RANDOM_DELAY_MAX" 3600)"
@@ -92,6 +128,8 @@ load_config() {
 	RETRY_BASE="$(safe_int "$RETRY_BASE" 900)"
 	RETRY_MAX="$(safe_int "$RETRY_MAX" 21600)"
 	CONNECT_TIMEOUT="$(safe_int "$CONNECT_TIMEOUT" 20)"
+	UPGRADE_EXPECTED_SECONDS="$(safe_int "$UPGRADE_EXPECTED_SECONDS" 180)"
+	upgrade_expected_seconds="$UPGRADE_EXPECTED_SECONDS"
 
 	mkdir -p "$STATE_DIR" "$PERSIST_DIR"
 }
@@ -102,8 +140,11 @@ load_state() {
 }
 
 write_state() {
+	local tmp_file
+
 	mkdir -p "$STATE_DIR"
-	cat > "$STATE_FILE" <<EOF
+	tmp_file="$STATE_FILE.$$"
+	cat > "$tmp_file" <<EOF
 status='$(escape_sq "$(safe_text "$status")")'
 update_available='$(escape_sq "$update_available")'
 latest_version='$(escape_sq "$(safe_text "$latest_version")")'
@@ -115,7 +156,73 @@ last_download_url='$(escape_sq "$(safe_text "$last_download_url")")'
 current_version='$(escape_sq "$(safe_text "$current_version")")'
 retry_attempts='$(escape_sq "$retry_attempts")'
 next_retry_epoch='$(escape_sq "$next_retry_epoch")'
+download_bytes='$(escape_sq "$download_bytes")'
+download_size_bytes='$(escape_sq "$download_size_bytes")'
+download_percent='$(escape_sq "$download_percent")'
+download_rate_bps='$(escape_sq "$download_rate_bps")'
+download_eta_seconds='$(escape_sq "$download_eta_seconds")'
+download_started_epoch='$(escape_sq "$download_started_epoch")'
+download_updated_epoch='$(escape_sq "$download_updated_epoch")'
+upgrade_started_epoch='$(escape_sq "$upgrade_started_epoch")'
+upgrade_expected_seconds='$(escape_sq "$upgrade_expected_seconds")'
 EOF
+	mv "$tmp_file" "$STATE_FILE"
+}
+
+reset_progress_state() {
+	download_bytes="0"
+	download_size_bytes="0"
+	download_percent="0"
+	download_rate_bps="0"
+	download_eta_seconds="0"
+	download_started_epoch="0"
+	download_updated_epoch="0"
+	upgrade_started_epoch="0"
+	upgrade_expected_seconds="$UPGRADE_EXPECTED_SECONDS"
+}
+
+start_download_progress() {
+	reset_progress_state
+	download_size_bytes="$(safe_int "$1" 0)"
+	download_started_epoch="$(date +%s)"
+	download_updated_epoch="$download_started_epoch"
+}
+
+update_download_progress() {
+	local current_bytes total_bytes now elapsed remaining
+
+	current_bytes="$(safe_int "$1" 0)"
+	total_bytes="$(safe_int "$download_size_bytes" 0)"
+	now="$(date +%s)"
+	elapsed=$((now - $(safe_int "$download_started_epoch" "$now")))
+	[ "$elapsed" -gt 0 ] || elapsed=1
+
+	download_bytes="$current_bytes"
+	download_updated_epoch="$now"
+	download_rate_bps=$((current_bytes / elapsed))
+
+	if [ "$total_bytes" -gt 0 ]; then
+		download_percent=$((current_bytes * 100 / total_bytes))
+		[ "$download_percent" -gt 100 ] && download_percent=100
+		remaining=$((total_bytes - current_bytes))
+		[ "$remaining" -lt 0 ] && remaining=0
+		if [ "$download_rate_bps" -gt 0 ]; then
+			download_eta_seconds=$(((remaining + download_rate_bps - 1) / download_rate_bps))
+		else
+			download_eta_seconds="0"
+		fi
+	else
+		download_percent="0"
+		download_eta_seconds="0"
+	fi
+}
+
+start_upgrade_progress() {
+	upgrade_started_epoch="$(date +%s)"
+	upgrade_expected_seconds="$UPGRADE_EXPECTED_SECONDS"
+	download_percent="100"
+	download_eta_seconds="0"
+	download_updated_epoch="$upgrade_started_epoch"
 }
 
 load_retry() {
@@ -169,6 +276,11 @@ get_device_model() {
 
 get_current_version() {
 	local version revision
+	if [ -s "$VERSION_FILE" ]; then
+		head -n1 "$VERSION_FILE"
+		return 0
+	fi
+
 	version="$(ubus call system board 2>/dev/null | jsonfilter -e '@.release.version')"
 	revision="$(ubus call system board 2>/dev/null | jsonfilter -e '@.release.revision')"
 	[ -n "$version" ] || version="unknown"
@@ -260,8 +372,19 @@ ensure_model_file() {
 device_rollout_bucket() {
 	local token prefix
 	token="$(ensure_token)"
-	prefix="$(printf '%s' "$token" | cut -c1-2)"
-	printf '%d\n' $((16#$prefix % 100))
+	prefix="$(printf '%s' "$token" | cut -c1-8 | tr '[:upper:]' '[:lower:]')"
+	printf '%s\n' "$prefix" | awk '
+		{
+			value = 0
+			for (i = 1; i <= length($0); i++) {
+				digit = index("0123456789abcdef", substr($0, i, 1)) - 1
+				if (digit < 0) {
+					digit = 0
+				}
+				value = ((value * 16) + digit) % 100
+			}
+			print value
+		}'
 }
 
 is_in_update_window() {
@@ -283,7 +406,11 @@ random_jitter() {
 	local max raw
 	max="$(safe_int "$RANDOM_DELAY_MAX" 0)"
 	[ "$max" -gt 0 ] || return 0
-	raw="$(dd if=/dev/urandom bs=2 count=1 2>/dev/null | od -An -tu2 | tr -d ' ')"
+	if command -v od >/dev/null 2>&1; then
+		raw="$(dd if=/dev/urandom bs=2 count=1 2>/dev/null | od -An -tu2 | tr -d ' ')"
+	else
+		raw="$(dd if=/dev/urandom bs=2 count=1 2>/dev/null | hexdump -v -e '1/2 "%u"')"
+	fi
 	[ -n "$raw" ] || raw=0
 	delay=$((raw % max))
 	[ "$delay" -gt 0 ] && sleep "$delay"
@@ -296,6 +423,59 @@ post_json() {
 	uclient-fetch -q -T "$CONNECT_TIMEOUT" --header 'Content-Type: application/json' --post-data "$payload" -O - "$url"
 }
 
+hmac_sha256() {
+	local data
+	data="$1"
+
+	if command -v openssl >/dev/null 2>&1; then
+		printf '%s' "$data" | openssl dgst -sha256 -hmac "$HMAC_SECRET" | awk '{print $NF}'
+		return 0
+	fi
+
+	return 1
+}
+
+signed_fetch_url() {
+	local url action ts data sig
+	url="$1"
+	action="$2"
+
+	if [ -z "$HMAC_SECRET" ]; then
+		fetch_url "$url"
+		return $?
+	fi
+
+	ts="$(date +%s)"
+	data="$ts|$action"
+	sig="$(hmac_sha256 "$data")" || {
+		last_error="hmac requested but openssl is missing"
+		return 1
+	}
+
+	uclient-fetch -q -T "$CONNECT_TIMEOUT" --header "X-OTA-TS: $ts" --header "X-OTA-Signature: $sig" -O - "$url"
+}
+
+signed_post_json() {
+	local url payload action ts data sig
+	url="$1"
+	payload="$2"
+	action="$3"
+
+	if [ -z "$HMAC_SECRET" ]; then
+		post_json "$url" "$payload"
+		return $?
+	fi
+
+	ts="$(date +%s)"
+	data="$ts|$action"
+	sig="$(hmac_sha256 "$data")" || {
+		last_error="hmac requested but openssl is missing"
+		return 1
+	}
+
+	uclient-fetch -q -T "$CONNECT_TIMEOUT" --header 'Content-Type: application/json' --header "X-OTA-TS: $ts" --header "X-OTA-Signature: $sig" --post-data "$payload" -O - "$url"
+}
+
 fetch_url() {
 	local url
 	url="$1"
@@ -303,15 +483,16 @@ fetch_url() {
 }
 
 register_device() {
-	local token model version mac board payload response accepted
+	local token model version mac board payload response accepted action
 	token="$(ensure_token)"
 	model="$(get_device_model)"
 	version="$(get_current_version)"
 	mac="$(get_primary_mac)"
 	board="$(get_board_name)"
 
-	payload="{\"token\":\"$token\",\"model\":\"$model\",\"version\":\"$version\",\"mac\":\"$mac\",\"board\":\"$board\"}"
-	response="$(post_json "$SERVER_URL$REGISTER_PATH" "$payload" 2>/tmp/alemprator-ota-register.err)" || {
+	payload="{\"token\":\"$(json_escape "$token")\",\"model\":\"$(json_escape "$model")\",\"version\":\"$(json_escape "$version")\",\"mac\":\"$(json_escape "$mac")\",\"board\":\"$(json_escape "$board")\"}"
+	action="register|$token|$model|$version|$mac|$board"
+	response="$(signed_post_json "$SERVER_URL$REGISTER_PATH" "$payload" "$action" 2>/tmp/alemprator-ota-register.err)" || {
 		last_error="register request failed"
 		return 1
 	}
@@ -327,14 +508,15 @@ register_device() {
 }
 
 check_update_json() {
-	local token model version mac board url
+	local token model version mac board url action
 	token="$(ensure_token)"
 	model="$(get_device_model)"
 	version="$(get_current_version)"
 	mac="$(get_primary_mac)"
 	board="$(get_board_name)"
-	url="$SERVER_URL$UPDATE_PATH?token=$token&model=$model&version=$version&mac=$mac&board=$board"
-	fetch_url "$url"
+	url="$SERVER_URL$UPDATE_PATH?token=$(url_encode "$token")&model=$(url_encode "$model")&version=$(url_encode "$version")&mac=$(url_encode "$mac")&board=$(url_encode "$board")"
+	action="update|$token|$model|$version|$mac|$board"
+	signed_fetch_url "$url" "$action"
 }
 
 compare_is_newer() {
@@ -364,10 +546,11 @@ apply_sysupgrade() {
 }
 
 heartbeat_device() {
-	local token model version payload
+	local token model version payload action
 	token="$(ensure_token)"
 	model="$(get_device_model)"
 	version="$(get_current_version)"
-	payload="{\"token\":\"$token\",\"model\":\"$model\",\"version\":\"$version\",\"status\":\"$status\"}"
-	post_json "$SERVER_URL$HEARTBEAT_PATH" "$payload" >/dev/null 2>&1 || true
+	payload="{\"token\":\"$(json_escape "$token")\",\"model\":\"$(json_escape "$model")\",\"current_version\":\"$(json_escape "$version")\",\"status\":\"$(json_escape "$status")\"}"
+	action="heartbeat|$token|$status|$version||"
+	signed_post_json "$SERVER_URL$HEARTBEAT_PATH" "$payload" "$action" >/dev/null 2>&1 || true
 }

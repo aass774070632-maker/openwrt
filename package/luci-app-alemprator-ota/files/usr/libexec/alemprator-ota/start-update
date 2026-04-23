@@ -1,0 +1,39 @@
+#!/bin/sh
+
+PID_FILE="/tmp/alemprator-ota/manual-update.pid"
+LOG_FILE="/tmp/alemprator-ota/manual-update.log"
+
+spawn_update() {
+	: > "$LOG_FILE"
+
+	if command -v setsid >/dev/null 2>&1; then
+		setsid sh -c '
+			pid_file="$1"
+			/usr/libexec/alemprator-ota/run-once --update-now
+			rm -f "$pid_file"
+		' sh "$PID_FILE" </dev/null >>"$LOG_FILE" 2>&1 &
+	else
+		sh -c '
+			pid_file="$1"
+			/usr/libexec/alemprator-ota/run-once --update-now
+			rm -f "$pid_file"
+		' sh "$PID_FILE" </dev/null >>"$LOG_FILE" 2>&1 &
+	fi
+
+	printf '%s\n' "$!" > "$PID_FILE"
+}
+
+mkdir -p /tmp/alemprator-ota
+
+if [ -f "$PID_FILE" ]; then
+	pid="$(cat "$PID_FILE" 2>/dev/null)"
+	if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+			printf '{"started":false,"already_running":true}\n'
+		exit 0
+	fi
+	rm -f "$PID_FILE"
+fi
+
+	spawn_update
+	pid="$!"
+printf '{"started":true,"pid":%s}\n' "$pid"

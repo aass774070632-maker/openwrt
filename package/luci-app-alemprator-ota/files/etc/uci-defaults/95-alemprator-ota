@@ -26,9 +26,11 @@ if ! uci -q get alemprator_ota.main >/dev/null; then
 		set alemprator_ota.main.retry_base='900'
 		set alemprator_ota.main.retry_max='21600'
 		set alemprator_ota.main.token_salt='CHANGE_ME_UNIQUE_PER_BRAND'
+		set alemprator_ota.main.hmac_secret=''
 		set alemprator_ota.main.connect_timeout='20'
 		set alemprator_ota.main.model_file='/etc/model'
 		set alemprator_ota.main.token_file='/etc/alemprator/device.token'
+		set alemprator_ota.main.version_file='/etc/alemprator/firmware-version'
 		set alemprator_ota.main.state_file='/tmp/alemprator-ota/state.env'
 		commit alemprator_ota
 EOF

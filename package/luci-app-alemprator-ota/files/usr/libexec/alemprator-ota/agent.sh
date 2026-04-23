@@ -30,17 +30,47 @@ choose_download_url() {
 }
 
 download_and_verify() {
-	local url expected got
+	local url expected total_size fetch_pid got current_bytes
 	url="$1"
 	expected="$2"
+	total_size="$(safe_int "$3" 0)"
 
-	uclient-fetch -q -T "$CONNECT_TIMEOUT" -O "$TMP_IMAGE" "$url" || return 1
+	rm -f "$TMP_IMAGE"
+	start_download_progress "$total_size"
+	write_state
+
+	uclient-fetch -q -T "$CONNECT_TIMEOUT" -O "$TMP_IMAGE" "$url" &
+	fetch_pid=$!
+
+	while kill -0 "$fetch_pid" 2>/dev/null; do
+		if [ -f "$TMP_IMAGE" ]; then
+			current_bytes="$(wc -c < "$TMP_IMAGE" 2>/dev/null | tr -d ' ')"
+		else
+			current_bytes="0"
+		fi
+
+		update_download_progress "$current_bytes"
+		write_state
+		sleep 1
+	done
+
+	wait "$fetch_pid" || return 1
+
+	if [ -f "$TMP_IMAGE" ]; then
+		current_bytes="$(wc -c < "$TMP_IMAGE" 2>/dev/null | tr -d ' ')"
+	else
+		current_bytes="0"
+	fi
+
+	update_download_progress "$current_bytes"
+	write_state
+
 	got="$(sha256sum "$TMP_IMAGE" | awk '{print $1}')"
 	[ "$got" = "$expected" ]
 }
 
 run_check_cycle() {
-	local response has_update server_version server_sha server_force server_rollout bucket should_rollout server_changelog url
+	local response has_update server_version server_sha server_force server_rollout bucket should_rollout server_changelog server_size url
 	local allow_now block_reason bypass_retry
 
 	bypass_retry=0
@@ -55,6 +85,7 @@ run_check_cycle() {
 	last_check_epoch="$(date +%s)"
 	status="checking"
 	last_error=""
+	reset_progress_state
 	write_state
 
 	if [ "$bypass_retry" != "1" ] && ! retry_allowed_now; then
@@ -81,15 +112,19 @@ run_check_cycle() {
 		return 1
 	}
 
+	clear_retry
+
 	has_update="$(printf '%s' "$response" | jsonfilter -e '@.update_available')"
 	server_version="$(printf '%s' "$response" | jsonfilter -e '@.version')"
 	server_sha="$(printf '%s' "$response" | jsonfilter -e '@.sha256')"
 	server_force="$(printf '%s' "$response" | jsonfilter -e '@.force')"
 	server_rollout="$(printf '%s' "$response" | jsonfilter -e '@.rollout_percent')"
 	server_changelog="$(printf '%s' "$response" | jsonfilter -e '@.changelog')"
+	server_size="$(printf '%s' "$response" | jsonfilter -e '@.size_bytes')"
 
 	[ -n "$server_rollout" ] || server_rollout=100
 	server_rollout="$(safe_int "$server_rollout" 100)"
+	server_size="$(safe_int "$server_size" 0)"
 	bucket="$(device_rollout_bucket)"
 	should_rollout=0
 	[ "$bucket" -lt "$server_rollout" ] && should_rollout=1
@@ -163,7 +198,7 @@ run_check_cycle() {
 	last_download_url="$url"
 	write_state
 
-	download_and_verify "$url" "$server_sha" || {
+	download_and_verify "$url" "$server_sha" "$server_size" || {
 		status="error"
 		last_result="download_or_hash_failed"
 		last_error="download failed or sha mismatch"
@@ -174,6 +209,8 @@ run_check_cycle() {
 
 	status="upgrading"
 	last_result="upgrade_start"
+	start_upgrade_progress
+	clear_retry
 	write_state
 
 	if [ "$server_force" = "true" ] || [ "$server_force" = "1" ]; then
@@ -182,11 +219,16 @@ run_check_cycle() {
 		server_force=0
 	fi
 
-	clear_retry
-	write_state
 	heartbeat_device
 
-	apply_sysupgrade "$TMP_IMAGE" "$server_force"
+	apply_sysupgrade "$TMP_IMAGE" "$server_force" || {
+		status="error"
+		last_result="sysupgrade_failed"
+		last_error="failed to start sysupgrade"
+		retry_schedule_failure
+		write_state
+		return 1
+	}
 }
 
 run_loop() {
