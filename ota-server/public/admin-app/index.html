@@ -1,46 +1,46 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OTA Control Center</title>
-  <link rel="stylesheet" href="/admin-app/styles.css">
+  <title>مركز تحكم تحديثات OTA</title>
+  <link rel="stylesheet" href="/admin-app/styles.css?v=20260429-1">
 </head>
 <body>
   <div class="page-shell">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Alemprator Platform</p>
-        <h1>OTA Control Center</h1>
+        <p class="eyebrow">منصة Alemprator</p>
+        <h1>مركز تحكم تحديثات OTA</h1>
       </div>
       <div class="topbar-actions">
-        <div id="sessionBadge" class="session-badge muted">Not signed in</div>
-        <button id="refreshButton" class="ghost-button" type="button" hidden>Refresh Data</button>
-        <button id="logoutButton" class="ghost-button" type="button" hidden>Log Out</button>
+        <div id="sessionBadge" class="session-badge muted">غير مسجل الدخول</div>
+        <button id="refreshButton" class="ghost-button" type="button" hidden>تحديث البيانات</button>
+        <button id="logoutButton" class="ghost-button" type="button" hidden>تسجيل الخروج</button>
       </div>
     </header>
 
     <main>
       <section id="loginPanel" class="hero-panel">
         <div class="hero-copy">
-          <p class="eyebrow">Production Rollout Console</p>
-          <h2>Operate releases, campaigns, and device targeting from one place.</h2>
+          <p class="eyebrow">لوحة نشر الإنتاج</p>
+          <h2>إدارة الإصدارات والحملات واستهداف الأجهزة من مكان واحد.</h2>
           <p>
-            This dashboard talks directly to the secured admin APIs to manage firmware models,
-            staged campaigns, device groups, and tagged rollout audiences.
+            تتواصل هذه اللوحة مباشرة مع واجهات الإدارة الآمنة لإدارة نماذج البرنامج الثابت،
+            والحملات المرحلية، ومجموعات الأجهزة، وجمهور النشر عبر الوسوم.
           </p>
         </div>
 
         <form id="loginForm" class="login-card">
           <label>
-            <span>Email</span>
+            <span>البريد الإلكتروني</span>
             <input id="loginEmail" name="email" type="email" autocomplete="username" required>
           </label>
           <label>
-            <span>Password</span>
+            <span>كلمة المرور</span>
             <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
           </label>
-          <button class="primary-button" type="submit">Sign In</button>
+          <button class="primary-button" type="submit">تسجيل الدخول</button>
           <p id="loginMessage" class="inline-message"></p>
         </form>
       </section>
@@ -48,10 +48,10 @@
       <section id="appPanel" class="app-panel" hidden>
         <div class="status-strip">
           <div>
-            <p class="eyebrow">Live State</p>
-            <h2>Fleet and rollout visibility</h2>
+            <p class="eyebrow">الحالة المباشرة</p>
+            <h2>رؤية الأسطول وحالة النشر</h2>
           </div>
-          <p id="globalMessage" class="inline-message muted">Ready</p>
+          <p id="globalMessage" class="inline-message muted">جاهز</p>
         </div>
 
         <section id="summaryGrid" class="summary-grid"></section>
@@ -60,13 +60,13 @@
           <section class="panel wide-panel">
             <div class="panel-header">
               <div>
-                <p class="eyebrow">Fleet</p>
-                <h3>Devices</h3>
+                <p class="eyebrow">الأسطول</p>
+                <h3>الأجهزة</h3>
               </div>
               <div class="panel-tools">
                 <label class="inline-filter">
-                  <span>Search Devices</span>
-                  <input id="deviceSearchInput" class="filter-input" type="search" placeholder="Model, MAC, token, version, group, tag">
+                  <span>بحث الأجهزة</span>
+                  <input id="deviceSearchInput" class="filter-input" type="search" placeholder="الطراز، MAC، الرمز، الإصدار، المجموعة، الوسم">
                 </label>
               </div>
             </div>
@@ -76,18 +76,18 @@
           <section class="panel">
             <div class="panel-header">
               <div>
-                <p class="eyebrow">Model Catalog</p>
-                <h3>Firmware Models</h3>
+                <p class="eyebrow">كتالوج الطرازات</p>
+                <h3>نماذج البرنامج الثابت</h3>
               </div>
             </div>
             <form id="modelForm" class="stack-form">
-              <label><span>Display Name</span><input name="display_name" required></label>
-              <label><span>Model Key</span><input name="model_key" placeholder="kt,km14-102h" required></label>
-              <label><span>Slug</span><input name="slug" placeholder="km14-102h"></label>
-              <label><span>Board Identifier</span><input name="board_identifier" placeholder="kt,km14-102h"></label>
-              <label><span>Artifact Kind</span><input name="artifact_kind" value="sysupgrade"></label>
-              <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
-              <button class="primary-button" type="submit">Create Model</button>
+              <label><span>الاسم المعروض</span><input name="display_name" required></label>
+              <label><span>مفتاح الطراز</span><input name="model_key" placeholder="kt,km14-102h" required></label>
+              <label><span>المعرف المختصر (slug)</span><input name="slug" placeholder="km14-102h"></label>
+              <label><span>معرّف اللوحة</span><input name="board_identifier" placeholder="kt,km14-102h"></label>
+              <label><span>نوع الملف</span><input name="artifact_kind" value="sysupgrade"></label>
+              <label><span>ملاحظات</span><textarea name="notes" rows="3"></textarea></label>
+              <button class="primary-button" type="submit">إنشاء نموذج</button>
             </form>
             <div id="modelsTable" class="table-wrap compact"></div>
           </section>
@@ -95,30 +95,30 @@
           <section class="panel">
             <div class="panel-header">
               <div>
-                <p class="eyebrow">Audience Controls</p>
-                <h3>Groups and Tags</h3>
+                <p class="eyebrow">تحكم الجمهور</p>
+                <h3>المجموعات والوسوم</h3>
               </div>
             </div>
             <form id="groupForm" class="stack-form split-form">
-              <label><span>Group Name</span><input name="name" required></label>
-              <label><span>Description</span><input name="description"></label>
-              <button class="primary-button" type="submit">Create Group</button>
+              <label><span>اسم المجموعة</span><input name="name" required></label>
+              <label><span>الوصف</span><input name="description"></label>
+              <button class="primary-button" type="submit">إنشاء مجموعة</button>
             </form>
             <form id="tagForm" class="stack-form split-form">
-              <label><span>Tag Name</span><input name="name" required></label>
-              <label><span>Description</span><input name="description"></label>
-              <label><span>Color</span><input name="color" placeholder="#147d64"></label>
-              <button class="primary-button" type="submit">Create Tag</button>
+              <label><span>اسم الوسم</span><input name="name" required></label>
+              <label><span>الوصف</span><input name="description"></label>
+              <label><span>اللون</span><input name="color" placeholder="#147d64"></label>
+              <button class="primary-button" type="submit">إنشاء وسم</button>
             </form>
             <form id="assignGroupForm" class="stack-form split-form">
-              <label><span>Device ID</span><input name="device_id" type="number" min="1" required></label>
-              <label><span>Group</span><select id="assignGroupSelect" name="group_id" required></select></label>
-              <button class="secondary-button" type="submit">Assign Group</button>
+              <label><span>معرّف الجهاز</span><input name="device_id" type="number" min="1" required></label>
+              <label><span>المجموعة</span><select id="assignGroupSelect" name="group_id" required></select></label>
+              <button class="secondary-button" type="submit">إسناد مجموعة</button>
             </form>
             <form id="assignTagForm" class="stack-form split-form">
-              <label><span>Device ID</span><input name="device_id" type="number" min="1" required></label>
-              <label><span>Tag</span><select id="assignTagSelect" name="tag_id" required></select></label>
-              <button class="secondary-button" type="submit">Assign Tag</button>
+              <label><span>معرّف الجهاز</span><input name="device_id" type="number" min="1" required></label>
+              <label><span>الوسم</span><select id="assignTagSelect" name="tag_id" required></select></label>
+              <button class="secondary-button" type="submit">إسناد وسم</button>
             </form>
             <div class="dual-table">
               <div id="groupsTable" class="table-wrap compact"></div>
@@ -129,96 +129,98 @@
           <section class="panel wide-panel">
             <div class="panel-header">
               <div>
-                <p class="eyebrow">Release Intake</p>
-                <h3>Firmware Releases</h3>
+                <p class="eyebrow">إدارة الإصدارات</p>
+                <h3>إصدارات البرنامج الثابت</h3>
               </div>
               <div class="panel-tools">
                 <label class="inline-filter">
-                  <span>Filter Releases</span>
+                  <span>تصفية الإصدارات</span>
                   <select id="releaseFilterSelect"></select>
                 </label>
               </div>
             </div>
             <form id="releaseForm" class="stack-form release-form">
-              <label><span>Firmware Model</span><select id="releaseModelSelect" name="firmware_model_id"></select></label>
-              <label><span>Fallback Model Key</span><input name="model" placeholder="Only if no model entry exists"></label>
-              <label><span>Version</span><input name="version" placeholder="24.10.4-km14-r8" required></label>
-              <label><span>Version Code</span><input name="version_code" placeholder="r8"></label>
-              <label><span>Artifact Path</span><input name="artifact_path" placeholder="/firmware/openwrt-...-r8.bin" required></label>
-              <label class="full-width"><span>Changelog</span><textarea name="changelog" rows="4"></textarea></label>
-              <label><span>Channel</span><input name="channel" value="stable"></label>
-              <label><span>Rollout Percent</span><input name="rollout_percent" type="number" min="1" max="100" value="100"></label>
-              <label class="checkbox-field"><input name="active" type="checkbox" checked><span>Mark release active</span></label>
-              <label class="checkbox-field"><input name="force" type="checkbox"><span>Force update</span></label>
-              <button class="primary-button" type="submit">Create Release</button>
+              <label><span>نموذج البرنامج الثابت</span><select id="releaseModelSelect" name="firmware_model_id"></select></label>
+              <label><span>مفتاح طراز بديل</span><input name="model" placeholder="فقط إذا لم يوجد نموذج مسجل"></label>
+              <label><span>الإصدار</span><input name="version" placeholder="24.10.4-km14-r8" required></label>
+              <label><span>رمز الإصدار</span><input name="version_code" placeholder="r8"></label>
+              <label><span>مسار ملف موجود على السيرفر</span><input name="artifact_path" placeholder="/firmware/openwrt-...-r8.bin"></label>
+              <label><span>رفع من المتصفح</span><input name="artifact" type="file" accept=".bin,.img,.itb,.gz,.tar,.zst"></label>
+              <label class="full-width"><span>سجل التغييرات</span><textarea name="changelog" rows="4"></textarea></label>
+              <label><span>القناة</span><input name="channel" value="stable"></label>
+              <label><span>نسبة النشر</span><input name="rollout_percent" type="number" min="1" max="100" value="100"></label>
+              <label class="checkbox-field"><input name="active" type="checkbox" checked><span>تفعيل الإصدار</span></label>
+              <label class="checkbox-field"><input name="force" type="checkbox"><span>تحديث إجباري</span></label>
+              <button class="primary-button" type="submit">إنشاء إصدار</button>
             </form>
+            <p id="releaseMessage" class="inline-message muted">جاهز لإنشاء إصدار جديد.</p>
             <div id="releasesTable" class="table-wrap"></div>
           </section>
 
           <section class="panel wide-panel">
             <div class="panel-header">
               <div>
-                <p class="eyebrow">Targeted Rollouts</p>
-                <h3>Campaigns</h3>
+                <p class="eyebrow">النشر الموجّه</p>
+                <h3>الحملات</h3>
               </div>
               <div class="panel-tools">
                 <label class="inline-toggle">
                   <input id="showArchivedCampaignsInput" type="checkbox">
-                  <span>Show Archived</span>
+                  <span>إظهار المؤرشف</span>
                 </label>
               </div>
             </div>
             <div class="panel-header compact-header">
               <div>
-                <p class="eyebrow">Campaign Editor</p>
-                <h3 id="campaignFormTitle">Create Campaign</h3>
+                <p class="eyebrow">محرر الحملة</p>
+                <h3 id="campaignFormTitle">إنشاء حملة</h3>
               </div>
-              <button id="cancelCampaignEditButton" class="secondary-button" type="button" hidden>Cancel Edit</button>
+              <button id="cancelCampaignEditButton" class="secondary-button" type="button" hidden>إلغاء التعديل</button>
             </div>
             <form id="campaignForm" class="stack-form release-form">
-              <label><span>Release</span><select id="campaignReleaseSelect" name="release_id" required></select></label>
-              <label><span>Name</span><input name="name" placeholder="KM14 pilot rollout" required></label>
-              <label><span>Channel</span><input name="channel" value="stable"></label>
-              <label><span>Priority</span><input name="priority" type="number" value="100"></label>
-              <label><span>Rollout Percent</span><input name="rollout_percent" type="number" min="1" max="100" value="100"></label>
-              <label><span>Start At</span><input name="start_at" type="datetime-local"></label>
-              <label><span>End At</span><input name="end_at" type="datetime-local"></label>
-              <label class="checkbox-field"><input name="active" type="checkbox" checked><span>Activate campaign now</span></label>
-              <label class="full-width"><span>Description</span><textarea name="description" rows="3"></textarea></label>
+              <label><span>الإصدار</span><select id="campaignReleaseSelect" name="release_id" required></select></label>
+              <label><span>الاسم</span><input name="name" placeholder="إطلاق تجريبي KM14" required></label>
+              <label><span>القناة</span><input name="channel" value="stable"></label>
+              <label><span>الأولوية</span><input name="priority" type="number" value="100"></label>
+              <label><span>نسبة النشر</span><input name="rollout_percent" type="number" min="1" max="100" value="100"></label>
+              <label><span>وقت البدء</span><input name="start_at" type="datetime-local"></label>
+              <label><span>وقت الانتهاء</span><input name="end_at" type="datetime-local"></label>
+              <label class="checkbox-field"><input name="active" type="checkbox" checked><span>تفعيل الحملة الآن</span></label>
+              <label class="full-width"><span>الوصف</span><textarea name="description" rows="3"></textarea></label>
               <div class="full-width rule-builder-shell">
                 <div class="rule-builder-header">
                   <div>
-                    <span>Targeting Rules</span>
-                    <p class="builder-note">Rules are serialized to the existing API shape. Leave the list empty to target the whole firmware model.</p>
+                    <span>قواعد الاستهداف</span>
+                    <p class="builder-note">تُرسل القواعد بنفس بنية API الحالية. اترك القائمة فارغة لاستهداف جميع أجهزة نموذج البرنامج المحدد.</p>
                   </div>
-                  <button id="addCampaignRuleButton" class="secondary-button" type="button">Add Rule</button>
+                  <button id="addCampaignRuleButton" class="secondary-button" type="button">إضافة قاعدة</button>
                 </div>
                 <div id="campaignRuleList" class="rule-builder-list"></div>
                 <div class="rule-preview-shell">
-                  <span>Rule Preview</span>
+                  <span>معاينة القواعد</span>
                   <div id="campaignRulesPreview" class="pill-row"></div>
                 </div>
               </div>
-              <button id="campaignSubmitButton" class="primary-button" type="submit">Create Campaign</button>
+              <button id="campaignSubmitButton" class="primary-button" type="submit">إنشاء حملة</button>
             </form>
             <div id="campaignsTable" class="table-wrap"></div>
             <section id="campaignDetailsPanel" class="campaign-details" hidden>
               <div class="panel-header compact-header">
                 <div>
-                  <p class="eyebrow">Campaign Monitor</p>
-                  <h3 id="campaignDetailsTitle">Campaign devices</h3>
+                  <p class="eyebrow">مراقبة الحملة</p>
+                  <h3 id="campaignDetailsTitle">أجهزة الحملة</h3>
                 </div>
-                <p id="campaignDetailsMeta" class="inline-message muted">Select a campaign to inspect its tracked devices.</p>
+                <p id="campaignDetailsMeta" class="inline-message muted">اختر حملة لعرض حالة الأجهزة المتتبعة.</p>
               </div>
               <div id="campaignDevicesTable" class="table-wrap compact"></div>
             </section>
             <section class="campaign-details">
               <div class="panel-header compact-header">
                 <div>
-                  <p class="eyebrow">Audit Log</p>
-                  <h3>Recent Admin Actions</h3>
+                  <p class="eyebrow">سجل التدقيق</p>
+                  <h3>آخر إجراءات المشرف</h3>
                 </div>
-                <p class="inline-message muted">Create, edit, archive, delete, and assignment events.</p>
+                <p class="inline-message muted">عمليات الإنشاء والتعديل والأرشفة والحذف والإسناد.</p>
               </div>
               <div id="auditLogsTable" class="table-wrap compact"></div>
             </section>
@@ -228,6 +230,6 @@
     </main>
   </div>
 
-  <script src="/admin-app/app.js" defer></script>
+  <script src="/admin-app/app.js?v=20260429-1" defer></script>
 </body>
 </html>

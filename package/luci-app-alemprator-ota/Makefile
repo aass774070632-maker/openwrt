@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-alemprator-ota
 PKG_VERSION:=1.0
-PKG_RELEASE:=2
+PKG_RELEASE:=11
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKG_LICENSE:=GPL-3.0-only
 PKG_MAINTAINER:=ALemprator
@@ -14,7 +14,7 @@ define Package/luci-app-alemprator-ota
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
   TITLE:=ALemprator OTA Agent and UI
-	DEPENDS:=+luci-base +rpcd +rpcd-mod-file +uclient-fetch +jsonfilter +libubox +ca-bundle +coreutils-sha256sum +openssl-util
+	DEPENDS:=+luci-base +rpcd +rpcd-mod-file +cgi-io +uclient-fetch +jsonfilter +libubox +ca-bundle +coreutils-sha256sum +openssl-util
 endef
 
 define Package/luci-app-alemprator-ota/description
@@ -50,6 +50,11 @@ define Package/luci-app-alemprator-ota/install
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/common.sh $(1)/usr/libexec/alemprator-ota/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/agent.sh $(1)/usr/libexec/alemprator-ota/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/run-once $(1)/usr/libexec/alemprator-ota/
+	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/manual-info $(1)/usr/libexec/alemprator-ota/
+	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/manual-clear $(1)/usr/libexec/alemprator-ota/
+	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/manual-update $(1)/usr/libexec/alemprator-ota/
+	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/start-check $(1)/usr/libexec/alemprator-ota/
+	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/start-manual-update $(1)/usr/libexec/alemprator-ota/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/start-update $(1)/usr/libexec/alemprator-ota/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/status-json $(1)/usr/libexec/alemprator-ota/
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
@@ -58,6 +63,7 @@ define Package/luci-app-alemprator-ota/install
 	$(INSTALL_DATA) ./files/usr/share/rpcd/acl.d/luci-app-alemprator-ota.json $(1)/usr/share/rpcd/acl.d/
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/system
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/system/ota.js $(1)/www/luci-static/resources/view/system/
+	$(INSTALL_DATA) ./files/www/luci-static/resources/view/system/ota_v2.js $(1)/www/luci-static/resources/view/system/
 	$(INSTALL_DIR) $(1)/etc/rc.d
 	$(LN) ../init.d/alemprator-ota $(1)/etc/rc.d/S95alemprator-ota
 endef

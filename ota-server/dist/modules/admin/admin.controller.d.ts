@@ -311,6 +311,37 @@ export declare class AdminController {
             created_at: string;
         }[];
     }>;
+    createReleaseWithUpload(artifact: {
+        filename?: string;
+    } | undefined, body: Record<string, string | undefined>, request: AdminRequestLike): Promise<{
+        id: number;
+        model: string;
+        firmware_model: {
+            id: number;
+            slug: string;
+            model_key: string;
+            display_name: string;
+        } | null;
+        version: string;
+        version_code: string | null;
+        download_url: string;
+        sha256: string;
+        changelog: string;
+        force: boolean;
+        rollout_percent: number;
+        active: boolean;
+        channel: string;
+        created_at: string;
+        updated_at: string;
+        files: {
+            id: number;
+            kind: string;
+            url: string;
+            sha256: string;
+            size_bytes: number | null;
+            created_at: string;
+        }[];
+    }>;
     listCampaigns(includeArchived?: string): Promise<{
         id: number;
         name: string;

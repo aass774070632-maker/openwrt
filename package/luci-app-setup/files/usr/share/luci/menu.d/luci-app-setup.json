@@ -1,4 +1,35 @@
 {
+	"admin/status": {
+		"title": "Status",
+		"order": 1,
+		"action": {
+			"type": "firstchild",
+			"preferred": "overview",
+			"recurse": true
+		}
+	},
+	"admin/status/overview": {
+		"title": "Overview",
+		"order": 1,
+		"action": {
+			"type": "view",
+			"path": "setup/landing_r2"
+		},
+		"depends": {
+			"acl": [ "luci-app-setup" ],
+			"uci": { "setup": true }
+		}
+	},
+	"admin/status/overview-real": {
+		"action": {
+			"type": "template",
+			"path": "admin_status/index"
+		},
+		"depends": {
+			"acl": [ "luci-mod-status-index" ]
+		},
+		"firstchild_ineligible": true
+	},
 	"admin/applications": {
 		"title": "Applications",
 		"order": 5,
@@ -12,7 +43,7 @@
 		"order": 10,
 		"action": {
 			"type": "view",
-			"path": "setup/setup_r84"
+			"path": "setup/setup_r90"
 		},
 		"depends": {
 			"acl": [ "luci-app-setup" ],

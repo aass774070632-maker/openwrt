@@ -378,10 +378,11 @@ let AdminService = class AdminService {
         return states.map((state) => this.serializeCampaignDevice(state));
     }
     async createRelease(body, adminUserId) {
-        const channel = body.channel ?? 'stable';
+        const channel = (body.channel ?? 'stable').trim();
         const active = body.active ?? true;
         const force = body.force ?? false;
         const rolloutPercent = body.rollout_percent ?? 100;
+        const version = body.version.trim();
         const firmwareModel = body.firmware_model_id == null
             ? null
             : await this.prisma.firmwareModel.findUnique({
@@ -406,7 +407,18 @@ let AdminService = class AdminService {
         });
         const normalizedArtifactPath = this.normalizeArtifactPath(body.artifact_path);
         const filePath = this.resolveArtifactPath(normalizedArtifactPath);
-        const [buffer, fileStats] = await Promise.all([(0, promises_1.readFile)(filePath), (0, promises_1.stat)(filePath)]);
+        let buffer;
+        let fileStats;
+        try {
+            [buffer, fileStats] = await Promise.all([(0, promises_1.readFile)(filePath), (0, promises_1.stat)(filePath)]);
+        }
+        catch (error) {
+            const code = error?.code;
+            if (code === 'ENOENT') {
+                throw new common_1.BadRequestException('artifact_path file not found');
+            }
+            throw error;
+        }
         const sha256 = (0, node_crypto_1.createHash)('sha256').update(buffer).digest('hex');
         const downloadUrl = `${this.trimTrailingSlash(env_1.env.FIRMWARE_PUBLIC_BASE_URL)}${normalizedArtifactPath}`;
         const release = await this.prisma.$transaction(async (tx) => {
@@ -414,7 +426,7 @@ let AdminService = class AdminService {
                 where: {
                     release: {
                         model,
-                        version: body.version,
+                        version,
                         channel,
                     },
                 },
@@ -422,7 +434,7 @@ let AdminService = class AdminService {
             await tx.release.deleteMany({
                 where: {
                     model,
-                    version: body.version,
+                    version,
                     channel,
                 },
             });
@@ -442,11 +454,11 @@ let AdminService = class AdminService {
                 data: {
                     model,
                     firmwareModelId: linkedFirmwareModel?.id ?? null,
-                    version: body.version,
-                    versionCode: body.version_code ?? null,
+                    version,
+                    versionCode: body.version_code?.trim() || null,
                     downloadUrl,
                     sha256,
-                    changelog: body.changelog ?? '',
+                    changelog: body.changelog?.trim() ?? '',
                     force,
                     rolloutPercent,
                     active,
@@ -474,6 +486,24 @@ let AdminService = class AdminService {
             artifact_path: normalizedArtifactPath,
         });
         return this.serializeRelease(release);
+    }
+    async createReleaseFromUpload(body, artifact, adminUserId) {
+        if (!artifact?.filename) {
+            throw new common_1.BadRequestException('artifact file is required');
+        }
+        const dto = {
+            firmware_model_id: this.parseOptionalInt(body.firmware_model_id, 'firmware_model_id'),
+            model: this.cleanOptionalText(body.model),
+            version: this.requireText(body.version, 'version is required'),
+            version_code: this.cleanOptionalText(body.version_code),
+            artifact_path: `/firmware/${artifact.filename}`,
+            changelog: this.cleanOptionalText(body.changelog),
+            channel: this.cleanOptionalText(body.channel) ?? 'stable',
+            rollout_percent: this.parseOptionalInt(body.rollout_percent, 'rollout_percent'),
+            active: this.parseOptionalBoolean(body.active, 'active'),
+            force: this.parseOptionalBoolean(body.force, 'force'),
+        };
+        return this.createRelease(dto, adminUserId);
     }
     async listCampaigns(includeArchived = false) {
         const campaigns = await this.prisma.campaign.findMany({
@@ -1101,6 +1131,45 @@ let AdminService = class AdminService {
             throw new common_1.BadRequestException('unable to derive a valid slug');
         }
         return slug;
+    }
+    cleanOptionalText(value) {
+        if (value == null) {
+            return undefined;
+        }
+        const cleaned = value.trim();
+        return cleaned ? cleaned : undefined;
+    }
+    requireText(value, message) {
+        const cleaned = this.cleanOptionalText(value);
+        if (!cleaned) {
+            throw new common_1.BadRequestException(message);
+        }
+        return cleaned;
+    }
+    parseOptionalInt(value, fieldName) {
+        const cleaned = this.cleanOptionalText(value);
+        if (!cleaned) {
+            return undefined;
+        }
+        const parsed = Number(cleaned);
+        if (!Number.isInteger(parsed)) {
+            throw new common_1.BadRequestException(`${fieldName} must be an integer`);
+        }
+        return parsed;
+    }
+    parseOptionalBoolean(value, fieldName) {
+        const cleaned = this.cleanOptionalText(value);
+        if (!cleaned) {
+            return undefined;
+        }
+        const normalized = cleaned.toLowerCase();
+        if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+            return true;
+        }
+        if (['0', 'false', 'no', 'off'].includes(normalized)) {
+            return false;
+        }
+        throw new common_1.BadRequestException(`${fieldName} must be a boolean`);
     }
     sameDateTime(left, right) {
         if (left === null || right === null) {

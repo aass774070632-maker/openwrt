@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  UploadedFile,
   Get,
   Param,
   Patch,
@@ -9,8 +10,13 @@ import {
   Post,
   Query,
   Req,
+  UseInterceptors,
   UseGuards,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { randomBytes } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
 import { AuthenticatedAdmin } from '../auth/auth.service';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
@@ -24,6 +30,28 @@ import { AdminService } from './admin.service';
 type AdminRequestLike = {
   admin?: AuthenticatedAdmin;
 };
+
+const { diskStorage } = require('multer') as { diskStorage: (options: any) => any };
+
+const firmwareUploadStorage = diskStorage({
+  destination: (_request: any, _file: any, callback: any) => {
+    const targetDir = path.resolve(process.cwd(), 'public', 'firmware');
+    mkdirSync(targetDir, { recursive: true });
+    callback(null, targetDir);
+  },
+  filename: (_request: any, file: any, callback: any) => {
+    const originalExt = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = /^[.a-z0-9]+$/.test(originalExt) && originalExt.length <= 12 ? originalExt : '.bin';
+    const baseName = path.basename(file.originalname || 'firmware', originalExt)
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 64) || 'firmware';
+    const suffix = `${Date.now()}-${randomBytes(4).toString('hex')}`;
+
+    callback(null, `${baseName}-${suffix}${safeExt}`);
+  },
+});
 
 @Controller('admin')
 @UseGuards(AdminJwtGuard)
@@ -114,6 +142,21 @@ export class AdminController {
   @Post('releases')
   createRelease(@Body() body: CreateReleaseDto, @Req() request: AdminRequestLike) {
     return this.adminService.createRelease(body, request.admin?.id);
+  }
+
+  @Post('releases/upload')
+  @UseInterceptors(FileInterceptor('artifact', {
+    storage: firmwareUploadStorage,
+    limits: {
+      fileSize: 256 * 1024 * 1024,
+    },
+  }))
+  createReleaseWithUpload(
+    @UploadedFile() artifact: { filename?: string } | undefined,
+    @Body() body: Record<string, string | undefined>,
+    @Req() request: AdminRequestLike,
+  ) {
+    return this.adminService.createReleaseFromUpload(body, artifact, request.admin?.id);
   }
 
   @Get('campaigns')

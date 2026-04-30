@@ -13,13 +13,16 @@ SETUP_NETWORK="alemprator_setup"
 SETUP_WIRELESS="alemprator_firstboot"
 SETUP_FIREWALL="alemprator_setup"
 is_configured=0
+configured_once="$(uci -q get ${CFG}.main.configured_once)"
 
 current_ssid="$(uci -q get setup.default.wifi_ssid)"
 current_mode="$(uci -q get setup.default.mode)"
 current_vlan="$(uci -q get setup.default.is_vlan)"
 initial_complete="$(uci -q get setup.default.initial_setup_complete)"
 
-if [ -f "$CONFIGURED_FLAG" ] || [ "$initial_complete" = "1" ]; then
+if [ "$configured_once" = "1" ]; then
+	is_configured=1
+elif [ -f "$CONFIGURED_FLAG" ] || [ "$initial_complete" = "1" ]; then
 	is_configured=1
 elif [ -n "$current_ssid" ] && [ "$current_ssid" != "$DEFAULT_SSID" ]; then
 	is_configured=1
@@ -32,6 +35,7 @@ fi
 uci -q batch <<EOF >/dev/null
 	set ${CFG}.main=firstboot
 	set ${CFG}.main.enabled='$( [ "$is_configured" = 1 ] && printf 0 || printf 1 )'
+	set ${CFG}.main.configured_once='$( [ "$is_configured" = 1 ] && printf 1 || printf 0 )'
 	set ${CFG}.main.auto_cleanup_armed='0'
 	set ${CFG}.main.auto_cleanup_delay='15'
 	set ${CFG}.main.auto_cleanup_pending='0'
@@ -53,6 +57,12 @@ uci -q batch <<EOF >/dev/null
 	set ${CFG}.main.encryption='none'
 	commit ${CFG}
 EOF
+
+if [ "$is_configured" = 1 ] && [ "$initial_complete" != "1" ]; then
+	uci -q set setup.default=setup
+	uci -q set setup.default.initial_setup_complete='1'
+	uci -q commit setup
+fi
 
 if [ "$is_configured" = 1 ]; then
 	rm -f "$PENDING_FLAG"

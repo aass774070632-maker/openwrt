@@ -349,6 +349,37 @@ export declare class AdminService {
             created_at: string;
         }[];
     }>;
+    createReleaseFromUpload(body: Record<string, string | undefined>, artifact: {
+        filename?: string;
+    } | undefined, adminUserId?: number): Promise<{
+        id: number;
+        model: string;
+        firmware_model: {
+            id: number;
+            slug: string;
+            model_key: string;
+            display_name: string;
+        } | null;
+        version: string;
+        version_code: string | null;
+        download_url: string;
+        sha256: string;
+        changelog: string;
+        force: boolean;
+        rollout_percent: number;
+        active: boolean;
+        channel: string;
+        created_at: string;
+        updated_at: string;
+        files: {
+            id: number;
+            kind: string;
+            url: string;
+            sha256: string;
+            size_bytes: number | null;
+            created_at: string;
+        }[];
+    }>;
     listCampaigns(includeArchived?: boolean): Promise<{
         id: number;
         name: string;
@@ -688,6 +719,10 @@ export declare class AdminService {
     private assertCampaignExists;
     private recordAudit;
     private normalizeSlug;
+    private cleanOptionalText;
+    private requireText;
+    private parseOptionalInt;
+    private parseOptionalBoolean;
     private sameDateTime;
     private trimTrailingSlash;
 }

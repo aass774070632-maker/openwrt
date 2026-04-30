@@ -17,7 +17,8 @@
 		"read": {
 			"uci": [ "alemprator_ota" ],
 			"file": {
-				"/usr/libexec/alemprator-ota/status-json": [ "exec" ]
+				"/usr/libexec/alemprator-ota/status-json": [ "exec" ],
+				"/usr/libexec/alemprator-ota/manual-info": [ "exec" ]
 			},
 			"ubus": {
 				"file": [ "exec" ],
@@ -25,9 +26,13 @@
 			}
 		},
 		"write": {
+			"cgi-io": [ "upload" ],
 			"uci": [ "alemprator_ota" ],
 			"file": {
 				"/usr/libexec/alemprator-ota/run-once": [ "exec" ],
+				"/usr/libexec/alemprator-ota/manual-clear": [ "exec" ],
+				"/usr/libexec/alemprator-ota/start-check": [ "exec" ],
+				"/usr/libexec/alemprator-ota/start-manual-update": [ "exec" ],
 				"/usr/libexec/alemprator-ota/start-update": [ "exec" ]
 			},
 			"ubus": {

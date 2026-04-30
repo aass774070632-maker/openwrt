@@ -1,4 +1,5 @@
 const API_BASE = '/api';
+const MAX_BROWSER_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 const state = {
   accessToken: localStorage.getItem('ota_admin_access_token') || '',
@@ -19,25 +20,102 @@ const state = {
   deviceSearch: '',
   releaseFilterModelId: '',
   showArchivedCampaigns: false,
+  releaseSubmitting: false,
 };
 
 const CAMPAIGN_RULE_TYPES = [
-  { value: 'group', label: 'Group', operatorLocked: true, operator: 'eq', valueMode: 'group' },
-  { value: 'tag', label: 'Tag', operatorLocked: true, operator: 'eq', valueMode: 'tag' },
-  { value: 'current_version', label: 'Current Version', valueMode: 'string' },
-  { value: 'model', label: 'Model', valueMode: 'string' },
-  { value: 'board', label: 'Board', valueMode: 'string' },
+  { value: 'group', label: 'مجموعة', operatorLocked: true, operator: 'eq', valueMode: 'group' },
+  { value: 'tag', label: 'وسم', operatorLocked: true, operator: 'eq', valueMode: 'tag' },
+  { value: 'current_version', label: 'الإصدار الحالي', valueMode: 'string' },
+  { value: 'model', label: 'الطراز', valueMode: 'string' },
+  { value: 'board', label: 'اللوحة', valueMode: 'string' },
   { value: 'mac', label: 'MAC', valueMode: 'string' },
-  { value: 'token', label: 'Token', valueMode: 'string' },
+  { value: 'token', label: 'الرمز', valueMode: 'string' },
 ];
 
 const CAMPAIGN_OPERATORS = [
-  { value: 'eq', label: 'Equals' },
-  { value: 'neq', label: 'Not Equals' },
-  { value: 'contains', label: 'Contains' },
-  { value: 'prefix', label: 'Starts With' },
-  { value: 'in', label: 'In List' },
+  { value: 'eq', label: 'يساوي' },
+  { value: 'neq', label: 'لا يساوي' },
+  { value: 'contains', label: 'يحتوي على' },
+  { value: 'prefix', label: 'يبدأ بـ' },
+  { value: 'in', label: 'ضمن قائمة' },
 ];
+
+const MESSAGE_TRANSLATIONS = {
+  'invalid email or password': 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+  'invalid refresh token': 'رمز تحديث الجلسة غير صالح.',
+  'invalid access token': 'رمز الوصول غير صالح.',
+  'missing bearer token': 'رمز Bearer مفقود.',
+  'invalid bearer token': 'رمز Bearer غير صالح.',
+  'admin role required': 'صلاحية المشرف مطلوبة.',
+  'campaign not found': 'الحملة غير موجودة.',
+  'unknown release_id': 'release_id غير معروف.',
+  'archived campaigns cannot be edited': 'لا يمكن تعديل الحملات المؤرشفة.',
+  'archived campaigns cannot be activated': 'لا يمكن تفعيل الحملات المؤرشفة.',
+  'unknown firmware_model_id': 'firmware_model_id غير معروف.',
+  'model is required when firmware_model_id is not provided': 'اختر نموذج البرنامج الثابت أو أدخل مفتاح طراز بديل.',
+  'model does not match firmware_model_id': 'مفتاح الطراز لا يطابق النموذج المختار.',
+  'Upload firmware file or provide artifact path.': 'ارفع ملف البرنامج الثابت أو أدخل مسار الملف.',
+  'Large browser uploads can timeout. Provide a /firmware/ path for this file.': 'هذا الملف كبير وقد يفشل رفعه عبر المتصفح. ضع الملف داخل /firmware/ ثم أدخل مساره.',
+  'artifact_path must start with /firmware/': 'مسار الملف يجب أن يبدأ بـ /firmware/.',
+  'artifact_path resolves outside public/firmware': 'مسار الملف غير مسموح. استخدم ملفًا داخل /firmware/.',
+  'artifact_path file not found': 'الملف المحدد في المسار غير موجود داخل /firmware/.',
+  'artifact file is required': 'ملف البرنامج الثابت مطلوب للرفع.',
+  'Internal server error': 'تعذر إنشاء الإصدار. تحقق من مسار الملف وأنه موجود داخل /firmware/.',
+  'Payload too large': 'حجم ملف الرفع كبير جدًا لبوابة الخادم.',
+  'No refresh token available': 'لا يوجد رمز تحديث متاح.',
+  'Session expired': 'انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.',
+  'Failed to fetch': 'تعذر الاتصال بالخادم. تحقق من الشبكة ثم حاول مرة أخرى.',
+  'NetworkError when attempting to fetch resource.': 'تعذر الاتصال بالخادم. تحقق من الشبكة ثم حاول مرة أخرى.',
+};
+
+const DEVICE_STATUS_LABELS = {
+  registered: 'مسجل',
+  checking: 'جارٍ التحقق',
+  idle: 'خامل',
+  available: 'متاح',
+  downloading: 'جارٍ التنزيل',
+  downloaded: 'تم التنزيل',
+  applying: 'جارٍ التطبيق',
+  rebooting: 'جارٍ إعادة التشغيل',
+  updated: 'تم التحديث',
+  error: 'خطأ',
+};
+
+const ELIGIBILITY_STATUS_LABELS = {
+  pending: 'قيد الانتظار',
+  matched: 'مطابق',
+  already_current: 'محدّث بالفعل',
+  filtered: 'مستبعد بالقواعد',
+  rollout_hold: 'معلّق بسبب نسبة الإطلاق',
+};
+
+const UPDATE_STATUS_LABELS = {
+  pending: 'قيد الانتظار',
+  available: 'متاح',
+  downloading: 'جارٍ التنزيل',
+  downloaded: 'تم التنزيل',
+  applying: 'جارٍ التطبيق',
+  rebooting: 'جارٍ إعادة التشغيل',
+  idle: 'خامل',
+  updated: 'تم التحديث',
+  delivered: 'تم التسليم',
+  error: 'خطأ',
+};
+
+function translateKnownMessage(message) {
+  const normalized = String(message ?? '').trim();
+  return MESSAGE_TRANSLATIONS[normalized] ?? normalized;
+}
+
+function translateValue(value, dictionary) {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) {
+    return '-';
+  }
+
+  return dictionary[normalized] ?? normalized;
+}
 
 const elements = {
   loginPanel: document.getElementById('loginPanel'),
@@ -54,6 +132,7 @@ const elements = {
   groupsTable: document.getElementById('groupsTable'),
   tagsTable: document.getElementById('tagsTable'),
   releasesTable: document.getElementById('releasesTable'),
+  releaseMessage: document.getElementById('releaseMessage'),
   campaignsTable: document.getElementById('campaignsTable'),
   releaseModelSelect: document.getElementById('releaseModelSelect'),
   releaseFilterSelect: document.getElementById('releaseFilterSelect'),
@@ -111,7 +190,7 @@ function formatDate(value) {
   }
 
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('ar-SA');
 }
 
 function truncateText(value, limit = 140) {
@@ -121,7 +200,7 @@ function truncateText(value, limit = 140) {
 
 function renderPills(items, mapper) {
   if (!items || items.length === 0) {
-    return '<span class="pill warning">None</span>';
+    return '<span class="pill warning">لا يوجد</span>';
   }
 
   return `<div class="pill-row">${items.map((item) => `<span class="pill">${escapeHtml(mapper(item))}</span>`).join('')}</div>`;
@@ -131,17 +210,17 @@ function parseErrorMessage(error) {
   try {
     const parsed = JSON.parse(error.message);
     if (typeof parsed.message === 'string') {
-      return parsed.message;
+      return translateKnownMessage(parsed.message);
     }
 
     if (Array.isArray(parsed.message)) {
-      return parsed.message.join(', ');
+      return parsed.message.map((item) => translateKnownMessage(item)).join('، ');
     }
   } catch {
-    return error.message;
+    return translateKnownMessage(error.message);
   }
 
-  return error.message;
+  return translateKnownMessage(error.message);
 }
 
 function getRuleDefinition(ruleType) {
@@ -171,23 +250,24 @@ function normalizeRuleDraft(rule) {
 
 function formatRuleSummary(rule) {
   const definition = getRuleDefinition(rule.ruleType);
-  const scopeLabel = rule.isExclude ? 'Exclude' : 'Include';
+  const scopeLabel = rule.isExclude ? 'استبعاد' : 'تضمين';
+  const operatorLabel = CAMPAIGN_OPERATORS.find((item) => item.value === rule.operator)?.label ?? rule.operator;
 
   if (definition.valueMode === 'group') {
     const group = state.groups.find((item) => String(item.id) === String(rule.groupId));
-    return `${scopeLabel} group:${group?.name ?? 'unselected'}`;
+    return `${scopeLabel} مجموعة: ${group?.name ?? 'غير محدد'}`;
   }
 
   if (definition.valueMode === 'tag') {
     const tag = state.tags.find((item) => String(item.id) === String(rule.tagId));
-    return `${scopeLabel} tag:${tag?.name ?? 'unselected'}`;
+    return `${scopeLabel} وسم: ${tag?.name ?? 'غير محدد'}`;
   }
 
   if (rule.operator === 'in') {
-    return `${scopeLabel} ${definition.label.toLowerCase()} in ${rule.valueJson || '[]'}`;
+    return `${scopeLabel} ${definition.label} ضمن ${rule.valueJson || '[]'}`;
   }
 
-  return `${scopeLabel} ${definition.label.toLowerCase()} ${rule.operator} ${rule.valueString || '...'}`;
+  return `${scopeLabel} ${definition.label} ${operatorLabel} ${rule.valueString || '...'}`;
 }
 
 function serializeCampaignRules() {
@@ -258,8 +338,8 @@ function resetCampaignForm() {
   forms.campaign.querySelector('[name="rollout_percent"]').value = '100';
   forms.campaign.querySelector('[name="active"]').checked = true;
   state.campaignRuleDrafts = [createDefaultCampaignRule()];
-  elements.campaignFormTitle.textContent = 'Create Campaign';
-  elements.campaignSubmitButton.textContent = 'Create Campaign';
+  elements.campaignFormTitle.textContent = 'إنشاء حملة';
+  elements.campaignSubmitButton.textContent = 'إنشاء حملة';
   elements.cancelCampaignEditButton.hidden = true;
   renderCampaignRuleBuilder();
 }
@@ -283,8 +363,8 @@ function startCampaignEdit(campaignId) {
   state.campaignRuleDrafts = campaign.rules.length > 0
     ? campaign.rules.map((rule) => deserializeCampaignRule(rule))
     : [];
-  elements.campaignFormTitle.textContent = `Edit Campaign #${campaign.id}`;
-  elements.campaignSubmitButton.textContent = 'Update Campaign';
+  elements.campaignFormTitle.textContent = `تعديل الحملة #${campaign.id}`;
+  elements.campaignSubmitButton.textContent = 'تحديث الحملة';
   elements.cancelCampaignEditButton.hidden = false;
   renderCampaignRuleBuilder();
   forms.campaign.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -292,16 +372,16 @@ function startCampaignEdit(campaignId) {
 
 function renderCampaignRuleBuilder() {
   if (state.campaignRuleDrafts.length === 0) {
-    elements.campaignRuleList.innerHTML = '<div class="empty-state">No rules yet. This campaign will match all devices for the selected release model.</div>';
-    elements.campaignRulesPreview.innerHTML = '<span class="pill subtle">All devices in selected release scope</span>';
+    elements.campaignRuleList.innerHTML = '<div class="empty-state">لا توجد قواعد بعد. ستستهدف هذه الحملة كل الأجهزة ضمن نموذج الإصدار المحدد.</div>';
+    elements.campaignRulesPreview.innerHTML = '<span class="pill subtle">كل الأجهزة ضمن نطاق الإصدار المحدد</span>';
     return;
   }
 
-  const groupOptions = [{ value: '', label: 'Select group…' }, ...state.groups.map((group) => ({
+  const groupOptions = [{ value: '', label: 'اختر مجموعة…' }, ...state.groups.map((group) => ({
     value: group.id,
     label: `${group.name} (#${group.id})`,
   }))];
-  const tagOptions = [{ value: '', label: 'Select tag…' }, ...state.tags.map((tag) => ({
+  const tagOptions = [{ value: '', label: 'اختر وسمًا…' }, ...state.tags.map((tag) => ({
     value: tag.id,
     label: `${tag.name} (#${tag.id})`,
   }))];
@@ -317,29 +397,29 @@ function renderCampaignRuleBuilder() {
     if (definition.valueMode === 'group') {
       valueControl = `
         <label>
-          <span>Group</span>
+          <span>المجموعة</span>
           <select data-rule-field="groupId" data-rule-id="${escapeHtml(rule.id)}">${optionMarkup(groupOptions, rule.groupId)}</select>
         </label>
       `;
     } else if (definition.valueMode === 'tag') {
       valueControl = `
         <label>
-          <span>Tag</span>
+          <span>الوسم</span>
           <select data-rule-field="tagId" data-rule-id="${escapeHtml(rule.id)}">${optionMarkup(tagOptions, rule.tagId)}</select>
         </label>
       `;
     } else if (rule.operator === 'in') {
       valueControl = `
         <label>
-          <span>Comma-separated values</span>
+          <span>قيم مفصولة بفواصل</span>
           <input data-rule-field="valueJson" data-rule-id="${escapeHtml(rule.id)}" value="${escapeHtml(rule.valueJson)}" placeholder="v1,v2,v3">
         </label>
       `;
     } else {
       valueControl = `
         <label>
-          <span>Value</span>
-          <input data-rule-field="valueString" data-rule-id="${escapeHtml(rule.id)}" value="${escapeHtml(rule.valueString)}" placeholder="Enter match value">
+          <span>القيمة</span>
+          <input data-rule-field="valueString" data-rule-id="${escapeHtml(rule.id)}" value="${escapeHtml(rule.valueString)}" placeholder="أدخل قيمة المطابقة">
         </label>
       `;
     }
@@ -347,23 +427,23 @@ function renderCampaignRuleBuilder() {
     return `
       <div class="rule-builder-row">
         <label>
-          <span>Scope</span>
+          <span>النطاق</span>
           <select data-rule-field="isExclude" data-rule-id="${escapeHtml(rule.id)}">
-            <option value="false"${rule.isExclude ? '' : ' selected'}>Include</option>
-            <option value="true"${rule.isExclude ? ' selected' : ''}>Exclude</option>
+            <option value="false"${rule.isExclude ? '' : ' selected'}>تضمين</option>
+            <option value="true"${rule.isExclude ? ' selected' : ''}>استبعاد</option>
           </select>
         </label>
         <label>
-          <span>Rule Type</span>
+          <span>نوع القاعدة</span>
           <select data-rule-field="ruleType" data-rule-id="${escapeHtml(rule.id)}">${optionMarkup(CAMPAIGN_RULE_TYPES.map((item) => ({ value: item.value, label: item.label })), rule.ruleType)}</select>
         </label>
         <label>
-          <span>Operator</span>
+          <span>المعامل</span>
           <select data-rule-field="operator" data-rule-id="${escapeHtml(rule.id)}"${definition.operatorLocked ? ' disabled' : ''}>${operatorOptions}</select>
         </label>
         ${valueControl}
         <div></div>
-        <button class="secondary-button" type="button" data-rule-action="remove" data-rule-id="${escapeHtml(rule.id)}">Remove</button>
+        <button class="secondary-button" type="button" data-rule-action="remove" data-rule-id="${escapeHtml(rule.id)}">حذف</button>
       </div>
     `;
   }).join('');
@@ -410,7 +490,7 @@ function filterReleases() {
 
 function tableMarkup(headers, rows) {
   if (rows.length === 0) {
-    return '<div class="empty-state">No records yet.</div>';
+    return '<div class="empty-state">لا توجد سجلات بعد.</div>';
   }
 
   return `
@@ -454,7 +534,7 @@ async function apiFetch(path, options = {}, allowRetry = true) {
     headers.set('Authorization', `Bearer ${state.accessToken}`);
   }
 
-  if (options.body && !headers.has('Content-Type')) {
+  if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -469,8 +549,12 @@ async function apiFetch(path, options = {}, allowRetry = true) {
   }
 
   if (!response.ok) {
+    if (response.status === 413) {
+      throw new Error('Payload too large');
+    }
+
     const text = await response.text();
-    throw new Error(text || `Request failed with ${response.status}`);
+    throw new Error(text || `فشل الطلب برمز الحالة ${response.status}`);
   }
 
   return response.status === 204 ? null : response.json();
@@ -500,9 +584,10 @@ function updateSessionChrome() {
   elements.appPanel.hidden = !signedIn;
   elements.refreshButton.hidden = !signedIn;
   elements.logoutButton.hidden = !signedIn;
+  const roleLabel = state.admin?.role === 'admin' ? 'مشرف' : (state.admin?.role ?? '');
   elements.sessionBadge.textContent = signedIn && state.admin
-    ? `${state.admin.email} • ${state.admin.role}`
-    : 'Not signed in';
+    ? `${state.admin.email} • ${roleLabel}`
+    : 'غير مسجل الدخول';
   elements.sessionBadge.classList.toggle('muted', !signedIn);
 }
 
@@ -511,12 +596,54 @@ function collectFormData(form) {
   return Object.fromEntries(formData.entries());
 }
 
+function normalizeArtifactPathInput(value) {
+  const cleaned = String(value ?? '').trim();
+  if (!cleaned) {
+    return '';
+  }
+
+  const unixPath = cleaned
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/\/+/g, '/')
+    .replace(/\/+$/, '');
+
+  return unixPath ? `/${unixPath}` : '';
+}
+
+function getFieldLabel(field) {
+  if (!(field instanceof HTMLElement)) {
+    return 'حقل مطلوب';
+  }
+
+  const labelElement = field.closest('label')?.querySelector('span');
+  if (labelElement?.textContent?.trim()) {
+    return labelElement.textContent.trim();
+  }
+
+  return field.getAttribute('name') || 'حقل مطلوب';
+}
+
+function setReleaseSubmitState(isSubmitting) {
+  const submitButton = forms.release?.querySelector('button[type="submit"]');
+  if (!submitButton) {
+    return;
+  }
+
+  if (!submitButton.dataset.idleText) {
+    submitButton.dataset.idleText = submitButton.textContent || 'إنشاء إصدار';
+  }
+
+  submitButton.disabled = isSubmitting;
+  submitButton.textContent = isSubmitting ? 'جارٍ إنشاء الإصدار...' : submitButton.dataset.idleText;
+}
+
 function hydrateSelect(selectElement, items, mapper, includeEmpty = true) {
   const currentValue = selectElement.value;
   const options = [];
 
   if (includeEmpty) {
-    options.push('<option value="">Select…</option>');
+    options.push('<option value="">اختر…</option>');
   }
 
   for (const item of items) {
@@ -538,10 +665,10 @@ function renderSummary() {
   }
 
   const cards = [
-    { label: 'Total Devices', value: counts.total_devices, note: 'All registered routers' },
-    { label: 'Seen in 24h', value: counts.online_last_24h, note: 'Recently active devices' },
-    { label: 'Active Campaigns', value: counts.active_campaigns, note: 'Rollouts in progress' },
-    { label: 'Firmware Models', value: counts.firmware_models, note: 'Managed device types' },
+    { label: 'إجمالي الأجهزة', value: counts.total_devices, note: 'كل الموجهات المسجلة' },
+    { label: 'شوهدت خلال 24 ساعة', value: counts.online_last_24h, note: 'أجهزة نشطة مؤخرًا' },
+    { label: 'الحملات النشطة', value: counts.active_campaigns, note: 'عمليات نشر جارية' },
+    { label: 'نماذج البرامج الثابتة', value: counts.firmware_models, note: 'أنواع الأجهزة المدارة' },
   ];
 
   elements.summaryGrid.innerHTML = cards.map((card) => `
@@ -562,7 +689,7 @@ function renderDevices() {
         <span class="mono">${escapeHtml(device.model)}</span>
       </td>
       <td class="mono">${escapeHtml(device.current_version ?? '-')}</td>
-      <td>${escapeHtml(device.status ?? '-')}</td>
+      <td>${escapeHtml(translateValue(device.status, DEVICE_STATUS_LABELS))}</td>
       <td>${formatDate(device.last_seen_at)}</td>
       <td>${renderPills(device.groups, (group) => group.name)}</td>
       <td>${renderPills(device.tags, (tag) => tag.name)}</td>
@@ -571,7 +698,7 @@ function renderDevices() {
   `);
 
   elements.devicesTable.innerHTML = tableMarkup(
-    ['ID', 'Device', 'Version', 'Status', 'Last Seen', 'Groups', 'Tags', 'Last Error'],
+    ['المعرف', 'الجهاز', 'الإصدار', 'الحالة', 'آخر ظهور', 'المجموعات', 'الوسوم', 'آخر خطأ'],
     rows,
   );
 }
@@ -589,7 +716,7 @@ function renderModels() {
   `);
 
   elements.modelsTable.innerHTML = tableMarkup(
-    ['ID', 'Display Name', 'Model Key', 'Board', 'Devices', 'Releases'],
+    ['المعرف', 'الاسم المعروض', 'مفتاح الطراز', 'اللوحة', 'الأجهزة', 'الإصدارات'],
     rows,
   );
 }
@@ -603,7 +730,7 @@ function renderGroups() {
     </tr>
   `);
 
-  elements.groupsTable.innerHTML = tableMarkup(['ID', 'Group', 'Members'], rows);
+  elements.groupsTable.innerHTML = tableMarkup(['المعرف', 'المجموعة', 'الأعضاء'], rows);
 }
 
 function renderTags() {
@@ -615,7 +742,7 @@ function renderTags() {
     </tr>
   `);
 
-  elements.tagsTable.innerHTML = tableMarkup(['ID', 'Tag', 'Members'], rows);
+  elements.tagsTable.innerHTML = tableMarkup(['المعرف', 'الوسم', 'الأعضاء'], rows);
 }
 
 function renderReleases() {
@@ -628,13 +755,13 @@ function renderReleases() {
         <span class="mono">${escapeHtml(release.model)}</span>
       </td>
       <td>${escapeHtml(release.channel)}</td>
-      <td>${release.active ? '<span class="pill">Active</span>' : '<span class="pill warning">Inactive</span>'}</td>
+      <td>${release.active ? '<span class="pill">نشط</span>' : '<span class="pill warning">غير نشط</span>'}</td>
       <td class="mono">${escapeHtml(release.sha256.slice(0, 12))}…</td>
     </tr>
   `);
 
   elements.releasesTable.innerHTML = tableMarkup(
-    ['ID', 'Version', 'Firmware Model', 'Channel', 'State', 'SHA256'],
+    ['المعرف', 'الإصدار', 'نموذج البرنامج الثابت', 'القناة', 'الحالة', 'SHA256'],
     rows,
   );
 }
@@ -642,22 +769,22 @@ function renderReleases() {
 function renderCampaigns() {
   const rows = state.campaigns.map((campaign) => {
     const stateMarkup = campaign.archived_at
-      ? '<span class="pill subtle">Archived</span>'
-      : (campaign.active ? '<span class="pill">Live</span>' : '<span class="pill warning">Paused</span>');
+      ? '<span class="pill subtle">مؤرشفة</span>'
+      : (campaign.active ? '<span class="pill">مفعلة</span>' : '<span class="pill warning">متوقفة</span>');
     const actionButtons = [];
 
     if (!campaign.archived_at) {
-      actionButtons.push(`<button class="table-action-button" type="button" data-campaign-action="edit" data-campaign-id="${escapeHtml(campaign.id)}">Edit</button>`);
+      actionButtons.push(`<button class="table-action-button" type="button" data-campaign-action="edit" data-campaign-id="${escapeHtml(campaign.id)}">تعديل</button>`);
     }
 
-    actionButtons.push(`<button class="table-action-button active" type="button" data-campaign-action="inspect" data-campaign-id="${escapeHtml(campaign.id)}">Inspect</button>`);
+    actionButtons.push(`<button class="table-action-button active" type="button" data-campaign-action="inspect" data-campaign-id="${escapeHtml(campaign.id)}">استعراض</button>`);
 
     if (!campaign.archived_at) {
-      actionButtons.push(`<button class="table-action-button" type="button" data-campaign-action="${campaign.active ? 'pause' : 'activate'}" data-campaign-id="${escapeHtml(campaign.id)}">${campaign.active ? 'Pause' : 'Activate'}</button>`);
-      actionButtons.push(`<button class="table-action-button" type="button" data-campaign-action="archive" data-campaign-id="${escapeHtml(campaign.id)}">Archive</button>`);
+      actionButtons.push(`<button class="table-action-button" type="button" data-campaign-action="${campaign.active ? 'pause' : 'activate'}" data-campaign-id="${escapeHtml(campaign.id)}">${campaign.active ? 'إيقاف' : 'تفعيل'}</button>`);
+      actionButtons.push(`<button class="table-action-button" type="button" data-campaign-action="archive" data-campaign-id="${escapeHtml(campaign.id)}">أرشفة</button>`);
     }
 
-    actionButtons.push(`<button class="table-action-button" type="button" data-campaign-action="delete" data-campaign-id="${escapeHtml(campaign.id)}">Delete</button>`);
+    actionButtons.push(`<button class="table-action-button" type="button" data-campaign-action="delete" data-campaign-id="${escapeHtml(campaign.id)}">حذف</button>`);
 
     return `
       <tr class="${state.selectedCampaignId === campaign.id ? 'campaign-row-selected' : ''}">
@@ -671,8 +798,9 @@ function renderCampaigns() {
         <td>${escapeHtml(campaign.rollout_percent)}%</td>
         <td>${stateMarkup}</td>
         <td>${renderPills(campaign.rules, (rule) => {
+          const ruleLabel = getRuleDefinition(rule.rule_type).label;
           const suffix = rule.group?.name ?? rule.tag?.name ?? rule.value_string ?? rule.operator;
-          return `${rule.rule_type}:${suffix}`;
+          return `${ruleLabel}: ${suffix}`;
         })}</td>
         <td>
           <div class="table-actions">
@@ -684,7 +812,7 @@ function renderCampaigns() {
   });
 
   elements.campaignsTable.innerHTML = tableMarkup(
-    ['ID', 'Campaign', 'Firmware Model', 'Priority', 'Rollout', 'State', 'Rules', 'Actions'],
+    ['المعرف', 'الحملة', 'نموذج البرنامج الثابت', 'الأولوية', 'نسبة الإطلاق', 'الحالة', 'القواعد', 'الإجراءات'],
     rows,
   );
 }
@@ -695,16 +823,16 @@ function renderCampaignDevices() {
   if (!state.selectedCampaignId || !selectedCampaign) {
     elements.campaignDetailsPanel.hidden = true;
     elements.campaignDevicesTable.innerHTML = '';
-    elements.campaignDetailsTitle.textContent = 'Campaign devices';
-    elements.campaignDetailsMeta.textContent = 'Select a campaign to inspect its tracked devices.';
+    elements.campaignDetailsTitle.textContent = 'أجهزة الحملة';
+    elements.campaignDetailsMeta.textContent = 'اختر حملة لاستعراض الأجهزة المتتبعة.';
     return;
   }
 
   elements.campaignDetailsPanel.hidden = false;
-  elements.campaignDetailsTitle.textContent = `${selectedCampaign.name} device states`;
+  elements.campaignDetailsTitle.textContent = `${selectedCampaign.name} - حالات الأجهزة`;
   elements.campaignDetailsMeta.textContent = selectedCampaign
-    ? `${selectedCampaign.release.version} • ${state.campaignDevices.length} tracked devices`
-    : `${state.campaignDevices.length} tracked devices`;
+    ? `${selectedCampaign.release.version} • ${state.campaignDevices.length} جهازًا متتبعًا`
+    : `${state.campaignDevices.length} جهازًا متتبعًا`;
 
   const rows = state.campaignDevices.map((entry) => `
     <tr>
@@ -713,8 +841,8 @@ function renderCampaignDevices() {
         <strong>${escapeHtml(entry.device.firmware_model?.display_name ?? entry.device.model)}</strong><br>
         <span class="mono">${escapeHtml(entry.device.mac)}</span>
       </td>
-      <td>${escapeHtml(entry.eligibility_status)}</td>
-      <td>${escapeHtml(entry.update_status ?? '-')}</td>
+      <td>${escapeHtml(translateValue(entry.eligibility_status, ELIGIBILITY_STATUS_LABELS))}</td>
+      <td>${escapeHtml(translateValue(entry.update_status, UPDATE_STATUS_LABELS))}</td>
       <td>${formatDate(entry.matched_at)}</td>
       <td>${formatDate(entry.delivered_at)}</td>
       <td>${formatDate(entry.last_evaluated_at)}</td>
@@ -722,7 +850,7 @@ function renderCampaignDevices() {
   `);
 
   elements.campaignDevicesTable.innerHTML = tableMarkup(
-    ['Device ID', 'Device', 'Eligibility', 'Update Status', 'Matched At', 'Delivered At', 'Last Evaluated'],
+    ['معرف الجهاز', 'الجهاز', 'الأهلية', 'حالة التحديث', 'وقت المطابقة', 'وقت التسليم', 'آخر تقييم'],
     rows,
   );
 }
@@ -734,14 +862,14 @@ function renderAuditLogs() {
       <td>${escapeHtml(log.action)}</td>
       <td>${escapeHtml(log.entity_type)}</td>
       <td class="mono">${escapeHtml(log.entity_id ?? '-')}</td>
-      <td>${escapeHtml(log.admin_user?.email ?? 'system')}</td>
+      <td>${escapeHtml(log.admin_user?.email ?? 'النظام')}</td>
       <td class="audit-payload">${escapeHtml(truncateText(JSON.stringify(log.payload_json ?? {}), 220))}</td>
       <td>${formatDate(log.created_at)}</td>
     </tr>
   `);
 
   elements.auditLogsTable.innerHTML = tableMarkup(
-    ['ID', 'Action', 'Entity', 'Entity ID', 'Actor', 'Payload', 'Created At'],
+    ['المعرف', 'الإجراء', 'الكيان', 'معرف الكيان', 'المنفذ', 'الحمولة', 'وقت الإنشاء'],
     rows,
   );
 }
@@ -792,12 +920,12 @@ async function loadCampaignDevices(campaignId) {
   state.selectedCampaignId = campaignId;
   renderCampaigns();
   renderCampaignDevices();
-  setMessage('Loading campaign devices…');
+  setMessage('جارٍ تحميل أجهزة الحملة...');
 
   try {
     state.campaignDevices = await apiFetch(`/admin/campaigns/${campaignId}/devices`);
     renderCampaignDevices();
-    setMessage('Campaign device states loaded.');
+    setMessage('تم تحميل حالات أجهزة الحملة.');
   } catch (error) {
     state.campaignDevices = [];
     renderCampaignDevices();
@@ -807,7 +935,7 @@ async function loadCampaignDevices(campaignId) {
 
 async function toggleCampaignState(campaignId, action) {
   const path = action === 'pause' ? 'pause' : 'activate';
-  setMessage(action === 'pause' ? 'Pausing campaign…' : 'Activating campaign…');
+  setMessage(action === 'pause' ? 'جارٍ إيقاف الحملة...' : 'جارٍ تفعيل الحملة...');
   await apiFetch(`/admin/campaigns/${campaignId}/${path}`, { method: 'POST' });
   await refreshData();
   if (state.selectedCampaignId === campaignId) {
@@ -816,7 +944,7 @@ async function toggleCampaignState(campaignId, action) {
 }
 
 async function archiveCampaign(campaignId) {
-  setMessage('Archiving campaign…');
+  setMessage('جارٍ أرشفة الحملة...');
   await apiFetch(`/admin/campaigns/${campaignId}/archive`, { method: 'POST' });
   if (state.selectedCampaignId === campaignId && !state.showArchivedCampaigns) {
     state.selectedCampaignId = null;
@@ -829,7 +957,7 @@ async function archiveCampaign(campaignId) {
 }
 
 async function deleteCampaign(campaignId) {
-  setMessage('Deleting campaign…');
+  setMessage('جارٍ حذف الحملة...');
   await apiFetch(`/admin/campaigns/${campaignId}`, { method: 'DELETE' });
   if (state.selectedCampaignId === campaignId) {
     state.selectedCampaignId = null;
@@ -842,7 +970,7 @@ async function deleteCampaign(campaignId) {
 }
 
 async function refreshData() {
-  setMessage('Refreshing dashboard data…');
+  setMessage('جارٍ تحديث بيانات لوحة التحكم...');
 
   const campaignPath = state.showArchivedCampaigns ? '/admin/campaigns?include_archived=true' : '/admin/campaigns';
   const [summary, devices, models, groups, tags, releases, campaigns, auditLogs] = await Promise.all([
@@ -872,7 +1000,7 @@ async function refreshData() {
     resetCampaignForm();
   }
   renderAll();
-  setMessage('Dashboard synchronized.');
+  setMessage('تمت مزامنة لوحة التحكم.');
 }
 
 async function initializeSession() {
@@ -888,13 +1016,13 @@ async function initializeSession() {
   } catch (error) {
     clearSession();
     updateSessionChrome();
-    setMessage(error.message, 'warning', elements.loginMessage);
+    setMessage(parseErrorMessage(error), 'warning', elements.loginMessage);
   }
 }
 
 elements.loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  setMessage('Signing in…', 'muted', elements.loginMessage);
+  setMessage('جارٍ تسجيل الدخول...', 'muted', elements.loginMessage);
 
   try {
     const payload = collectFormData(elements.loginForm);
@@ -913,10 +1041,10 @@ elements.loginForm.addEventListener('submit', async (event) => {
     const session = await response.json();
     setSession(session);
     elements.loginForm.reset();
-    setMessage('Authenticated.', 'muted', elements.loginMessage);
+    setMessage('تم التحقق بنجاح.', 'muted', elements.loginMessage);
     await refreshData();
   } catch (error) {
-    setMessage(error.message, 'warning', elements.loginMessage);
+    setMessage(parseErrorMessage(error), 'warning', elements.loginMessage);
   }
 });
 
@@ -924,7 +1052,7 @@ elements.refreshButton.addEventListener('click', async () => {
   try {
     await refreshData();
   } catch (error) {
-    setMessage(error.message, 'warning');
+    setMessage(parseErrorMessage(error), 'warning');
   }
 });
 
@@ -939,7 +1067,7 @@ elements.logoutButton.addEventListener('click', async () => {
     }
   } finally {
     clearSession();
-    setMessage('Signed out.', 'muted', elements.loginMessage);
+    setMessage('تم تسجيل الخروج.', 'muted', elements.loginMessage);
   }
 });
 
@@ -953,7 +1081,7 @@ forms.model.addEventListener('submit', async (event) => {
     forms.model.reset();
     await refreshData();
   } catch (error) {
-    setMessage(error.message, 'warning');
+    setMessage(parseErrorMessage(error), 'warning');
   }
 });
 
@@ -967,7 +1095,7 @@ forms.group.addEventListener('submit', async (event) => {
     forms.group.reset();
     await refreshData();
   } catch (error) {
-    setMessage(error.message, 'warning');
+    setMessage(parseErrorMessage(error), 'warning');
   }
 });
 
@@ -981,7 +1109,7 @@ forms.tag.addEventListener('submit', async (event) => {
     forms.tag.reset();
     await refreshData();
   } catch (error) {
-    setMessage(error.message, 'warning');
+    setMessage(parseErrorMessage(error), 'warning');
   }
 });
 
@@ -995,7 +1123,7 @@ forms.assignGroup.addEventListener('submit', async (event) => {
     forms.assignGroup.reset();
     await refreshData();
   } catch (error) {
-    setMessage(error.message, 'warning');
+    setMessage(parseErrorMessage(error), 'warning');
   }
 });
 
@@ -1009,34 +1137,98 @@ forms.assignTag.addEventListener('submit', async (event) => {
     forms.assignTag.reset();
     await refreshData();
   } catch (error) {
-    setMessage(error.message, 'warning');
+    setMessage(parseErrorMessage(error), 'warning');
   }
+});
+
+forms.release.addEventListener('invalid', (event) => {
+  event.preventDefault();
+  const label = getFieldLabel(event.target);
+  setMessage(`الرجاء إكمال الحقل المطلوب: ${label}.`, 'warning', elements.releaseMessage);
+}, true);
+
+forms.release.querySelector('button[type="submit"]')?.addEventListener('click', () => {
+  if (forms.release.checkValidity()) {
+    return;
+  }
+
+  const invalidField = forms.release.querySelector(':invalid');
+  setMessage(`الرجاء إكمال الحقل المطلوب: ${getFieldLabel(invalidField)}.`, 'warning', elements.releaseMessage);
 });
 
 forms.release.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (state.releaseSubmitting) {
+    return;
+  }
+
+  state.releaseSubmitting = true;
+  setReleaseSubmitState(true);
+  setMessage('جارٍ إنشاء الإصدار...', 'muted', elements.releaseMessage);
+
   try {
     const data = collectFormData(forms.release);
-    const payload = {
-      firmware_model_id: data.firmware_model_id ? Number(data.firmware_model_id) : undefined,
-      model: data.model || undefined,
-      version: data.version,
-      version_code: data.version_code || undefined,
-      artifact_path: data.artifact_path,
-      changelog: data.changelog || undefined,
-      channel: data.channel || 'stable',
-      rollout_percent: Number(data.rollout_percent || 100),
-      active: forms.release.querySelector('[name="active"]').checked,
-      force: forms.release.querySelector('[name="force"]').checked,
-    };
-    await apiFetch('/admin/releases', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+    const artifactFile = forms.release.querySelector('[name="artifact"]').files?.[0] ?? null;
+    const artifactPath = normalizeArtifactPathInput(data.artifact_path);
+
+    // Prefer an explicit server-side artifact path when provided, even if a file was selected.
+    if (artifactPath) {
+      if (!artifactPath.startsWith('/firmware/')) {
+        throw new Error('artifact_path must start with /firmware/');
+      }
+
+      const payload = {
+        firmware_model_id: data.firmware_model_id ? Number(data.firmware_model_id) : undefined,
+        model: data.model || undefined,
+        version: data.version,
+        version_code: data.version_code || undefined,
+        artifact_path: artifactPath,
+        changelog: data.changelog || undefined,
+        channel: data.channel || 'stable',
+        rollout_percent: Number(data.rollout_percent || 100),
+        active: forms.release.querySelector('[name="active"]').checked,
+        force: forms.release.querySelector('[name="force"]').checked,
+      };
+
+      await apiFetch('/admin/releases', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    } else if (artifactFile) {
+      if (artifactFile.size > MAX_BROWSER_UPLOAD_BYTES) {
+        throw new Error('Large browser uploads can timeout. Provide a /firmware/ path for this file.');
+      }
+
+      const formData = new FormData();
+      if (data.firmware_model_id) formData.append('firmware_model_id', data.firmware_model_id);
+      if (data.model) formData.append('model', data.model);
+      formData.append('version', data.version);
+      if (data.version_code) formData.append('version_code', data.version_code);
+      if (data.changelog) formData.append('changelog', data.changelog);
+      formData.append('channel', data.channel || 'stable');
+      formData.append('rollout_percent', String(Number(data.rollout_percent || 100)));
+      formData.append('active', forms.release.querySelector('[name="active"]').checked ? 'true' : 'false');
+      formData.append('force', forms.release.querySelector('[name="force"]').checked ? 'true' : 'false');
+      formData.append('artifact', artifactFile);
+
+      await apiFetch('/admin/releases/upload', {
+        method: 'POST',
+        body: formData,
+      });
+    } else {
+      throw new Error('Upload firmware file or provide artifact path.');
+    }
+
     forms.release.reset();
+    setMessage('تم إرسال طلب إنشاء الإصدار بنجاح.', 'muted', elements.releaseMessage);
     await refreshData();
   } catch (error) {
-    setMessage(error.message, 'warning');
+    const message = parseErrorMessage(error);
+    setMessage(message, 'warning', elements.releaseMessage);
+    setMessage(message, 'warning');
+  } finally {
+    state.releaseSubmitting = false;
+    setReleaseSubmitState(false);
   }
 });
 
@@ -1060,15 +1252,15 @@ forms.campaign.addEventListener('submit', async (event) => {
 
     for (const rule of payload.rules) {
       if ((rule.rule_type === 'group' && !rule.group_id) || (rule.rule_type === 'tag' && !rule.tag_id)) {
-        throw new Error('Group and tag rules require a selected value.');
+        throw new Error('قواعد المجموعة والوسم تتطلب اختيار قيمة.');
       }
 
       if (rule.rule_type !== 'group' && rule.rule_type !== 'tag' && rule.operator !== 'in' && !rule.value_string) {
-        throw new Error(`Rule ${rule.rule_type} requires a value.`);
+        throw new Error(`القاعدة ${getRuleDefinition(rule.rule_type).label} تتطلب قيمة.`);
       }
 
       if (rule.operator === 'in' && (!Array.isArray(rule.value_json) || rule.value_json.length === 0)) {
-        throw new Error(`Rule ${rule.rule_type} requires at least one list value.`);
+        throw new Error(`القاعدة ${getRuleDefinition(rule.rule_type).label} تتطلب قيمة واحدة على الأقل ضمن القائمة.`);
       }
     }
 
@@ -1187,7 +1379,7 @@ elements.campaignsTable.addEventListener('click', async (event) => {
     }
 
     if (action === 'archive') {
-      if (!window.confirm('Archive this campaign? It will be hidden from the default list and deactivated.')) {
+      if (!window.confirm('هل تريد أرشفة هذه الحملة؟ سيتم إخفاؤها من القائمة الافتراضية وتعطيلها.')) {
         return;
       }
 
@@ -1196,7 +1388,7 @@ elements.campaignsTable.addEventListener('click', async (event) => {
     }
 
     if (action === 'delete') {
-      if (!window.confirm('Delete this campaign permanently? This will remove its rollout state records.')) {
+      if (!window.confirm('هل تريد حذف هذه الحملة نهائيًا؟ سيتم حذف سجلات حالة النشر الخاصة بها.')) {
         return;
       }
 

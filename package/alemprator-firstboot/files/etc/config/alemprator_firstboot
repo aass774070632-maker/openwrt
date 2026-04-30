@@ -1,5 +1,6 @@
 config firstboot 'main'
 	option enabled '1'
+	option configured_once '0'
 	option auto_cleanup_armed '0'
 	option auto_cleanup_delay '15'
 	option auto_cleanup_pending '0'

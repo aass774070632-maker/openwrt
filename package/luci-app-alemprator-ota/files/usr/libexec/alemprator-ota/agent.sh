@@ -95,17 +95,15 @@ run_check_cycle() {
 		return 0
 	fi
 
-	do_register_if_needed || {
-		status="error"
-		last_result="register_failed"
-		retry_schedule_failure
-		write_state
-		return 1
-	}
+	if ! do_register_if_needed; then
+		log "register failed; continuing with update check: $last_error"
+	fi
 
 	response="$(check_update_json 2>/tmp/alemprator-ota-check.err)" || {
 		status="error"
 		last_error="update check request failed"
+		check_err="$(tr '\n' ' ' < /tmp/alemprator-ota-check.err 2>/dev/null | sed 's/[[:space:]]\+/ /g' | sed 's/^ //; s/ $//' | cut -c1-180)"
+		[ -n "$check_err" ] && last_error="$last_error: $check_err"
 		last_result="check_failed"
 		retry_schedule_failure
 		write_state
@@ -115,12 +113,12 @@ run_check_cycle() {
 	clear_retry
 
 	has_update="$(printf '%s' "$response" | jsonfilter -e '@.update_available')"
-	server_version="$(printf '%s' "$response" | jsonfilter -e '@.version')"
-	server_sha="$(printf '%s' "$response" | jsonfilter -e '@.sha256')"
-	server_force="$(printf '%s' "$response" | jsonfilter -e '@.force')"
-	server_rollout="$(printf '%s' "$response" | jsonfilter -e '@.rollout_percent')"
-	server_changelog="$(printf '%s' "$response" | jsonfilter -e '@.changelog')"
-	server_size="$(printf '%s' "$response" | jsonfilter -e '@.size_bytes')"
+	server_version="$(trim_text "$(printf '%s' "$response" | jsonfilter -e '@.version')")"
+	server_sha="$(trim_text "$(printf '%s' "$response" | jsonfilter -e '@.sha256')")"
+	server_force="$(trim_text "$(printf '%s' "$response" | jsonfilter -e '@.force')")"
+	server_rollout="$(trim_text "$(printf '%s' "$response" | jsonfilter -e '@.rollout_percent')")"
+	server_changelog="$(trim_text "$(printf '%s' "$response" | jsonfilter -e '@.changelog')")"
+	server_size="$(trim_text "$(printf '%s' "$response" | jsonfilter -e '@.size_bytes')")"
 
 	[ -n "$server_rollout" ] || server_rollout=100
 	server_rollout="$(safe_int "$server_rollout" 100)"
@@ -232,11 +230,21 @@ run_check_cycle() {
 }
 
 run_loop() {
+	local delay
+
 	load_config
 	random_jitter
 	while :; do
 		run_check_cycle
-		sleep "$CHECK_INTERVAL"
+		delay="$CHECK_INTERVAL"
+		if [ "$AUTO_UPGRADE" = "1" ] && [ "$last_result" = "outside_window" ]; then
+			target_epoch="$(next_window_start_epoch)"
+			now_epoch="$(date +%s)"
+			delay=$((target_epoch - now_epoch + 5))
+			[ "$delay" -lt 60 ] && delay=60
+			[ "$delay" -gt "$CHECK_INTERVAL" ] && delay="$CHECK_INTERVAL"
+		fi
+		sleep "$delay"
 	done
 }
 

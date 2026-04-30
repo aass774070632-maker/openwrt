@@ -1,0 +1,40 @@
+#!/bin/sh
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "$SCRIPT_DIR/common.sh"
+
+load_config
+mkdir -p "$STATE_DIR"
+
+if [ ! -s "$MANUAL_IMAGE_PATH" ]; then
+	printf '{"available":false,"valid":false,"path":"%s","filename":"","size_bytes":0,"sha256":"","message":"%s"}\n' \
+		"$(json_escape "$MANUAL_IMAGE_PATH")" \
+		"$(json_escape "no manual image uploaded")"
+	exit 0
+fi
+
+size_bytes="$(wc -c < "$MANUAL_IMAGE_PATH" 2>/dev/null | tr -d ' ')"
+size_bytes="$(safe_int "$size_bytes" 0)"
+sha256="$(sha256sum "$MANUAL_IMAGE_PATH" 2>/dev/null | awk '{print $1}')"
+filename="$(basename "$MANUAL_IMAGE_PATH")"
+err_file="$STATE_DIR/manual-info.err"
+message=""
+valid=false
+
+if sysupgrade -T "$MANUAL_IMAGE_PATH" >/dev/null 2>"$err_file"; then
+	valid=true
+	message="manual image is ready to install"
+else
+	message="$(tr '\n' ' ' < "$err_file" 2>/dev/null | sed 's/[[:space:]]\+/ /g' | sed 's/^ //; s/ $//' | cut -c1-220)"
+	[ -n "$message" ] || message="uploaded file failed validation"
+fi
+
+printf '{'
+printf '"available":true,'
+printf '"valid":%s,' "$valid"
+printf '"path":"%s",' "$(json_escape "$MANUAL_IMAGE_PATH")"
+printf '"filename":"%s",' "$(json_escape "$filename")"
+printf '"size_bytes":%s,' "$(safe_int "$size_bytes" 0)"
+printf '"sha256":"%s",' "$(json_escape "$sha256")"
+printf '"message":"%s"' "$(json_escape "$message")"
+printf '}\n'

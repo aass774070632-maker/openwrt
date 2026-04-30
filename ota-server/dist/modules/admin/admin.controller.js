@@ -11,9 +11,16 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
+const node_crypto_1 = require("node:crypto");
+const node_fs_1 = require("node:fs");
+const node_path_1 = __importDefault(require("node:path"));
 const admin_jwt_guard_1 = require("../auth/admin-jwt.guard");
 const create_campaign_dto_1 = require("./dto/create-campaign.dto");
 const create_device_group_dto_1 = require("./dto/create-device-group.dto");
@@ -22,6 +29,25 @@ const create_firmware_model_dto_1 = require("./dto/create-firmware-model.dto");
 const create_release_dto_1 = require("./dto/create-release.dto");
 const update_campaign_dto_1 = require("./dto/update-campaign.dto");
 const admin_service_1 = require("./admin.service");
+const { diskStorage } = require('multer');
+const firmwareUploadStorage = diskStorage({
+    destination: (_request, _file, callback) => {
+        const targetDir = node_path_1.default.resolve(process.cwd(), 'public', 'firmware');
+        (0, node_fs_1.mkdirSync)(targetDir, { recursive: true });
+        callback(null, targetDir);
+    },
+    filename: (_request, file, callback) => {
+        const originalExt = node_path_1.default.extname(file.originalname || '').toLowerCase();
+        const safeExt = /^[.a-z0-9]+$/.test(originalExt) && originalExt.length <= 12 ? originalExt : '.bin';
+        const baseName = node_path_1.default.basename(file.originalname || 'firmware', originalExt)
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 64) || 'firmware';
+        const suffix = `${Date.now()}-${(0, node_crypto_1.randomBytes)(4).toString('hex')}`;
+        callback(null, `${baseName}-${suffix}${safeExt}`);
+    },
+});
 let AdminController = class AdminController {
     constructor(adminService) {
         this.adminService = adminService;
@@ -67,6 +93,9 @@ let AdminController = class AdminController {
     }
     createRelease(body, request) {
         return this.adminService.createRelease(body, request.admin?.id);
+    }
+    createReleaseWithUpload(artifact, body, request) {
+        return this.adminService.createReleaseFromUpload(body, artifact, request.admin?.id);
     }
     listCampaigns(includeArchived) {
         return this.adminService.listCampaigns(includeArchived === 'true');
@@ -201,6 +230,21 @@ __decorate([
     __metadata("design:paramtypes", [create_release_dto_1.CreateReleaseDto, Object]),
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "createRelease", null);
+__decorate([
+    (0, common_1.Post)('releases/upload'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('artifact', {
+        storage: firmwareUploadStorage,
+        limits: {
+            fileSize: 256 * 1024 * 1024,
+        },
+    })),
+    __param(0, (0, common_1.UploadedFile)()),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object, Object]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "createReleaseWithUpload", null);
 __decorate([
     (0, common_1.Get)('campaigns'),
     __param(0, (0, common_1.Query)('include_archived')),

@@ -1,10 +1,10 @@
 {
 	"admin/system/ota-update": {
-		"title": "OTA Update",
+		"title": "تحديث OTA",
 		"order": 80,
 		"action": {
 			"type": "view",
-			"path": "system/ota"
+			"path": "system/ota_v2"
 		},
 		"depends": {
 			"acl": [ "luci-app-alemprator-ota" ]

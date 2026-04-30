@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-setup
 PKG_VERSION:=1.0
-PKG_RELEASE:=84
+PKG_RELEASE:=90
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKGARCH:=all
 PKG_LICENSE:=GPL-3.0-only
@@ -61,7 +61,7 @@ if [ "$$changed" = 1 ]; then
 	wifi reload >/dev/null 2>&1 || /etc/init.d/network reload >/dev/null 2>&1 || true
 fi
 
-rm -f /tmp/luci-indexcache
+rm -f /tmp/luci-indexcache /tmp/luci-indexcache.*.json
 
 uhttpd_reload_result=0
 /etc/init.d/uhttpd reload >/dev/null 2>&1 || uhttpd_reload_result=$$?
@@ -90,14 +90,16 @@ define Package/luci-app-setup/install
 	$(INSTALL_BIN) ./files/etc/uci-defaults/49_luci-app-setup-apply-radio-htmode $(1)/etc/uci-defaults/
 	$(INSTALL_BIN) ./files/etc/uci-defaults/alemprator_c $(1)/etc/uci-defaults/
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
-	$(INSTALL_DATA) ./files/usr/share/luci/menu.d/luci-app-setup.json $(1)/usr/share/luci/menu.d/
+	$(INSTALL_DATA) ./files/usr/share/luci/menu.d/luci-app-setup.json $(1)/usr/share/luci/menu.d/zzz-luci-app-setup.json
 	$(INSTALL_DIR) $(1)/usr/share/ucitrack
 	$(INSTALL_DATA) ./files/usr/share/ucitrack/luci-app-setup.json $(1)/usr/share/ucitrack/
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
 	$(INSTALL_DATA) ./files/usr/share/rpcd/acl.d/luci-app-setup.json $(1)/usr/share/rpcd/acl.d/
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/setup
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/setup.js $(1)/www/luci-static/resources/view/setup/
-	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/setup.js $(1)/www/luci-static/resources/view/setup/setup_r84.js
+	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/setup.js $(1)/www/luci-static/resources/view/setup/setup_r90.js
+	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/landing.js $(1)/www/luci-static/resources/view/setup/
+	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/landing.js $(1)/www/luci-static/resources/view/setup/landing_r2.js
 	$(INSTALL_DIR) $(1)/usr/libexec/alemprator-setup
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-setup/reset-disabled $(1)/usr/libexec/alemprator-setup/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-setup/wps-disabled $(1)/usr/libexec/alemprator-setup/

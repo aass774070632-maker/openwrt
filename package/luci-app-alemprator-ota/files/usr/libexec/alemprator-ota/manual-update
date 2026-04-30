@@ -1,0 +1,50 @@
+#!/bin/sh
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "$SCRIPT_DIR/common.sh"
+
+load_config
+load_state
+ensure_model_file
+ensure_token >/dev/null
+current_version="$(get_current_version)"
+
+if [ ! -s "$MANUAL_IMAGE_PATH" ]; then
+	status="error"
+	last_result="manual_image_missing"
+	last_error="manual image missing"
+	write_state
+	exit 1
+fi
+
+if ! upgrade_allowed_now; then
+	block_reason="$(get_upgrade_block_reason || true)"
+	status="blocked"
+	last_result="upgrade_blocked"
+	last_error="$(get_upgrade_block_message "$block_reason" || echo 'upgrade blocked')"
+	write_state
+	heartbeat_device
+	exit 1
+fi
+
+status="upgrading"
+update_available=0
+latest_version=""
+changelog="manual file"
+last_error=""
+last_result="manual_upgrade_start"
+reset_progress_state
+start_upgrade_progress
+clear_retry
+write_state
+heartbeat_device
+
+apply_sysupgrade "$MANUAL_IMAGE_PATH" "0" || {
+	status="error"
+	last_result="manual_sysupgrade_failed"
+	last_error="failed to start sysupgrade from manual image"
+	clear_retry
+	write_state
+	heartbeat_device
+	exit 1
+}

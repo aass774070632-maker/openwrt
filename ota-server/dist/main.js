@@ -8,7 +8,20 @@ const env_1 = require("./config/env");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.setGlobalPrefix(env_1.env.API_PREFIX);
-    app.useStaticAssets((0, node_path_1.join)(process.cwd(), 'public'));
+    app.useStaticAssets((0, node_path_1.join)(process.cwd(), 'public'), {
+        setHeaders: (res, filePath) => {
+            const normalizedPath = filePath.split(node_path_1.sep).join('/');
+            if (normalizedPath.includes('/admin-app/')) {
+                res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+                res.setHeader('Pragma', 'no-cache');
+                res.setHeader('Expires', '0');
+                return;
+            }
+            if (normalizedPath.includes('/firmware/')) {
+                res.setHeader('Cache-Control', 'no-store');
+            }
+        },
+    });
     app.useGlobalPipes(new common_1.ValidationPipe({
         whitelist: true,
         transform: true,

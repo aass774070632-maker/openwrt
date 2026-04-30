@@ -106,6 +106,7 @@ cleanup_firstboot_runtime() {
 	local current_lan_netmask
 
 	uci -q set ${CFG}.main.enabled='0'
+	uci -q set ${CFG}.main.configured_once='1'
 	uci -q set ${CFG}.main.auto_cleanup_armed='0'
 	uci -q set ${CFG}.main.auto_cleanup_pending='0'
 	uci -q commit ${CFG}
@@ -204,6 +205,8 @@ sync_firstboot_flags() {
 	[ "$(uci -q get setup.default.initial_setup_complete)" = "1" ] && complete=1
 
 	if [ "$enabled" = "0" ] || [ "$complete" = "1" ]; then
+		uci -q set ${CFG}.main.configured_once='1'
+		uci -q commit ${CFG}
 		touch "$configured_flag"
 		rm -f "$pending_flag"
 	else

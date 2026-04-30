@@ -9,6 +9,7 @@ STATE_DIR="/tmp/alemprator-ota"
 PERSIST_DIR="/etc/alemprator"
 RETRY_FILE="$PERSIST_DIR/ota.retry"
 REGISTERED_FILE="$PERSIST_DIR/registered"
+MANUAL_IMAGE_PATH="$STATE_DIR/manual-update.bin"
 
 SERVER_URL=""
 REGISTER_PATH=""
@@ -17,6 +18,7 @@ HEARTBEAT_PATH=""
 CHECK_INTERVAL="21600"
 RANDOM_DELAY_MAX="3600"
 AUTO_UPGRADE="1"
+REQUIRE_SETUP_COMPLETE="0"
 KEEP_CONFIG="1"
 ALLOW_FORCE="1"
 WINDOW_START="2"
@@ -72,6 +74,10 @@ json_escape() {
 	printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e ':a;N;$!ba;s/\n/\\n/g'
 }
 
+trim_text() {
+	printf '%s' "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
 url_encode() {
 	local input hex out ch
 	input="$1"
@@ -106,6 +112,7 @@ load_config() {
 	config_get CHECK_INTERVAL "$SECTION" check_interval "21600"
 	config_get RANDOM_DELAY_MAX "$SECTION" random_delay_max "3600"
 	config_get AUTO_UPGRADE "$SECTION" auto_upgrade "1"
+	config_get REQUIRE_SETUP_COMPLETE "$SECTION" require_setup_complete "0"
 	config_get KEEP_CONFIG "$SECTION" keep_config "1"
 	config_get ALLOW_FORCE "$SECTION" allow_force "1"
 	config_get WINDOW_START "$SECTION" window_start "2"
@@ -297,6 +304,8 @@ is_initial_setup_complete() {
 }
 
 get_upgrade_block_reason() {
+	[ "$REQUIRE_SETUP_COMPLETE" = "1" ] || return 1
+
 	if is_firstboot_enabled; then
 		echo 'firstboot_active'
 		return 0
@@ -402,6 +411,57 @@ is_in_update_window() {
 	[ "$hour" -ge "$start" ] || [ "$hour" -lt "$end" ]
 }
 
+next_window_start_epoch() {
+	local start end now hour minute second seconds_today window_start_epoch
+
+	start="$(safe_int "$WINDOW_START" 2)"
+	end="$(safe_int "$WINDOW_END" 6)"
+	now="$(date +%s)"
+	hour="$(date +%H | sed 's/^0*//; s/^$/0/')"
+	minute="$(date +%M | sed 's/^0*//; s/^$/0/')"
+	second="$(date +%S | sed 's/^0*//; s/^$/0/')"
+
+	hour="$(safe_int "$hour" 0)"
+	minute="$(safe_int "$minute" 0)"
+	second="$(safe_int "$second" 0)"
+
+	[ "$start" -lt 0 ] && start=0
+	[ "$start" -gt 23 ] && start=23
+	[ "$end" -lt 0 ] && end=0
+	[ "$end" -gt 23 ] && end=23
+
+	if [ "$start" -eq "$end" ]; then
+		echo "$now"
+		return 0
+	fi
+
+	seconds_today=$((hour * 3600 + minute * 60 + second))
+	window_start_epoch=$((now - seconds_today + start * 3600))
+
+	if [ "$start" -lt "$end" ]; then
+		if [ "$hour" -lt "$start" ]; then
+			echo "$window_start_epoch"
+			return 0
+		fi
+
+		if [ "$hour" -ge "$end" ]; then
+			echo $((window_start_epoch + 86400))
+			return 0
+		fi
+
+		echo "$now"
+		return 0
+	fi
+
+	# Wrapped window, e.g. 22:00 -> 06:00
+	if [ "$hour" -ge "$start" ] || [ "$hour" -lt "$end" ]; then
+		echo "$now"
+		return 0
+	fi
+
+	echo "$window_start_epoch"
+}
+
 random_jitter() {
 	local max raw
 	max="$(safe_int "$RANDOM_DELAY_MAX" 0)"
@@ -483,17 +543,23 @@ fetch_url() {
 }
 
 register_device() {
-	local token model version mac board payload response accepted action
+	local token model version mac board payload response accepted action err_file err_detail reject_reason
 	token="$(ensure_token)"
 	model="$(get_device_model)"
 	version="$(get_current_version)"
 	mac="$(get_primary_mac)"
 	board="$(get_board_name)"
+	err_file="/tmp/alemprator-ota-register.err"
 
 	payload="{\"token\":\"$(json_escape "$token")\",\"model\":\"$(json_escape "$model")\",\"version\":\"$(json_escape "$version")\",\"mac\":\"$(json_escape "$mac")\",\"board\":\"$(json_escape "$board")\"}"
 	action="register|$token|$model|$version|$mac|$board"
-	response="$(signed_post_json "$SERVER_URL$REGISTER_PATH" "$payload" "$action" 2>/tmp/alemprator-ota-register.err)" || {
-		last_error="register request failed"
+	response="$(signed_post_json "$SERVER_URL$REGISTER_PATH" "$payload" "$action" 2>"$err_file")" || {
+		err_detail="$(tr '\n' ' ' < "$err_file" 2>/dev/null | sed 's/[[:space:]]\+/ /g' | sed 's/^ //; s/ $//' | cut -c1-180)"
+		if [ -n "$err_detail" ]; then
+			last_error="register request failed: $err_detail"
+		else
+			last_error="register request failed"
+		fi
 		return 1
 	}
 
@@ -503,7 +569,16 @@ register_device() {
 		return 0
 	fi
 
-	last_error="register rejected"
+	reject_reason="$(printf '%s' "$response" | jsonfilter -e '@.message')"
+	if [ -z "$reject_reason" ]; then
+		reject_reason="$(printf '%s' "$response" | jsonfilter -e '@.error')"
+	fi
+	reject_reason="$(safe_text "$reject_reason")"
+	if [ -n "$reject_reason" ]; then
+		last_error="register rejected: $reject_reason"
+	else
+		last_error="register rejected"
+	fi
 	return 1
 }
 
@@ -550,7 +625,7 @@ heartbeat_device() {
 	token="$(ensure_token)"
 	model="$(get_device_model)"
 	version="$(get_current_version)"
-	payload="{\"token\":\"$(json_escape "$token")\",\"model\":\"$(json_escape "$model")\",\"current_version\":\"$(json_escape "$version")\",\"status\":\"$(json_escape "$status")\"}"
-	action="heartbeat|$token|$status|$version||"
+	payload="{\"token\":\"$(json_escape "$token")\",\"model\":\"$(json_escape "$model")\",\"current_version\":\"$(json_escape "$version")\",\"status\":\"$(json_escape "$status")\",\"last_result\":\"$(json_escape "$last_result")\",\"last_error\":\"$(json_escape "$last_error")\"}"
+	action="heartbeat|$token|$status|$version|$last_result|$last_error"
 	signed_post_json "$SERVER_URL$HEARTBEAT_PATH" "$payload" "$action" >/dev/null 2>&1 || true
 }

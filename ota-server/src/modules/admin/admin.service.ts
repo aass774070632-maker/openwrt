@@ -483,10 +483,11 @@ export class AdminService {
   }
 
   async createRelease(body: CreateReleaseDto, adminUserId?: number) {
-    const channel = body.channel ?? 'stable';
+    const channel = (body.channel ?? 'stable').trim();
     const active = body.active ?? true;
     const force = body.force ?? false;
     const rolloutPercent = body.rollout_percent ?? 100;
+    const version = body.version.trim();
     const firmwareModel = body.firmware_model_id == null
       ? null
       : await this.prisma.firmwareModel.findUnique({
@@ -516,7 +517,20 @@ export class AdminService {
 
     const normalizedArtifactPath = this.normalizeArtifactPath(body.artifact_path);
     const filePath = this.resolveArtifactPath(normalizedArtifactPath);
-    const [buffer, fileStats] = await Promise.all([readFile(filePath), stat(filePath)]);
+
+    let buffer: Buffer;
+    let fileStats: Awaited<ReturnType<typeof stat>>;
+    try {
+      [buffer, fileStats] = await Promise.all([readFile(filePath), stat(filePath)]);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (code === 'ENOENT') {
+        throw new BadRequestException('artifact_path file not found');
+      }
+
+      throw error;
+    }
+
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const downloadUrl = `${this.trimTrailingSlash(env.FIRMWARE_PUBLIC_BASE_URL)}${normalizedArtifactPath}`;
 
@@ -525,7 +539,7 @@ export class AdminService {
         where: {
           release: {
             model,
-            version: body.version,
+            version,
             channel,
           },
         },
@@ -534,7 +548,7 @@ export class AdminService {
       await tx.release.deleteMany({
         where: {
           model,
-          version: body.version,
+          version,
           channel,
         },
       });
@@ -556,11 +570,11 @@ export class AdminService {
         data: {
           model,
           firmwareModelId: linkedFirmwareModel?.id ?? null,
-          version: body.version,
-          versionCode: body.version_code ?? null,
+          version,
+          versionCode: body.version_code?.trim() || null,
           downloadUrl,
           sha256,
-          changelog: body.changelog ?? '',
+          changelog: body.changelog?.trim() ?? '',
           force,
           rolloutPercent,
           active,
@@ -590,6 +604,31 @@ export class AdminService {
     });
 
     return this.serializeRelease(release);
+  }
+
+  async createReleaseFromUpload(
+    body: Record<string, string | undefined>,
+    artifact: { filename?: string } | undefined,
+    adminUserId?: number,
+  ) {
+    if (!artifact?.filename) {
+      throw new BadRequestException('artifact file is required');
+    }
+
+    const dto: CreateReleaseDto = {
+      firmware_model_id: this.parseOptionalInt(body.firmware_model_id, 'firmware_model_id'),
+      model: this.cleanOptionalText(body.model),
+      version: this.requireText(body.version, 'version is required'),
+      version_code: this.cleanOptionalText(body.version_code),
+      artifact_path: `/firmware/${artifact.filename}`,
+      changelog: this.cleanOptionalText(body.changelog),
+      channel: this.cleanOptionalText(body.channel) ?? 'stable',
+      rollout_percent: this.parseOptionalInt(body.rollout_percent, 'rollout_percent'),
+      active: this.parseOptionalBoolean(body.active, 'active'),
+      force: this.parseOptionalBoolean(body.force, 'force'),
+    };
+
+    return this.createRelease(dto, adminUserId);
   }
 
   async listCampaigns(includeArchived = false) {
@@ -1289,6 +1328,55 @@ export class AdminService {
     }
 
     return slug;
+  }
+
+  private cleanOptionalText(value: string | undefined): string | undefined {
+    if (value == null) {
+      return undefined;
+    }
+
+    const cleaned = value.trim();
+    return cleaned ? cleaned : undefined;
+  }
+
+  private requireText(value: string | undefined, message: string): string {
+    const cleaned = this.cleanOptionalText(value);
+    if (!cleaned) {
+      throw new BadRequestException(message);
+    }
+
+    return cleaned;
+  }
+
+  private parseOptionalInt(value: string | undefined, fieldName: string): number | undefined {
+    const cleaned = this.cleanOptionalText(value);
+    if (!cleaned) {
+      return undefined;
+    }
+
+    const parsed = Number(cleaned);
+    if (!Number.isInteger(parsed)) {
+      throw new BadRequestException(`${fieldName} must be an integer`);
+    }
+
+    return parsed;
+  }
+
+  private parseOptionalBoolean(value: string | undefined, fieldName: string): boolean | undefined {
+    const cleaned = this.cleanOptionalText(value);
+    if (!cleaned) {
+      return undefined;
+    }
+
+    const normalized = cleaned.toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+      return true;
+    }
+    if (['0', 'false', 'no', 'off'].includes(normalized)) {
+      return false;
+    }
+
+    throw new BadRequestException(`${fieldName} must be a boolean`);
   }
 
   private sameDateTime(left: Date | null, right: Date | null): boolean {

@@ -2,7 +2,8 @@
 	"luci-app-setup": {
 		"description": "Grant UCI and status access for luci-app-setup",
 		"read": {
-			"uci": [ "alemprator_firstboot", "network", "setup", "watchcat", "wireless" ],
+			"cgi-io": [ "backup", "download" ],
+			"uci": [ "alemprator_firstboot", "alemprator_ota", "network", "setup", "watchcat", "wireless" ],
 			"ubus": {
 				"system": [ "board" ],
 				"network.interface.lan": [ "status" ],
@@ -10,8 +11,16 @@
 			}
 		},
 		"write": {
-			"uci": [ "alemprator_firstboot", "dhcp", "firewall", "network", "setup", "watchcat", "wireless" ],
+			"cgi-io": [ "upload" ],
+			"file": {
+				"/bin/tar -tzf /tmp/backup.tar.gz": [ "exec" ],
+				"/sbin/reboot": [ "exec" ],
+				"/sbin/sysupgrade --restore-backup /tmp/backup.tar.gz": [ "exec" ],
+				"/tmp/backup.tar.gz": [ "write" ]
+			},
+			"uci": [ "alemprator_firstboot", "alemprator_ota", "dhcp", "firewall", "network", "setup", "watchcat", "wireless" ],
 			"ubus": {
+				"file": [ "exec", "remove", "write" ],
 				"luci": [ "setPassword" ]
 			}
 		}

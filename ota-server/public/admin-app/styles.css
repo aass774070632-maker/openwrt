@@ -41,6 +41,27 @@ body::before {
   pointer-events: none;
 }
 
+html[dir="rtl"] body {
+  direction: rtl;
+}
+
+html[dir="rtl"] th,
+html[dir="rtl"] td,
+html[dir="rtl"] label,
+html[dir="rtl"] .inline-message,
+html[dir="rtl"] .builder-note,
+html[dir="rtl"] .empty-state {
+  text-align: right;
+}
+
+html[dir="rtl"] .mono,
+html[dir="rtl"] td code,
+html[dir="rtl"] .audit-payload,
+html[dir="rtl"] .session-badge {
+  direction: ltr;
+  unicode-bidi: plaintext;
+}
+
 .page-shell {
   position: relative;
   max-width: 1500px;
