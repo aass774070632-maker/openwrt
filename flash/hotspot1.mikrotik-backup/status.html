@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="windows-1256" />
+	<meta name="theme-color" content="#673ab7" />
+	<link rel="icon" type="image/png" href="assets/img/favicon.png">
+	
+    $(if refresh-timeout)
+    <meta http-equiv="refresh" content="$(refresh-timeout-secs)">
+    $(endif)
+    <meta http-equiv="refresh" content="300">
+    <meta http-equiv="pragma" content="no-cache">
+    <meta http-equiv="expires" content="-1">
+	
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+    <title>معلومات الإشتراك</title>
+	
+	<meta content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0' name='viewport' /> 
+
+	<link rel="stylesheet" href="assets/css/assets.css" />
+<link rel="stylesheet" type="text/css" href="assets/fonts/Almarai.css" />
+	<link rel="stylesheet" href="assets/css/fontello.css" />
+	<script src="assets/js/mine.js"></script>
+
+<script>
+        function openLogout() {
+            if (window.name !== 'hotspot_status') return true;
+            open('$(link-logout)', 'hotspot_logout', 'toolbar=0,location=0,directories=0,status=0,menubars=0,resizable=1,width=280,height=250');
+            window.close();
+            return false;
+        }
+    </script>
+
+<script language="JavaScript">
+    function nameCard() {
+      let card = document.getElementById("card");
+      card.style.direction = "ltr"
+      card.innerHTML = card.innerHTML.slice(0 ,4) + "****";
+    }
+	</script>
+	
+<!-- Start Cookies-->
+<script type=text/javascript>
+    function delrem(){
+     document.cookie = "uname=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+   
+       }
+   </script>
+<!-- End Cookies-->
+</head>
+
+<body advert-pending == 'yes' onLoad="openAdvert()">
+    <!--<div class="logo-basheer">
+        <img src="assets/img/labtop.svg" />
+    </div>-->
+    <form action="$(link-logout)" name="logout" onSubmit="return openLogout()">
+ $(if login-by == 'trial')
+ $(elif login-by != 'mac')
+ $(endif)
+ $(if session-time-left)
+ $(else)
+ $(endif)
+ $(if blocked == 'yes')
+ $(elif refresh-timeout)
+ $(endif)
+ $(if login-by-mac != 'yes')
+    <div class="box">
+        <p class="details">تفاصيل الحساب</p>
+        <div id="box1" class="box1">
+            <!-- -->
+            <div total="$(limit-bytes-total)" remain="$(remain-bytes-total)" id="battery" class="battery" style="border-radius: 25px 1 1 25px">
+                <div class="acid-container" style="border-radius: 18px 1 1 18px">
+                    <div id="percentage"></div>
+                    <div class="acid">
+                        <div id="level" class="fill"></div> <svg class="waves" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 24 150 28" preserveAspectRatio="none"> <defs> <path id="gentle-wave" d="M-160 44c30 0 58-18 88-18s 58 18 88 18 58-18 88-18 58 18 88 18 v44h-352z" /> </defs> <g class="parallax"> <use xlink:href="#gentle-wave" x="50" y="0" fill="#4579e2" /> <use xlink:href="#gentle-wave" x="50" y="3" fill="#3461c1" /> <use xlink:href="#gentle-wave" x="50" y="6" fill="#2d55aa" /> </g> </svg> </div>
+                </div>
+                </div>
+	            </div>
+		<div class="info blue">
+            <div class="floateed">
+                <p class="header">عزيزي المستخدم تذكر  إن الله فوق كل شيء رقيب ... فأجعل أستخدامك للإنترنت فيما يرضيه ... وتستفيد</p>
+                <div class="clear"></div>
+           </div>	
+        <div class="info blue">
+            <div class="floateed">
+                <i class="icon-user"></i>
+                <p class="header">أسم المستخدم</p>
+                <div class="clear"></div>
+           </div>
+            <p class="valuee"id="card">$(username)</p><script language="JavaScript">nameCard();</script>
+        </div>
+		<div class="info green">
+            <div class="floateed">
+                <i class="icon-clock-1"></i>
+                <p class="header">وقت الجلسة</p>
+                <div class="clear"></div>
+           </div>
+            <p class="valuee"id="uptime">$(uptime)</p>
+        </div>
+		<div class="info red">
+            <div class="floateed">
+                <i class="icon-download-1"></i>
+                <p class="header">الرفع المستخدم</p>
+                <div class="clear"></div>
+           </div>
+            <p class="valuee"id="bytes-out-nice">$(bytes-out-nice)</p>
+        </div>
+		<div class="info red">
+            <div class="floateed">
+                <i class="icon-download-1"></i>
+                <p class="header">التحميل المستخدم</p>
+                <div class="clear"></div>
+           </div>
+            <p class="valuee"id="bytes-in-nice">$(bytes-in-nice)</p>
+        </div>
+        <div class="info red">
+            <div class="floateed">
+                <i class="icon-download-1"></i>
+                <p class="header">الباقي من الرصيد</p>
+                <div class="clear"></div>
+            </div>
+            <p class="valuee"><script type="text/javascript">
+                                document.write(toArabicBytes("$(remain-bytes-total)"));
+                            </script></p>
+        </div>
+        <div class="info green">
+            <div class="floateed">
+                <i class="icon-clock-1"></i>
+                <p class="header">الباقي من الصلاحية</p>
+                <div class="clear"></div>
+            </div>
+            <p id="timeLeft" class="valuee"><script type="text/javascript">
+                                document.write(toArabicTime("$(session-time-left)"));
+                            </script></p>
+        </div>
+        <div class="clear"></div>
+        <div class="submit">
+            <input type="hidden" name="erase-cookie" value="on">
+            <button type="submit">تسجيل الخروج<i class="icon-login"></i></button>
+        </div>
+        <div class="ether_cart">
+            <input onclick='return delrem();' type='submit' value="تسجيل بكرت اخر ">
+        </div>
+        
+    </div>
+ $(endif)
+    </form>
+		<!-- لا تحذف هذه السطور تحت اي ظروف حقوق الملكية  كود الملكية @@محترف سوريا@@أبو رواد-->
+  <footer class="copyright2">
+		<tr>
+			<td style="height: 20px;" align="center" valign="center">
+				<font style="background:rgba(0,0,0,0.4);color: #FFF;font-size: 11px;">
+					Developed &amp; Powered By 
+				<a target="_blank" style="color: lime;" href="https://www.facebook.com/amer.5tr">
+				ABDO ALWASEA ZAHER &copy; 2023</a>
+				</font>
+			</td>
+		</tr>
+  </footer>
+<!-- /نهاية كود الملكية @@محترف سوريا@@أبو رواد-->
+
+<script>
+        let percentage = 100;
+        refreshLevel("battery", "");
+        refreshLevel("battery2", "2");
+
+        function refreshLevel(fooor, foor) {
+            let level = 0;
+            let total = document.getElementById(fooor).attributes.getNamedItem("total").value;
+            let remain = document.getElementById(fooor).attributes.getNamedItem("remain").value;
+            if (foor == "2") {
+                total = total.split("-");
+                if (total[1] == "0") {
+                    level = 100;
+                } else {
+                    level = (remain / (parseInt(total[0]) + parseInt(total[1]))) * 100;
+                }
+                unlimited = total[1];
+            } else {
+                level = (remain / total) * 100;
+                unlimited = remain;
+            }
+            document.getElementById("level" + foor).style.setProperty("--acid-height", (level / 100) * document.getElementById("battery" + foor).clientHeight + "px");
+            document.getElementById("percentage" + foor).innerHTML = Math.floor(level) + "%";
+            let box1 = document.getElementById("box1");
+            if (percentage > level) {
+                percentage = level;
+                if (level <= 25) {
+                    box1.style.background = "linear-gradient(45deg, #ff416c, #ff4b2b)";
+                } else if (level <= 50) {
+                    box1.style.background = "linear-gradient(45deg, #fdb901, #ffff51)";
+                } else if (level <= 75) {
+                    box1.style.background = "linear-gradient(45deg, #a9fe4d, #00fff5)";
+                } else {
+                    box1.style.background = "linear-gradient(45deg, #c311fe, #01f4e3)";
+                }
+            }
+            if (unlimited == "" || unlimited == "0") {
+                document.getElementById("percentage" + foor).innerHTML = ' <svg style="width: 50px" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 122.88 62.63" style="enable-background:new 0 0 122.88 62.63" xml:space="preserve"><g><path d="M44.94,20.02c-7.77-8.05-18.67-13.18-27.82-4.34c-2.99,2.88-5.13,6.8-6.07,11c-1.12,4.98-0.28,9.53,1.79,13.28 c1.84,3.34,4.65,6.07,7.96,7.95c3.32,1.89,7.1,2.91,10.85,2.8c4.12-0.12,8.24-1.64,11.7-4.91c4.89-4.63,9.16-11.55,13.33-18.3 c4.56-7.38,9-14.57,14.45-19.43c3.89-3.47,8.05-5.71,12.27-6.94c6.06-1.76,12.12-1.37,17.63,0.55c5.42,1.88,10.28,5.22,14.02,9.42 c3.18,3.56,5.6,7.8,6.92,12.33c1.92,6.6,0.76,14.51-2.74,21.43c-2.48,4.89-6.16,9.38-10.78,12.62c-4.75,3.33-10.47,5.34-16.87,5.15 c-7.32-0.22-15.4-3.3-23.73-10.6l6.93-7.92c6.31,5.53,12.08,7.85,17.09,8c3.98,0.12,7.56-1.15,10.56-3.25 c3.13-2.19,5.66-5.3,7.4-8.74c2.36-4.66,3.2-9.75,2.04-13.75c-0.86-2.96-2.5-5.79-4.69-8.25c-2.6-2.92-5.92-5.22-9.56-6.49 c-3.55-1.23-7.44-1.5-11.28-0.38c-2.73,0.79-5.5,2.31-8.19,4.71c-4.37,3.9-8.39,10.4-12.51,17.08c-4.54,7.35-9.19,14.88-15.03,20.4 c-5.48,5.19-12.07,7.6-18.67,7.8c-5.71,0.17-11.4-1.34-16.34-4.16c-4.96-2.82-9.2-6.96-12-12.04c-3.24-5.87-4.55-12.96-2.82-20.67 c1.39-6.18,4.58-11.97,9.05-16.28c3.01-2.9,6.6-5.15,10.63-6.42c4.06-1.28,8.52-1.55,13.24-0.49c6.08,1.37,12.51,4.96,18.85,11.54 L44.94,20.02L44.94,20.02z"/></g></svg>';
+                document.getElementById("level" + foor).style.setProperty("--acid-height", 1 * document.getElementById("battery" + foor).clientHeight + "px");
+            }
+        }
+    </script>
+
+</body>
+
+</html> 

@@ -42,7 +42,7 @@ var callSetPassword = rpc.declare({
 var SETUP_STYLE_ID = 'alemprator-setup-styles';
 var WATCHCAT_SID = 'alemprator_periodic_reboot';
 var STEP_KEYS = [ 'lan', 'mode', 'vlan', 'advanced' ];
-var WIZARD_BUILD_TAG = 'r90';
+var WIZARD_BUILD_TAG = 'r93';
 var WIZARD_ROUTE = '/cgi-bin/luci/admin/applications/alemprator';
 var DEFAULT_ADMIN_ROUTE = '/cgi-bin/luci/admin/status/overview';
 var VIDEO_EXPLAIN_URL = 'https://www.facebook.com/people/%D8%AC%D9%84%D8%A7%D9%84-%D8%A7%D8%AD%D9%85%D8%AF-%D8%A7%D9%84%D9%82%D8%AD%D9%85/100010720113363/';
@@ -626,6 +626,46 @@ function deriveLanGateway(baseIp) {
 	return '';
 }
 
+function wifiSsidIpSuffix(state) {
+	var ipaddr = String(state && state.lanIpaddr || '').trim();
+	var octets = ipaddr.split('.');
+
+	if (!state || !state.wifiSsidVlanIpSuffix || octets.length != 4 || !isIPv4(ipaddr))
+		return '';
+
+	return octets[2] + '.' + octets[3];
+}
+
+function appendWifiSsidIpSuffix(ssid, state) {
+	var suffix = wifiSsidIpSuffix(state);
+	var normalized = String(ssid || '').trim();
+	var marker = '_' + suffix;
+
+	if (!normalized || !suffix || normalized.slice(-marker.length) == marker)
+		return normalized;
+
+	return normalized + marker;
+}
+
+function stripWifiSsidIpSuffix(ssid, state) {
+	var suffix = wifiSsidIpSuffix(state);
+	var normalized = String(ssid || '').trim();
+	var marker = '_' + suffix;
+
+	if (normalized && suffix && normalized.slice(-marker.length) == marker)
+		return normalized.slice(0, -marker.length);
+
+	return normalized;
+}
+
+function appendVlanSsidIpSuffix(ssid, state) {
+	return appendWifiSsidIpSuffix(ssid, state);
+}
+
+function stripVlanSsidIpSuffix(ssid, state) {
+	return stripWifiSsidIpSuffix(ssid, state);
+}
+
 function describeSecondaryVlanBinding(vlanId) {
 	var normalizedId = Math.min(Math.max(parseInt(vlanId, 10) || 10, 1), 4094);
 
@@ -793,11 +833,18 @@ function secondaryApSectionName(deviceName) {
 function secondarySsid(baseSsid, band) {
 	var state = (baseSsid != null && typeof baseSsid == 'object') ? baseSsid : null;
 	var normalizedBase = String(state ? state.wifiSsid : baseSsid || '').trim() || 'OpenWrt';
+	var configuredSecondaryBase = String(state ? state.wifiSsidVlan2g : '').trim();
+	var suffixedSecondaryBase;
+
+	if (!configuredSecondaryBase)
+		configuredSecondaryBase = normalizedBase + '_VLAN';
+
+	suffixedSecondaryBase = appendWifiSsidIpSuffix(configuredSecondaryBase, state);
 
 	if (band == '5g')
-		return normalizedBase + '_VLAN_5G';
+		return suffixedSecondaryBase + '_5G';
 
-	return normalizedBase + '_VLAN';
+	return suffixedSecondaryBase;
 }
 
 function previewSecondaryManualSsid(state, band) {
@@ -811,7 +858,7 @@ function previewSecondarySsid(state, band) {
 	var manualSsid = previewSecondaryManualSsid(state, band);
 
 	if (manualSsid)
-		return manualSsid;
+		return appendWifiSsidIpSuffix(manualSsid, state);
 
 	return secondarySsid(state, band);
 }
@@ -821,15 +868,16 @@ function primarySsid(baseSsid, band) {
 	var normalizedBase = String(state ? state.wifiSsid : baseSsid || '').trim();
 	var custom5g = String(state ? state.wifiSsid5g : '').trim();
 	var custom5gEnabled = !!(state && state.wifiSsid5gMode == 'custom' && custom5g);
+	var suffixedBase = appendWifiSsidIpSuffix(normalizedBase, state);
 
 	if (band == '5g')
 		if (custom5gEnabled)
-			return custom5g;
+			return appendWifiSsidIpSuffix(custom5g, state);
 
 	if (band == '5g')
-		return normalizedBase ? (normalizedBase + '_5G') : '';
+		return suffixedBase ? (suffixedBase + '_5G') : '';
 
-	return normalizedBase;
+	return suffixedBase;
 }
 
 function applyWifiIfaceFlag(conf, sid, optionName, enabled) {
@@ -1498,16 +1546,25 @@ function inferSecondarySsids(radios, baseSsid) {
 	var secondary5g = findSecondaryApIfaceSection(radios, '5g');
 	var actual2g = secondary2g ? String(secondary2g.ssid || '').trim() : '';
 	var actual5g = secondary5g ? String(secondary5g.ssid || '').trim() : '';
-	var expected2g = secondarySsid(baseSsid || 'OpenWrt', '2g');
-	var expected5g = secondarySsid(baseSsid || 'OpenWrt', '5g');
+	var configured2g = String(uci.get('setup', 'default', 'wifi_ssid_vlan_2g') || uci.get('setup', 'default', 'wifi_ssid_vlan') || '').trim();
+	var configured5g = String(uci.get('setup', 'default', 'wifi_ssid_vlan_5g') || '').trim();
+	var expectedState = {
+		lanIpaddr: uci.get('network', 'lan', 'ipaddr') || uci.get('setup', 'default', 'lan_ipaddr') || '192.168.1.1',
+		wifiSsid: baseSsid || 'OpenWrt',
+		wifiSsidVlan2g: configured2g,
+		wifiSsidVlan5g: configured5g,
+		wifiSsidVlanIpSuffix: uci.get('setup', 'default', 'wifi_ssid_vlan_ip_suffix') == '1'
+	};
+	var expected2g = secondarySsid(expectedState, '2g');
+	var expected5g = secondarySsid(expectedState, '5g');
 	var inferred2g = '';
 	var inferred5g = '';
 
 	if (actual2g && actual2g != expected2g)
-		inferred2g = actual2g;
+		inferred2g = stripVlanSsidIpSuffix(actual2g, expectedState);
 
 	if (actual5g && actual5g != expected5g)
-		inferred5g = actual5g;
+		inferred5g = stripVlanSsidIpSuffix(actual5g, expectedState);
 
 	if (!inferred5g && inferred2g) {
 		var inferred2gTo5g = inferred2g + '_5G';
@@ -1998,6 +2055,8 @@ function disableFirstbootProvisioning() {
 	uci.unset('dhcp', 'lan', 'ignore');
 	uci.set('alemprator_firstboot', 'main', 'enabled', '0');
 	uci.set('alemprator_firstboot', 'main', 'configured_once', '1');
+	uci.set('alemprator_firstboot', 'main', 'auto_cleanup_armed', '0');
+	uci.set('alemprator_firstboot', 'main', 'auto_cleanup_pending', '0');
 
 	return true;
 }
@@ -2196,6 +2255,12 @@ return view.extend({
 		if (this.refs.wifiSsidVlan5g)
 			this.refs.wifiSsidVlan5g.value = this.state.wifiSsidVlan5g || '';
 
+		if (this.refs.wifiSsidIpSuffixPrimary)
+			this.refs.wifiSsidIpSuffixPrimary.checked = !!this.state.wifiSsidVlanIpSuffix;
+
+		if (this.refs.wifiSsidVlanIpSuffix)
+			this.refs.wifiSsidVlanIpSuffix.checked = !!this.state.wifiSsidVlanIpSuffix;
+
 		if (this.refs.wifiKey)
 			this.refs.wifiKey.value = this.state.wifiKey || '';
 
@@ -2360,6 +2425,11 @@ return view.extend({
 		var otaConfig = uci.get('alemprator_ota', 'main');
 		var otaWindowStart = otaConfig ? normalizeHour(uci.get('alemprator_ota', 'main', 'window_start'), 2) : null;
 		var otaWindowEnd = otaConfig ? normalizeHour(uci.get('alemprator_ota', 'main', 'window_end'), 6) : null;
+		var lanIpaddr = lanRuntime.ipaddr || uci.get('network', 'lan', 'ipaddr') || (firstbootEnabled ? firstbootLanIpaddr : '') || uci.get('setup', 'default', 'lan_ipaddr') || '192.168.1.1';
+		var wifiSsidIpSuffixState = {
+			lanIpaddr: lanIpaddr,
+			wifiSsidVlanIpSuffix: uci.get('setup', 'default', 'wifi_ssid_vlan_ip_suffix') == '1'
+		};
 		var ssid5gActual = apIface5g ? String(apIface5g.ssid || '').trim() : '';
 		var ssid5gDerived;
 		var ssid5gMode = 'derived';
@@ -2376,9 +2446,9 @@ return view.extend({
 		var hasVlanApIface = !!(findSecondaryApIfaceSection(radios, '2g') || findSecondaryApIfaceSection(radios, '5g'));
 
 		if (apIface2g)
-			baseSsid = String(apIface2g.ssid || '').trim();
+			baseSsid = stripWifiSsidIpSuffix(apIface2g.ssid || '', wifiSsidIpSuffixState);
 		else if (apIface5g)
-			baseSsid = strip5GSuffix(apIface5g.ssid || '');
+			baseSsid = stripWifiSsidIpSuffix(strip5GSuffix(apIface5g.ssid || ''), wifiSsidIpSuffixState);
 
 		if (!baseSsid && (hasPrimaryApIface || !hasVlanApIface))
 			baseSsid = uci.get('setup', 'default', 'wifi_ssid') || '';
@@ -2387,14 +2457,16 @@ return view.extend({
 			baseSsid = 'OpenWrt';
 
 		ssid5gDerived = baseSsid ? primarySsid({
+			lanIpaddr: lanIpaddr,
 			wifiSsid: baseSsid,
 			wifiSsid5gMode: 'derived',
-			wifiSsid5g: ''
+			wifiSsid5g: '',
+			wifiSsidVlanIpSuffix: wifiSsidIpSuffixState.wifiSsidVlanIpSuffix
 		}, '5g') : '';
 
 		if (ssid5gActual && ssid5gDerived && ssid5gActual != ssid5gDerived) {
 			ssid5gMode = 'custom';
-			ssid5gValue = ssid5gActual;
+			ssid5gValue = stripWifiSsidIpSuffix(ssid5gActual, wifiSsidIpSuffixState);
 		}
 		else if (!ssid5gActual && (hasPrimaryApIface || !hasVlanApIface) && uci.get('setup', 'default', 'wifi_ssid_5g_mode') == 'custom') {
 			ssid5gMode = 'custom';
@@ -2425,7 +2497,7 @@ return view.extend({
 		}
 
 		return {
-			lanIpaddr: lanRuntime.ipaddr || uci.get('network', 'lan', 'ipaddr') || (firstbootEnabled ? firstbootLanIpaddr : '') || uci.get('setup', 'default', 'lan_ipaddr') || '192.168.1.1',
+			lanIpaddr: lanIpaddr,
 			lanNetmask: lanRuntime.netmask || uci.get('network', 'lan', 'netmask') || (firstbootEnabled ? firstbootLanNetmask : '') || uci.get('setup', 'default', 'lan_netmask') || '255.255.255.0',
 			mode: mode,
 			wifiSsid: baseSsid,
@@ -2433,6 +2505,7 @@ return view.extend({
 			wifiSsid5g: ssid5gValue,
 			wifiSsidVlan2g: secondary2g,
 			wifiSsidVlan5g: secondary5g,
+			wifiSsidVlanIpSuffix: wifiSsidIpSuffixState.wifiSsidVlanIpSuffix,
 			wifiKey: key,
 			uplinkSsid: uplinkIface ? (uplinkIface.ssid || '') : (uci.get('setup', 'default', 'uplink_ssid') || ''),
 			uplinkKey: uplinkIface ? (uplinkIface.key || '') : (uci.get('setup', 'default', 'uplink_key') || ''),
@@ -2479,6 +2552,7 @@ return view.extend({
 		this.state.wifiSsid5g = this.refs.wifiSsid5g ? this.refs.wifiSsid5g.value.trim() : (this.state.wifiSsid5g || '');
 		this.state.wifiSsidVlan2g = this.refs.wifiSsidVlan2g ? this.refs.wifiSsidVlan2g.value.trim() : (this.state.wifiSsidVlan2g || '');
 		this.state.wifiSsidVlan5g = this.refs.wifiSsidVlan5g ? this.refs.wifiSsidVlan5g.value.trim() : (this.state.wifiSsidVlan5g || '');
+		this.state.wifiSsidVlanIpSuffix = this.refs.wifiSsidIpSuffixPrimary ? this.refs.wifiSsidIpSuffixPrimary.checked : (this.refs.wifiSsidVlanIpSuffix ? this.refs.wifiSsidVlanIpSuffix.checked : !!this.state.wifiSsidVlanIpSuffix);
 		this.state.wifiKey = this.refs.wifiKey.value;
 		this.state.uplinkSsid = this.refs.uplinkSsid ? this.refs.uplinkSsid.value.trim() : '';
 		this.state.uplinkKey = this.refs.uplinkKey ? this.refs.uplinkKey.value : '';
@@ -2627,6 +2701,8 @@ return view.extend({
 			setElementVisible(this.refs.vlanSsid2gRow, this.refs.isVlan.checked);
 		if (this.refs.vlanSsid5gRow)
 			setElementVisible(this.refs.vlanSsid5gRow, this.refs.isVlan.checked);
+		if (this.refs.vlanSsidIpSuffixRow)
+			setElementVisible(this.refs.vlanSsidIpSuffixRow, true);
 		setElementVisible(this.refs.vlanPreviewWrapper, this.refs.isVlan.checked);
 		setElementVisible(this.refs.resetHoldWrapper, !this.refs.resetDisabled.checked);
 		setElementVisible(this.refs.rebootHoursWrapper, this.refs.rebootEnabled.checked);
@@ -2823,6 +2899,8 @@ return view.extend({
 				var activeBandsInMode = getRemainingLocalBands(this.radios || [], this.state);
 				var manualSecondary2gInMode = previewSecondaryManualSsid(this.state, '2g');
 				var manualSecondary5gInMode = previewSecondaryManualSsid(this.state, '5g');
+				var effectiveSecondary2gInMode = previewSecondarySsid(this.state, '2g');
+				var effectiveSecondary5gInMode = previewSecondarySsid(this.state, '5g');
 				var primary2gInMode = primarySsid(this.state, '2g');
 				var primary5gInMode = primarySsid(this.state, '5g');
 
@@ -2831,12 +2909,17 @@ return view.extend({
 					return false;
 				}
 
-				if (manualSecondary2gInMode && (manualSecondary2gInMode == primary2gInMode || manualSecondary2gInMode == primary5gInMode)) {
+				if (activeBandsInMode.length && !manualSecondary2gInMode) {
+					notify(_('أدخل اسم شبكة VLAN الأساسي.'));
+					return false;
+				}
+
+				if (activeBandsInMode.indexOf('2g') != -1 && effectiveSecondary2gInMode && (effectiveSecondary2gInMode == primary2gInMode || effectiveSecondary2gInMode == primary5gInMode)) {
 					notify(_('اسم شبكة VLAN على 2.4GHz يتعارض مع اسم شبكة أساسية موجودة. اختر اسمًا مختلفًا.'));
 					return false;
 				}
 
-				if (activeBandsInMode.indexOf('5g') != -1 && manualSecondary5gInMode && (manualSecondary5gInMode == primary2gInMode || manualSecondary5gInMode == primary5gInMode)) {
+				if (activeBandsInMode.indexOf('5g') != -1 && effectiveSecondary5gInMode && (effectiveSecondary5gInMode == primary2gInMode || effectiveSecondary5gInMode == primary5gInMode)) {
 					notify(_('اسم شبكة VLAN على 5GHz يتعارض مع اسم شبكة أساسية موجودة. اختر اسمًا مختلفًا.'));
 					return false;
 				}
@@ -3304,6 +3387,7 @@ return view.extend({
 			uci.set('setup', 'default', 'wifi_ssid_vlan', self.state.wifiSsidVlan2g || '');
 			uci.set('setup', 'default', 'wifi_ssid_vlan_2g', self.state.wifiSsidVlan2g || '');
 			uci.set('setup', 'default', 'wifi_ssid_vlan_5g', self.state.wifiSsidVlan5g || '');
+			uci.set('setup', 'default', 'wifi_ssid_vlan_ip_suffix', self.state.wifiSsidVlanIpSuffix ? '1' : '0');
 			uci.set('setup', 'default', 'wifi_key', self.state.wifiKey);
 			uci.set('setup', 'default', 'uplink_ssid', self.state.uplinkSsid);
 			uci.set('setup', 'default', 'uplink_key', self.state.uplinkKey);
@@ -3520,6 +3604,10 @@ return view.extend({
 		this.refs.wifiSsid5g = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.wifiSsid5g, 'style': 'max-width:280px;' });
 		this.refs.wifiSsidVlan2g = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.wifiSsidVlan2g, 'style': 'max-width:280px;' });
 		this.refs.wifiSsidVlan5g = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.wifiSsidVlan5g, 'style': 'max-width:280px;' });
+		this.refs.wifiSsidIpSuffixPrimary = E('input', { 'type': 'checkbox' });
+		this.refs.wifiSsidIpSuffixPrimary.checked = !!this.state.wifiSsidVlanIpSuffix;
+		this.refs.wifiSsidVlanIpSuffix = E('input', { 'type': 'checkbox' });
+		this.refs.wifiSsidVlanIpSuffix.checked = !!this.state.wifiSsidVlanIpSuffix;
 		this.refs.wifiKey = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.wifiKey, 'style': 'max-width:280px;' });
 		this.refs.uplinkSsid = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.uplinkSsid, 'style': 'max-width:280px;' });
 		this.refs.uplinkKey = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.uplinkKey, 'style': 'max-width:280px;' });
@@ -3659,6 +3747,7 @@ return view.extend({
 							(this.refs.ssid5gModeRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('طريقة تعيين اسم 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsid5gMode ]) ])),
 							(this.refs.ssid5gCustomRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم المخصص لشبكة 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsid5g ]) ])),
 							(this.refs.ssidPreviewRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم النهائي لشبكة 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.ssidPreview ]) ])),
+							(this.refs.primarySsidIpSuffixRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إضافة آخر IP إلى اسم الشبكة الأساسية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsidIpSuffixPrimary, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('مثال: 192.168.1.20 يضيف _1.20 إلى أسماء الشبكات الأساسية وVLAN.')) ]) ])),
 							renderNoticeBox('neutral', _('ملخص الواي فاي'), [ this.refs.primaryWifiPlan ])
 						]
 					)
@@ -3705,8 +3794,9 @@ return view.extend({
 						(this.refs.secondaryNetworkIntro = E('p', { 'style': 'margin:0 0 12px 0; color:#415a77;' }, describeSecondaryNetworkIntro(this.state, this.radios || []))),
 						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل شبكة VLAN')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.isVlan ]) ]),
 						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('VLAN ID')), (this.refs.vlanIdWrapper = E('div', { 'class': 'cbi-value-field' }, [ this.refs.vlanId ])) ]),
-						(this.refs.vlanSsid2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم شبكة VLAN (2.4GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsidVlan2g, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اتركه فارغًا للاسم التلقائي على 2.4GHz.')) ]) ])),
-						(this.refs.vlanSsid5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم شبكة VLAN (5GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsidVlan5g, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اتركه فارغًا للاسم التلقائي على 5GHz.')) ]) ])),
+						(this.refs.vlanSsid2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم الأساسي لشبكة VLAN')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsidVlan2g, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('هذا الحقل مطلوب. وإذا تُرك حقل شبكة خمسة جيجاهرتز فارغًا، فسيُشتق اسمه من هذا الحقل.')) ]) ])),
+						(this.refs.vlanSsid5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم الاختياري لشبكة VLAN على خمسة جيجاهرتز')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsidVlan5g, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('هذا الحقل اختياري. وإذا تُرك فارغًا، فسيُنشأ الاسم تلقائيًا من الاسم الأساسي.')) ]) ])),
+						(this.refs.vlanSsidIpSuffixRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إضافة آخر IP إلى أسماء الواي فاي')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsidVlanIpSuffix, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('مثال: 192.168.1.20 يضيف _1.20 إلى أسماء الشبكات الأساسية وVLAN.')) ]) ])),
 						(this.refs.vlanPreviewWrapper = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('معرّف VLAN الثانوية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.vlanPreview, (this.refs.secondarySubnetHelp = E('div', { 'style': 'margin-top:6px; color:#666;' }, describeSecondarySubnetHelp(this.state, this.radios || []))) ]) ])),
 						renderNoticeBox('neutral', _('ملخص VLAN الثانوية'), [ this.refs.secondaryNetworkPlan ]),
 						this.refs.secondaryNetworkNotice
@@ -3985,6 +4075,18 @@ return view.extend({
 		});
 
 		this.refs.wifiSsidVlan5g.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.wifiSsidIpSuffixPrimary.addEventListener('change', function() {
+			self.state.wifiSsidVlanIpSuffix = self.refs.wifiSsidIpSuffixPrimary.checked;
+			self.refs.wifiSsidVlanIpSuffix.checked = self.state.wifiSsidVlanIpSuffix;
+			self.updateStepUi();
+		});
+
+		this.refs.wifiSsidVlanIpSuffix.addEventListener('change', function() {
+			self.state.wifiSsidVlanIpSuffix = self.refs.wifiSsidVlanIpSuffix.checked;
+			self.refs.wifiSsidIpSuffixPrimary.checked = self.state.wifiSsidVlanIpSuffix;
 			self.updateStepUi();
 		});
 

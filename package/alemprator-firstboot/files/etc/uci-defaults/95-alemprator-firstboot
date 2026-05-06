@@ -1,11 +1,27 @@
 #!/bin/sh
 
+# Do not re-apply factory defaults after sysupgrade with "keep settings".
+if [ -f /sysupgrade.tgz ] || [ -f /tmp/sysupgrade.tar ]; then
+	exit 0
+fi
+
 CFG="alemprator_firstboot"
 CONFIGURED_FLAG="/etc/configured"
 PENDING_FLAG="/etc/alemprator-firstboot-pending"
 BASELINE_FILE="/etc/alemprator-firstboot-baseline.md5"
-DEFAULT_SSID="ALemprator-KT-KM14-102H"
+board_name="$(ubus call system board 2>/dev/null | jsonfilter -e '@.board_name' 2>/dev/null)"
+DEFAULT_SSID="ALemprator-KT-KM12-007H"
 DEFAULT_LAN_IPADDR="192.168.1.20"
+OTHER_DEFAULT_SSID="ALemprator-KT-KM14-102H"
+
+case "$board_name" in
+	kt,km14-102h)
+		DEFAULT_SSID="ALemprator-KT-KM14-102H"
+		OTHER_DEFAULT_SSID="ALemprator-KT-KM12-007H"
+		;;
+	kt,km12-007h|'')
+		;;
+esac
 DEFAULT_LAN_NETMASK="255.255.255.0"
 DEFAULT_SETUP_IPADDR="192.168.8.1"
 DEFAULT_SETUP_NETMASK="255.255.255.0"
@@ -19,6 +35,13 @@ current_ssid="$(uci -q get setup.default.wifi_ssid)"
 current_mode="$(uci -q get setup.default.mode)"
 current_vlan="$(uci -q get setup.default.is_vlan)"
 initial_complete="$(uci -q get setup.default.initial_setup_complete)"
+saved_lan_ipaddr="$(uci -q get setup.default.lan_ipaddr)"
+saved_lan_netmask="$(uci -q get setup.default.lan_netmask)"
+
+[ -n "$saved_lan_ipaddr" ] || saved_lan_ipaddr="$DEFAULT_LAN_IPADDR"
+[ -n "$saved_lan_netmask" ] || saved_lan_netmask="$DEFAULT_LAN_NETMASK"
+[ "$saved_lan_ipaddr" = "192.168.1.1" ] && saved_lan_ipaddr="$DEFAULT_LAN_IPADDR"
+[ "$current_ssid" = "$OTHER_DEFAULT_SSID" ] && current_ssid="$DEFAULT_SSID"
 
 if [ "$configured_once" = "1" ]; then
 	is_configured=1
@@ -41,8 +64,8 @@ uci -q batch <<EOF >/dev/null
 	set ${CFG}.main.auto_cleanup_pending='0'
 	set ${CFG}.main.configured_flag='${CONFIGURED_FLAG}'
 	set ${CFG}.main.pending_flag='${PENDING_FLAG}'
-	set ${CFG}.main.lan_ipaddr='${DEFAULT_LAN_IPADDR}'
-	set ${CFG}.main.lan_netmask='${DEFAULT_LAN_NETMASK}'
+	set ${CFG}.main.lan_ipaddr='${saved_lan_ipaddr}'
+	set ${CFG}.main.lan_netmask='${saved_lan_netmask}'
 	set ${CFG}.main.setup_ipaddr='${DEFAULT_SETUP_IPADDR}'
 	set ${CFG}.main.setup_netmask='${DEFAULT_SETUP_NETMASK}'
 	set ${CFG}.main.start='100'
@@ -57,12 +80,6 @@ uci -q batch <<EOF >/dev/null
 	set ${CFG}.main.encryption='none'
 	commit ${CFG}
 EOF
-
-if [ "$is_configured" = 1 ] && [ "$initial_complete" != "1" ]; then
-	uci -q set setup.default=setup
-	uci -q set setup.default.initial_setup_complete='1'
-	uci -q commit setup
-fi
 
 if [ "$is_configured" = 1 ]; then
 	rm -f "$PENDING_FLAG"
@@ -80,8 +97,8 @@ uci -q batch <<EOF >/dev/null
 	set network.${SETUP_NETWORK}.netmask='${DEFAULT_SETUP_NETMASK}'
 
 	set network.lan.proto='static'
-	set network.lan.ipaddr='${DEFAULT_LAN_IPADDR}'
-	set network.lan.netmask='${DEFAULT_LAN_NETMASK}'
+	set network.lan.ipaddr='${saved_lan_ipaddr}'
+	set network.lan.netmask='${saved_lan_netmask}'
 	delete network.lan.gateway
 	delete network.lan.ip6addr
 	delete network.lan.ip6gw

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+	<meta charset="utf-8" />
+	<meta name="theme-color" content="#673ab7" />
+	<link rel="apple-touch-icon" sizes="76x76" href="assets/img/apple-icon.png">
+	<link rel="icon" type="image/png" href="assets/img/favicon.png">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+	<title>تسجيل الدخول</title>
+	<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
+	<link rel="stylesheet" href="assets/css/assets.css" />
+	<link rel="stylesheet" type="text/css" href="assets/fonts/Almarai.css" />
+	<link rel="stylesheet" href="assets/css/fontello.css" />
+	<link rel="stylesheet" href="assets/css/style.css">
+	<link rel="stylesheet" href="assets/css/chik.css">
+	<style type="text/css">
+		.nightly{color:#999;font-size:13px}.Switchbtn{position:fixed;text-align:center;display:inline-block;align-items:center;z-index:100;left:20px;top:20px}.togglenight{display:none}.togglenight + .togglenight-btn{outline:0;display:inline-block;width:45px;height:10px;position:relative;cursor:pointer;margin-right:5px;user-select:none}.togglenight + .togglenight-btn:after,.togglenight + .togglenight-btn:before{position:relative;display:block;content:"";width:50%;height:100%}.togglenight-switch + .togglenight-btn{background:#d5d2fc;border-radius:99em;transition:all .4s ease}.togglenight-switch + .togglenight-btn:after{content:"";border-radius:100px;background:#887fff;transition:right .3s cubic-bezier(.175,.885,.32,1.275),padding .3s ease,margin .3s ease;position:absolute;width:20px;height:20px;top:-5px;right:0;box-shadow:0 3px 6px rgba(0,0,0,.16),0 3px 6px rgba(0,0,0,.23)}.togglenight-switch:checked + .togglenight-btn{background:rgba(255,255,255,.15)}.togglenight:checked + .togglenight-btn:after{content:"";right:55%;background:#ff9f43}.nightmode{background:#202124;color:rgba(255,255,255,.7)}.nightmode a{color:rgba(255,255,255,.7)!important}.nightmode a:hover{color:rgba(255,255,255,.4)!important}.nightmode .form{background-color:#202124}.nightmode .submit button,.nightmode .back button,.nightmode .trial,.nightmode .social-icon,.nightmode .copyright,.nightmode .marque{background:#101}.nightmode .banner,.nightmode .modal,.nightmode .bnr,.nightmode #speed{background:#202124}.nightmode .form .input-group .input-field input{color:#fff}
+		.submit a.login-button{position:relative;display:block;margin:10px auto;width:90%;font-size:119%;border:none;outline:none;padding:10px;border-radius:20px;background:#673ab7;font-weight:bold;color:white;text-decoration:none;cursor:pointer;border-bottom:10px solid rgba(0,0,0,0.22);text-align:center;z-index:5}.submit a.login-button:hover{background:#B40404}.submit a.login-button i{margin-right:6px}
+	</style>
+</head>
+<body>
+	<div class="bnr">
+		<div class="banner2">
+			<div class="floated">
+				<a href="prices.html"><div class="social-icon dollar"><i class="icon-dollar"></i></div></a>
+				<a href="https://www.facebook.com/amer.5tr"><div class="social-icon facebook"><i class="icon-facebook"></i></div></a>
+				<div class="social-icon gplus" onclick="document.getElementById('alert-phone').style.display = 'block'"><i class="icon-whatsapp"></i></div>
+				<div class="social-icon location" onclick="document.getElementById('alert-location').style.display = 'block'"><i class="icon-location"></i></div>
+			</div>
+		</div>
+		<div class="Switchbtn"><span class="nightly">الوضع الليلي</span> <input class="togglenight togglenight-switch" id="nightmode" type="checkbox"/> <label class="togglenight-btn" for="nightmode"></label></div>
+		<script type="text/javascript">
+			(function() {
+				var enabled = false;
+				try { enabled = localStorage.toggled == "nightmode"; } catch (e) {}
+				if (enabled)
+					document.body.className += " nightmode";
+
+				window.onload = function() {
+					var nightmode = document.getElementById('nightmode');
+					initOpenWrtLogin();
+					if (nightmode) {
+						nightmode.checked = enabled;
+						nightmode.onclick = function() {
+							enabled = !enabled;
+							document.body.className = document.body.className.replace(/\s*nightmode/g, '');
+							if (enabled)
+								document.body.className += ' nightmode';
+							try { localStorage.toggled = enabled ? 'nightmode' : ''; } catch (e) {}
+						};
+					}
+				};
+			})();
+		</script>
+	</div>
+
+	<br><br><br><br>
+	<div id="clock">Loading...</div>
+	<script type="text/javascript">
+		function refrClock(){var d=new Date(),s=d.getSeconds(),m=d.getMinutes(),h=d.getHours(),day=d.getDay(),date=d.getDate(),month=d.getMonth(),year=d.getFullYear(),days=["الاحد","الاثنين","الثلاثاء","الاربعاء","الخميس","الجمعة","السبت"],months=["يناير","فبراير","مارس","ابريل","ماي","يونيو","يوليو","اغسطس","سبتمبر","اكتوبر","نوفمبر","ديسمبر"],am_pm;if(s<10)s="0"+s;if(m<10)m="0"+m;if(h>12){h-=12;am_pm="مساءً."}else am_pm="صباحاً.";if(h<10)h="0"+h;document.getElementById("clock").innerHTML=days[day]+" "+date+" من "+months[month]+" "+year+"   |   الساعة الان "+h+":"+m+":"+s+" "+am_pm;setTimeout(refrClock,1000)}refrClock();
+	</script>
+
+	<div class="form">
+		<div class="banner">
+			<div><h1 class="animate">شبكة البرق</h1></div>
+			<div class="marque">
+				<marquee direction="right" onMouseOver="this.stop();" onMouseOut="this.start();" class="gif">...:::: أهلا بكم في شبكة البرق <img width="50" src="img/new.gif" align="absmiddle"/> يوجد حماية لمنع أختراق الحسابات <img width="50" src="img/new.gif" align="absmiddle"/> ننصح بالاحتفاط بالكرت حتى ينتهي فلسنا مسؤولين عن نسيان الرمز <img width="50" src="img/new.gif" align="absmiddle"/> أهلا بكم ودمتم سالمين <img width="50" src="img/new.gif" align="absmiddle"/> نتمنى لكم قضاء اجمل واسعد الاوقات معنا وفي حالة اي خلل فني لاتتردد في التواصل معنا ::::...</marquee>
+			</div>
+
+			<form name="login" id="login-form" action="http://192.168.10.1:3990/login" method="get" onsubmit="return submitOpenWrtLogin()">
+				<input type="hidden" name="password" id="paswd">
+				<input type="hidden" name="userurl" id="userurl" value="http://192.168.10.1/hotspot/status.html">
+				<div class="form-title" style="text-align:center;padding:10px;background:linear-gradient(to right,#4CAF50,#8BC34A);color:white;border-radius:5px;margin-bottom:15px;">
+					<h4 style="margin:0;">موقع القرآن الكريم مجاناً <a href="https://www.islambook.com/" style="color:#ffeb3b;text-decoration:none;">(إضغط هنا)</a></h4>
+				</div>
+				<div class="form-title" style="text-align:center;padding:15px;background:linear-gradient(to right,#FF9800,#F44336);color:white;border-radius:8px;font-size:18px;margin-bottom:15px;">
+					الآن مع <strong>شبكة البرق</strong><br>
+					<span style="font-size:20px;">ولأول مرة في اليمن</span><br><br>
+					يمكنك الآن شراء كروت الإنترنت أون لاين بكل سهولة<br>
+					عبر <strong>برنامج حاسب - بنك الكريمي</strong><br><br>
+					بدون خروج من المنزل، وبدون انتظار<br><br>
+					<a href="http://10.10.10.20:5004/" style="color:#ffff00;font-weight:bold;text-decoration:underline;" target="_blank">اضغط هنا لبدء الشراء الآن</a>
+				</div>
+				<br>
+				<div class="input-group">
+					<div class="input-field">
+						<input id="uname" type="text" name="username" placeholder="أدخل رقم الكرت هنا" />
+					</div>
+					<div id="toggles">
+						<input type="checkbox" name="checkbox1" id="remember" class="ios-toggle" value="ON" checked/>
+						<label for="remember" class="checkbox-label" data-off="لا تتذكرني" data-on="تذكرني"></label>
+					</div>
+					<div class="submit">
+						<a id="login-button" class="login-button" href="http://192.168.10.1:3990/login" onclick="return submitOpenWrtLogin()">تسجيل الدخول<i class="icon-login"></i></a>
+					</div>
+					<div class="submit">
+						<a class="login-button" href="status.html">معلومات الكرت<i class="icon-user"></i></a>
+					</div>
+				</div>
+			</form>
+		</div>
+
+		<footer class="copyright2">
+			<font style="background:rgba(0,0,0,0.4);color:#FFF;font-size:11px;">Developed &amp; Powered By <a target="_blank" style="color:lime;" href="https://www.facebook.com/amer.5tr">ABDO ALWASEA ZAHER &copy; 2023</a></font>
+		</footer>
+	</div>
+
+	<div id="alert-error" class="alert-back" style="display:none" onclick="this.style.display='none'">
+		<div class="modal">
+			<div class="modal-icon error"><i class="icon-error"></i></div>
+			<div class="title error">رسالة خطأ:</div>
+			<div class="modal-clear"></div>
+			<div id="line"></div>
+			<div class="modal-body"><p id="hotspot-error-text">فشل تسجيل الدخول، تأكد من رقم الكرت وحاول مرة أخرى.</p></div>
+		</div>
+	</div>
+
+	<div id="alert-phone" class="alert-back" onclick="this.style.display='none'">
+		<div class="modal"><div class="modal-icon phone"><i class="icon-phone"></i></div><div class="title phone">أتصل بنا:</div><div class="modal-clear"></div><div id="line"></div><div class="modal-body"><div>ادارة : <p id="Phone_Admin">780530632</p></div><div>صيانة : <p id="Phone_Repair">774070632</p></div></div></div>
+	</div>
+
+	<div id="alert-location" class="alert-back" onclick="this.style.display='none'">
+		<div class="modal"><div class="modal-icon place"><i class="icon-location"></i></div><div class="title place">الوكلاء و المعتمدين :</div><div class="modal-clear"></div><div id="line"></div><div class="modal-body"><div>0 - <p id="titel"> -- مراكز توزيع البطاقات -- </p></div><div>1 - جميع البقالات اللتي يتواجد فيها التغطية</div></div></div>
+	</div>
+
+	<script>
+		var OPENWRT_REALM_FOR_11_DIGIT_CARDS = '@userman2';
+
+		function getParam(name) {
+			var query = window.location.search ? window.location.search.substring(1).split('&') : [];
+			for (var i = 0; i < query.length; i++) {
+				var pair = query[i].split('=');
+				if (decodeURIComponent(pair[0] || '') == name)
+					return decodeURIComponent((pair[1] || '').replace(/\+/g, ' '));
+			}
+			return '';
+		}
+
+		function prepareOpenWrtLogin() {
+			var usernameInput = document.getElementById('uname');
+			var username = usernameInput.value.replace(/^\s+|\s+$/g, '');
+			var password = document.getElementById('paswd');
+			var remember = document.getElementById('remember');
+
+			if (!username) {
+				alert('أدخل رقم الكرت أولاً');
+				return false;
+			}
+
+			password.value = '';
+			if (username.length == 11 && OPENWRT_REALM_FOR_11_DIGIT_CARDS)
+				usernameInput.value = username + OPENWRT_REALM_FOR_11_DIGIT_CARDS;
+			else
+				usernameInput.value = username;
+
+			try {
+				if (remember && remember.checked)
+					localStorage.setItem('hotspot_username', username);
+				else
+					localStorage.removeItem('hotspot_username');
+			} catch (e) {}
+
+			return true;
+		}
+
+		function submitOpenWrtLogin() {
+			var usernameInput = document.getElementById('uname');
+			var password = document.getElementById('paswd');
+			var userurl = document.getElementById('userurl');
+			var loginButton = document.getElementById('login-button');
+
+			if (!prepareOpenWrtLogin())
+				return false;
+
+			var loginUrl = 'http://192.168.10.1:3990/login?username=' + encodeURIComponent(usernameInput.value) + '&password=' + encodeURIComponent(password.value) + '&userurl=' + encodeURIComponent(userurl.value || 'http://192.168.10.1/hotspot/status.html');
+			if (loginButton)
+				loginButton.href = loginUrl;
+			document.location = loginUrl;
+			return false;
+		}
+
+		function updateOpenWrtLoginLink() {
+			var usernameInput = document.getElementById('uname');
+			var loginButton = document.getElementById('login-button');
+			var username = usernameInput ? usernameInput.value.replace(/^\s+|\s+$/g, '') : '';
+			if (username.length == 11 && OPENWRT_REALM_FOR_11_DIGIT_CARDS)
+				username += OPENWRT_REALM_FOR_11_DIGIT_CARDS;
+			if (loginButton)
+				loginButton.href = username ? 'http://192.168.10.1:3990/login?username=' + encodeURIComponent(username) + '&password=&userurl=http%3A%2F%2F192.168.10.1%2Fhotspot%2Fstatus.html' : 'http://192.168.10.1:3990/login';
+		}
+
+		function initOpenWrtLogin() {
+			var saved = '';
+			var error = getParam('reply') || getParam('error') || getParam('res');
+			var usernameInput = document.getElementById('uname');
+
+			try { saved = localStorage.getItem('hotspot_username') || ''; } catch (e) {}
+
+			if (saved && usernameInput)
+				usernameInput.value = saved;
+
+			if (usernameInput) {
+				usernameInput.onkeyup = updateOpenWrtLoginLink;
+				usernameInput.onchange = updateOpenWrtLoginLink;
+			}
+			updateOpenWrtLoginLink();
+
+			if (error == 'failed' || error == 'reject' || error == 'denied' || error == 'notallowed') {
+				document.getElementById('hotspot-error-text').textContent = 'فشل تسجيل الدخول، تأكد من رقم الكرت أو حالة الاشتراك.';
+				document.getElementById('alert-error').style.display = 'block';
+			}
+		}
+	</script>
+</body>
+</html>

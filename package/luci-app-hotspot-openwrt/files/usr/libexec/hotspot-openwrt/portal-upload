@@ -1,0 +1,54 @@
+#!/bin/sh
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+reply() {
+	local ok="$1" message="$2" path="$3"
+	printf '{'
+	printf '"ok":%s,' "$ok"
+	printf '"message":"%s",' "$(json_escape "$message")"
+	printf '"path":"%s"' "$(json_escape "$path")"
+	printf '}\n'
+	[ "$ok" = 'true' ]
+}
+
+upload_tmp='/tmp/hotspot-openwrt-upload'
+filename="$1"
+storage_path="${2:-$(uci -q get hotspot_openwrt.main.portal_storage_path)}"
+storage_path="${storage_path:-/www/hotspot}"
+
+[ -f "$upload_tmp" ] || reply false 'upload_tmp_missing' '' || exit 1
+
+case "$storage_path" in
+	/www|/www/*) ;;
+	*) reply false 'portal_storage_path_must_be_under_www' '' || exit 1 ;;
+esac
+
+case "$storage_path" in
+	*'/../'*|*'/..'|'..'*) reply false 'portal_storage_path_invalid' '' || exit 1 ;;
+esac
+
+case "$filename" in
+	''|/*|*'..'*|*'//'*) reply false 'filename_invalid' '' || exit 1 ;;
+esac
+
+case "$filename" in
+	*[!A-Za-z0-9._/-]*) reply false 'filename_contains_invalid_characters' '' || exit 1 ;;
+esac
+
+case "$filename" in
+	*/)
+		reply false 'filename_invalid' '' || exit 1
+		;;
+esac
+
+dest="$storage_path/$filename"
+dest_dir="$(dirname "$dest")"
+
+mkdir -p "$dest_dir" || reply false 'mkdir_failed' "$dest_dir" || exit 1
+mv "$upload_tmp" "$dest" || reply false 'move_failed' "$dest" || exit 1
+chmod 0644 "$dest" 2>/dev/null || true
+
+reply true 'uploaded' "$dest"

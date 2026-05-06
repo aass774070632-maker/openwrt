@@ -1,27 +1,7 @@
 import { PrismaClient } from '@prisma/client';
+import { firmwareModelData, getModelEntries } from './model-registry.mjs';
 
 const prisma = new PrismaClient();
-
-const modelDefinitions = [
-  {
-    slug: 'km14-102h',
-    modelKey: 'kt,km14-102h',
-    displayName: 'KM14-102H',
-    boardIdentifier: 'kt,km14-102h',
-    artifactKind: 'sysupgrade',
-    notes: 'Primary ramips production model.',
-    aliases: ['KM14-102H'],
-  },
-  {
-    slug: 'ar-07-102h',
-    modelKey: 'AR-07-102H',
-    displayName: 'AR-07-102H',
-    boardIdentifier: 'kt,ar07-102h',
-    artifactKind: 'sysupgrade',
-    notes: 'Qualcommax AP profile backed by board kt,ar07-102h.',
-    aliases: ['AR07-102H'],
-  },
-];
 
 async function backfillFirmwareModel(tx, modelId, modelKey, boardIdentifier, aliases) {
   const deviceAliases = Array.from(new Set([modelKey, ...(aliases ?? [])]));
@@ -63,8 +43,11 @@ async function backfillFirmwareModel(tx, modelId, modelKey, boardIdentifier, ali
 
 async function main() {
   const results = [];
+  const modelDefinitions = await getModelEntries();
 
-  for (const definition of modelDefinitions) {
+  for (const entry of modelDefinitions) {
+    const definition = firmwareModelData(entry);
+    const aliases = entry.dashboard?.aliases ?? [];
     const result = await prisma.$transaction(async (tx) => {
       const model = await tx.firmwareModel.upsert({
         where: {
@@ -94,7 +77,7 @@ async function main() {
         model.id,
         definition.modelKey,
         definition.boardIdentifier,
-        definition.aliases,
+        aliases,
       );
 
       return {

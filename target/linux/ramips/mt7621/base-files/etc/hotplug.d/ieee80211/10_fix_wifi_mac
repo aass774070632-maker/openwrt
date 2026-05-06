@@ -142,6 +142,11 @@ case "$board" in
 		[ "$PHYNBR" = "0" ] && macaddr_add $hw_mac_addr 1 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $hw_mac_addr 2 > /sys${DEVPATH}/macaddress
 		;;
+  kt,km12-007h)
+  		hw_mac_addr="$(mtd_get_mac_binary Config 0x60004)"
+		[ "$PHYNBR" = "0" ] && macaddr_add $hw_mac_addr 1 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "1" ] && macaddr_add $hw_mac_addr 2 > /sys${DEVPATH}/macaddress
+		;;
 	linksys,e5600|\
 	linksys,ea6350-v4|\
 	linksys,ea7300-v1|\

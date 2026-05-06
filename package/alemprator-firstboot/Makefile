@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=alemprator-firstboot
 PKG_VERSION:=1.0
-PKG_RELEASE:=8
+PKG_RELEASE:=10
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKGARCH:=all
 PKG_LICENSE:=GPL-3.0-only
@@ -18,7 +18,7 @@ endef
 
 define Package/alemprator-firstboot/description
  Independent first-boot provisioning layer for ALemprator devices.
- Provides a temporary isolated Wi-Fi setup network on 192.168.1.20
+ Provides a LAN bridge on 192.168.1.20 and a temporary isolated setup network on 192.168.8.1
  and lets luci-app-setup disable it safely after the first successful apply.
 endef
 

@@ -1,0 +1,195 @@
+Nov/13/2025 18:34:53 dhcp,warning KT70822 offering lease 10.21.32.5 for EE:6E:97:52:1A:24 without success
+Nov/13/2025 18:38:38 dhcp,warning KT70822 offering lease 10.21.32.5 for EE:6E:97:52:1A:24 without success
+Nov/13/2025 18:38:52 dhcp,warning KT70822 offering lease 10.21.32.5 for EE:6E:97:52:1A:24 without success
+Nov/13/2025 18:39:09 dhcp,warning KT70822 offering lease 10.21.32.5 for EE:6E:97:52:1A:24 without success
+Nov/13/2025 19:12:52 hotspot,warning,debug 27801248303@userman2 (10.21.67.6): RADIUS accounting request not sent: no response
+Nov/13/2025 20:00:12 dhcp,warning KT70840 offering lease 10.21.41.10 for 64:09:AC:7F:F5:C7 without success
+Nov/13/2025 20:01:26 hotspot,warning,debug 17612573491@userman2 (10.21.52.5): RADIUS accounting request not sent: no response
+Nov/13/2025 20:01:27 hotspot,warning,debug 27824368387@userman2 (10.21.133.5): RADIUS accounting request not sent: no response
+Nov/13/2025 20:04:12 dhcp,warning KT7089106 offering lease 10.21.75.3 for CA:81:F4:09:96:8C without success
+Nov/13/2025 20:16:46 dhcp,warning KT70822 offering lease 10.21.32.5 for EE:6E:97:52:1A:24 without success
+Nov/13/2025 20:51:30 hotspot,warning,debug 36446935586@userman2 (10.21.103.11): RADIUS accounting request not sent: no response
+Nov/13/2025 21:04:11 hotspot,warning,debug 36475456873@userman2 (10.21.113.6): RADIUS accounting request not sent: no response
+Nov/13/2025 21:10:19 dhcp,warning Phicomm-102-Ghamdan-Gandal.R-60.102 offering lease 10.21.119.6 for D6:12:BD:0D:3F:89 without success
+Nov/13/2025 21:10:31 dhcp,warning Phicomm-102-Ghamdan-Gandal.R-60.102 offering lease 10.21.119.6 for D6:12:BD:0D:3F:89 without success
+Nov/13/2025 21:20:44 dhcp,warning KT70811 offering lease 10.21.27.44 for B8:D7:AF:BD:23:83 without success
+Nov/13/2025 21:37:28 dhcp,warning KT7089170 offering lease 10.21.94.12 for D6:D7:19:1F:01:68 without success
+Nov/13/2025 21:41:41 dhcp,warning KT70822 offering lease 10.21.32.3 for 96:70:59:EF:6E:9C without success
+Nov/13/2025 22:07:22 dhcp,warning KT7089106 offering lease 10.21.75.3 for CA:81:F4:09:96:8C without success
+Nov/13/2025 22:15:20 dhcp,warning Phicomm-111-Bilal-Saleh-AlHayat-Hotel-R offering lease 10.21.124.5 for 7C:B3:7B:95:DB:86 without success
+Nov/13/2025 22:15:47 hotspot,warning,debug 75367966756@userman2 (10.21.6.20): RADIUS accounting request not sent: no response
+Nov/13/2025 22:22:18 dhcp,warning KT70822 offering lease 10.21.32.10 for 0E:C3:6E:7C:98:66 without success
+Nov/13/2025 22:25:02 dhcp,warning Detected conflict by ARP response for 10.21.52.27 from CA:16:F7:A7:AC:A1
+Nov/13/2025 22:33:19 dhcp,warning Detected conflict by ARP response for 10.21.95.23 from C8:F3:19:45:F6:53
+Nov/13/2025 22:37:40 dhcp,warning KT704-105.17 offering lease 10.21.22.3 for 7C:F3:1B:AB:94:86 without success
+Nov/13/2025 23:02:53 dhcp,warning KT7089118 offering lease 10.21.78.4 for 0A:42:B8:9E:A1:DA without success
+Nov/13/2025 23:15:45 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.3 for D4:4D:A4:E5:08:D5 without success
+Nov/13/2025 23:32:50 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.3 for D4:4D:A4:E5:08:D5 without success
+Nov/13/2025 23:35:23 dhcp,warning KT7089106 offering lease 10.21.75.3 for CA:81:F4:09:96:8C without success
+Nov/13/2025 23:46:02 dhcp,warning Detected conflict by ARP response for 10.21.13.38 from 26:80:7C:65:84:8F
+Nov/13/2025 23:48:22 dhcp,warning KT70845 offering lease 10.21.45.3 for C8:F3:19:40:86:A7 without success
+Nov/13/2025 23:48:43 dhcp,warning KT70845 offering lease 10.21.45.3 for C8:F3:19:40:86:A7 without success
+Nov/13/2025 23:48:51 dhcp,warning KT70845 offering lease 10.21.45.4 for E6:F5:56:B7:41:D5 without success
+Nov/13/2025 23:49:14 dhcp,warning KT70845 offering lease 10.21.45.3 for C8:F3:19:40:86:A7 without success
+Nov/13/2025 23:50:22 dhcp,warning KT70845 offering lease 10.21.45.4 for E6:F5:56:B7:41:D5 without success
+Nov/14/2025 00:15:16 hotspot,warning,debug 17653529960@userman2 (10.21.60.12): RADIUS accounting request not sent: no response
+Nov/14/2025 00:16:43 dhcp,warning KT70822 offering lease 10.21.32.3 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 00:17:16 dhcp,warning KT70822 offering lease 10.21.32.3 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 00:23:04 dhcp,warning KT704-105.17 offering lease 10.21.22.3 for 7C:F3:1B:AB:94:86 without success
+Nov/14/2025 00:32:04 hotspot,warning,debug 55587765m (10.21.138.9): RADIUS accounting request not sent: no response
+Nov/14/2025 00:32:09 hotspot,warning,debug 50134496403@userman2 (10.22.92.5): RADIUS accounting request not sent: no response
+Nov/14/2025 00:32:10 hotspot,warning,debug 27785923046@userman2 (10.21.116.8): RADIUS accounting request not sent: no response
+Nov/14/2025 00:32:10 hotspot,warning,debug 17643138125@userman2 (10.22.97.5): RADIUS accounting request not sent: no response
+Nov/14/2025 00:32:14 hotspot,warning,debug 17654650010@userman2 (10.21.13.21): RADIUS accounting request not sent: no response
+Nov/14/2025 00:33:06 hotspot,warning,debug 36446935586@userman2 (10.21.103.11): RADIUS accounting request not sent: no response
+Nov/14/2025 01:02:16 hotspot,warning,debug 27823184058@userman2 (10.21.23.3): RADIUS accounting request not sent: no response
+Nov/14/2025 01:02:16 hotspot,warning,debug 27840802364@userman2 (10.21.83.4): RADIUS accounting request not sent: no response
+Nov/14/2025 01:03:06 hotspot,warning,debug 27827208572@userman2 (10.21.95.8): RADIUS accounting request not sent: no response
+Nov/14/2025 01:21:42 hotspot,warning,debug 17698105014@userman2 (10.21.14.8): RADIUS accounting request not sent: no response
+Nov/14/2025 01:21:43 hotspot,warning,debug 17666950486@userman2 (10.21.33.15): RADIUS accounting request not sent: no response
+Nov/14/2025 01:21:43 hotspot,warning,debug 36597875898@userman2 (10.21.53.15): RADIUS accounting request not sent: no response
+Nov/14/2025 01:21:43 hotspot,warning,debug 27840627850@userman2 (10.21.48.25): RADIUS accounting request not sent: no response
+Nov/14/2025 01:21:43 hotspot,warning,debug 27795354564@userman2 (10.21.31.6): RADIUS accounting request not sent: no response
+Nov/14/2025 01:21:43 hotspot,warning,debug 27885966188@userman2 (10.21.13.45): RADIUS accounting request not sent: no response
+Nov/14/2025 01:21:43 hotspot,warning,debug 27813972695@userman2 (10.21.45.4): RADIUS accounting request not sent: no response
+Nov/14/2025 01:22:01 hotspot,error,info,debug 36579760316@userman2 (10.21.137.9): RADIUS accounting stop request not sent: no response
+Nov/14/2025 01:22:15 hotspot,warning,debug 27751515924@userman2 (10.21.119.17): RADIUS accounting request not sent: no response
+Nov/14/2025 01:22:15 hotspot,error,info,debug 27838056302@userman2 (10.21.44.27): RADIUS accounting stop request not sent: no response
+Nov/14/2025 01:22:25 hotspot,warning,debug 17319390438@userman2 (10.22.92.14): RADIUS accounting request not sent: no response
+Nov/14/2025 01:22:42 hotspot,warning,debug 17543868480@userman2 (10.21.107.5): RADIUS accounting request not sent: no response
+Nov/14/2025 01:22:42 hotspot,warning,debug 27795354564@userman2 (10.21.31.6): RADIUS accounting request not sent: no response
+Nov/14/2025 01:22:42 hotspot,warning,debug 36446935586@userman2 (10.21.103.11): RADIUS accounting request not sent: no response
+Nov/14/2025 01:22:42 hotspot,warning,debug 27888399852@userman2 (10.21.60.4): RADIUS accounting request not sent: no response
+Nov/14/2025 01:22:42 hotspot,warning,debug 76640788905@userman2 (10.21.68.7): RADIUS accounting request not sent: no response
+Nov/14/2025 01:22:42 hotspot,warning,debug 27802478147@userman2 (10.21.82.29): RADIUS accounting request not sent: no response
+Nov/14/2025 01:22:42 hotspot,warning,debug 27875420226@userman2 (10.21.37.13): RADIUS accounting request not sent: no response
+Nov/14/2025 01:24:11 hotspot,warning,debug 17648789208@userman2 (10.21.36.3): RADIUS accounting request not sent: no response
+Nov/14/2025 01:24:22 hotspot,warning,debug 27878307834@userman2 (10.21.61.19): RADIUS accounting request not sent: no response
+Nov/14/2025 01:24:22 hotspot,warning,debug 27740146549@userman2 (10.21.70.10): RADIUS accounting request not sent: no response
+Nov/14/2025 01:24:22 hotspot,warning,debug 45097259996@userman2 (10.21.93.5): RADIUS accounting request not sent: no response
+Nov/14/2025 01:24:25 dhcp,warning AC74-Muhamad.Almarhabii.Earib-R offering lease 10.21.13.35 for 76:CB:E3:B1:DA:6B without success
+Nov/14/2025 01:24:34 hotspot,warning,debug 27832665493@userman2 (10.21.114.55): RADIUS accounting request not sent: no response
+Nov/14/2025 01:41:41 hotspot,warning,debug 27807359215@userman2 (10.21.54.8): RADIUS accounting request not sent: no response
+Nov/14/2025 02:09:41 dhcp,warning KT70822 offering lease 10.21.32.3 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 02:24:37 hotspot,warning,debug 17653529960@userman2 (10.21.60.12): RADIUS accounting request not sent: no response
+Nov/14/2025 02:26:46 hotspot,warning,debug 27711606391@userman2 (10.21.34.3): RADIUS accounting request not sent: no response
+Nov/14/2025 02:34:19 dhcp,warning KT704-105.17 offering lease 10.21.22.3 for 7C:F3:1B:AB:94:86 without success
+Nov/14/2025 02:54:52 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.5 for E6:67:F9:38:19:E1 without success
+Nov/14/2025 02:54:58 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.6 for 96:8D:51:28:36:5A without success
+Nov/14/2025 02:55:12 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.6 for 96:8D:51:28:36:5A without success
+Nov/14/2025 02:55:21 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.5 for E6:67:F9:38:19:E1 without success
+Nov/14/2025 02:55:30 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.6 for 96:8D:51:28:36:5A without success
+Nov/14/2025 02:55:52 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.5 for E6:67:F9:38:19:E1 without success
+Nov/14/2025 02:56:12 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.5 for E6:67:F9:38:19:E1 without success
+Nov/14/2025 02:56:28 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.5 for E6:67:F9:38:19:E1 without success
+Nov/14/2025 02:57:22 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.6 for 96:8D:51:28:36:5A without success
+Nov/14/2025 03:26:11 dhcp,warning KT704-105.17 offering lease 10.21.22.3 for 7C:F3:1B:AB:94:86 without success
+Nov/14/2025 04:28:42 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.6 for 96:8D:51:28:36:5A without success
+Nov/14/2025 04:28:57 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.6 for 96:8D:51:28:36:5A without success
+Nov/14/2025 04:29:16 dhcp,warning AC20-Ayman.Alsalawi-C-60.29 offering lease 10.21.8.5 for E6:67:F9:38:19:E1 without success
+Nov/14/2025 05:07:50 dhcp,warning KT70822 offering lease 10.21.32.3 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 05:08:23 dhcp,warning KT70822 offering lease 10.21.32.3 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 05:08:35 dhcp,warning KT70822 offering lease 10.21.32.3 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 05:08:45 dhcp,warning KT70822 offering lease 10.21.32.3 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 05:09:09 dhcp,warning KT70822 offering lease 10.21.32.3 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 05:10:34 dhcp,warning KT704-105.17 offering lease 10.21.22.3 for 7C:F3:1B:AB:94:86 without success
+Nov/14/2025 05:10:55 dhcp,warning KT704-105.17 offering lease 10.21.22.3 for 7C:F3:1B:AB:94:86 without success
+Nov/14/2025 06:15:10 dhcp,warning KT70822 offering lease 10.21.32.6 for F6:D9:C9:60:CF:3F without success
+Nov/14/2025 10:02:12 dhcp,warning Detected conflict by ARP response for 10.21.107.3 from 98:B8:BA:70:A8:FD
+Nov/14/2025 10:21:40 dhcp,warning KT70822 offering lease 10.21.32.7 for EE:6E:97:52:1A:24 without success
+Nov/14/2025 10:22:19 dhcp,warning KT70822 offering lease 10.21.32.7 for EE:6E:97:52:1A:24 without success
+Nov/14/2025 12:06:08 dhcp,warning KT70822 offering lease 10.21.32.8 for 0E:C3:6E:7C:98:66 without success
+Nov/14/2025 12:06:24 dhcp,warning KT70822 offering lease 10.21.32.8 for 0E:C3:6E:7C:98:66 without success
+Nov/14/2025 12:57:41 dhcp,warning KT70822 offering lease 10.21.32.10 for 5E:DD:E2:0E:06:5B without success
+Nov/14/2025 12:58:03 dhcp,warning KT70822 offering lease 10.21.32.10 for 5E:DD:E2:0E:06:5B without success
+Nov/14/2025 13:33:45 dhcp,warning Detected conflict by ARP response for 10.22.2.8 from A0:91:69:F5:EA:B5
+Nov/14/2025 13:57:04 dhcp,warning Phicomm-60.140 offering lease 10.21.117.3 for 20:54:FA:D1:D0:FC without success
+Nov/14/2025 14:22:13 dhcp,warning KT70822 offering lease 10.21.32.8 for 0E:C3:6E:7C:98:66 without success
+Nov/14/2025 15:23:53 dhcp,warning Detected conflict by ARP response for 10.21.13.29 from 08:D4:6A:F4:65:78
+Nov/14/2025 15:52:21 dhcp,warning Detected conflict by ARP response for 10.21.45.3 from C8:F3:19:40:86:A7
+Nov/14/2025 15:52:39 hotspot,warning,debug 17640471839@userman2 (10.21.10.7): RADIUS accounting request not sent: no response
+Nov/14/2025 15:54:58 dhcp,warning Phicomm-142 offering lease 10.21.138.3 for 8E:F4:F6:92:04:51 without success
+Nov/14/2025 15:55:00 dhcp,warning Phicomm-142 offering lease 10.21.138.3 for 8E:F4:F6:92:04:51 without success
+Nov/14/2025 15:56:36 dhcp,warning KT7089206 offering lease 10.21.101.7 for 32:8E:2B:60:A3:79 without success
+Nov/14/2025 15:56:58 dhcp,warning Phicomm-60.140 offering lease 10.21.117.10 for 62:FE:85:3F:2C:89 without success
+Nov/14/2025 15:57:07 dhcp,warning KT7089206 offering lease 10.21.101.7 for 32:8E:2B:60:A3:79 without success
+Nov/14/2025 16:05:31 dhcp,warning Phicomm128-AbdoAlwasea offering lease 10.21.143.5 for 0A:5F:06:27:FA:59 without success
+Nov/14/2025 16:05:40 dhcp,warning Phicomm128-AbdoAlwasea offering lease 10.21.143.5 for 0A:5F:06:27:FA:59 without success
+Nov/14/2025 16:14:53 dhcp,warning Phicomm-137 offering lease 10.21.136.6 for 9A:45:01:52:A7:05 without success
+Nov/14/2025 16:19:50 dhcp,warning KT70822 offering lease 10.21.32.10 for 5E:DD:E2:0E:06:5B without success
+Nov/14/2025 16:22:29 dhcp,warning KT70822 offering lease 10.21.32.10 for 5E:DD:E2:0E:06:5B without success
+Nov/14/2025 16:22:45 dhcp,warning KT70822 offering lease 10.21.32.10 for 5E:DD:E2:0E:06:5B without success
+Nov/14/2025 16:22:58 dhcp,warning KT70822 offering lease 10.21.32.10 for 5E:DD:E2:0E:06:5B without success
+Nov/14/2025 16:23:43 dhcp,warning KT70822 offering lease 10.21.32.10 for 5E:DD:E2:0E:06:5B without success
+Nov/14/2025 16:55:00 dhcp,warning KT70822 offering lease 10.21.32.13 for 84:D6:08:69:F4:C6 without success
+Nov/14/2025 16:55:13 dhcp,warning KT70822 offering lease 10.21.32.13 for 84:D6:08:69:F4:C6 without success
+Nov/14/2025 16:55:41 dhcp,warning KT70822 offering lease 10.21.32.14 for 1A:94:9D:2D:95:1D without success
+Nov/14/2025 16:56:02 dhcp,warning KT70822 offering lease 10.21.32.15 for 0A:EA:B4:93:23:36 without success
+Nov/14/2025 16:56:15 dhcp,warning KT70822 offering lease 10.21.32.15 for 0A:EA:B4:93:23:36 without success
+Nov/14/2025 18:28:08 hotspot,warning,debug 27892482918@userman2 (10.21.124.8): RADIUS accounting request not sent: no response
+Nov/14/2025 18:31:55 hotspot,warning,debug 73457772935@userman2 (10.21.49.3): RADIUS accounting request not sent: no response
+Nov/14/2025 18:32:45 hotspot,warning,debug 27764437565@userman2 (10.21.106.3): RADIUS accounting request not sent: no response
+Nov/14/2025 19:05:51 dhcp,warning KT7089214 offering lease 10.21.103.10 for 68:E7:C2:C6:76:F3 without success
+Nov/14/2025 19:05:55 dhcp,warning KT7089214 offering lease 10.21.103.10 for 68:E7:C2:C6:76:F3 without success
+Nov/14/2025 19:06:00 dhcp,warning KT7089214 offering lease 10.21.103.10 for 68:E7:C2:C6:76:F3 without success
+Nov/14/2025 19:06:08 dhcp,warning KT70839 offering lease 10.21.40.7 for D2:59:1D:9E:E8:7C without success
+Nov/14/2025 19:06:09 dhcp,warning KT7089214 offering lease 10.21.103.10 for 68:E7:C2:C6:76:F3 without success
+Nov/14/2025 19:06:14 dhcp,warning KT70839 offering lease 10.21.40.12 for 5E:DF:16:F0:D3:A1 without success
+Nov/14/2025 19:06:24 dhcp,warning KT7089214 offering lease 10.21.103.11 for AC:71:0C:EF:46:6C without success
+Nov/14/2025 19:06:28 dhcp,warning KT70839 offering lease 10.21.40.12 for 5E:DF:16:F0:D3:A1 without success
+Nov/14/2025 19:06:35 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:06:39 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:06:43 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:06:54 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:06:58 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:07:02 dhcp,warning KT7089214 offering lease 10.21.103.11 for AC:71:0C:EF:46:6C without success
+Nov/14/2025 19:07:02 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:07:14 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:07:18 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:07:22 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:07:34 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:07:38 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:07:42 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:07:54 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:07:58 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:08:02 dhcp,warning VLAN2047 offering lease 10.22.99.6 for 82:2D:F0:C3:A6:78 without success
+Nov/14/2025 19:33:33 dhcp,warning Detected conflict by ARP response for 10.21.101.9 from 00:08:22:BC:63:FD
+Nov/14/2025 19:48:58 dhcp,warning KT704-105.17 offering lease 10.21.22.3 for 7C:F3:1B:AB:94:86 without success
+Nov/14/2025 19:49:18 dhcp,warning KT704-105.17 offering lease 10.21.22.3 for 7C:F3:1B:AB:94:86 without success
+Nov/14/2025 20:01:22 hotspot,warning,debug 17618291284@userman2 (10.21.58.4): RADIUS accounting request not sent: no response
+Nov/14/2025 20:01:22 hotspot,warning,debug 36427722961@userman2 (10.21.103.11): RADIUS accounting request not sent: no response
+Nov/14/2025 20:01:23 hotspot,warning,debug 27861270923@userman2 (10.21.146.6): RADIUS accounting request not sent: no response
+Nov/14/2025 20:01:23 hotspot,warning,debug 27816652423@userman2 (10.21.134.7): RADIUS accounting request not sent: no response
+Nov/14/2025 20:01:23 hotspot,warning,debug 27823786130@userman2 (10.21.13.21): RADIUS accounting request not sent: no response
+Nov/14/2025 20:01:23 hotspot,warning,debug 27814109163@userman2 (10.21.146.7): RADIUS accounting request not sent: no response
+Nov/14/2025 20:11:12 dhcp,warning KT70827 offering lease 10.21.35.8 for E4:84:D3:33:7F:3A without success
+Nov/14/2025 20:59:44 dhcp,warning KT70814 offering lease 10.21.30.21 for DC:EF:CA:F4:FB:00 without success
+Nov/14/2025 21:01:13 dhcp,warning KT70822 offering lease 10.21.32.16 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 21:03:39 dhcp,warning KT70822 offering lease 10.21.32.16 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 21:05:21 dhcp,warning KT70822 offering lease 10.21.32.16 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 21:05:39 dhcp,warning KT70822 offering lease 10.21.32.16 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 21:05:55 dhcp,warning KT70822 offering lease 10.21.32.16 for 96:70:59:EF:6E:9C without success
+Nov/14/2025 21:25:59 dhcp,warning KT70822 offering lease 10.21.32.17 for 2C:0E:3D:D2:B4:1B without success
+Nov/14/2025 21:34:09 hotspot,warning,debug 27749913762@userman2 (10.21.104.8): RADIUS accounting request not sent: no response
+Nov/14/2025 21:34:09 hotspot,warning,debug 27814109163@userman2 (10.21.146.7): RADIUS accounting request not sent: no response
+Nov/14/2025 21:34:09 hotspot,warning,debug 50151023685@userman2 (10.21.8.4): RADIUS accounting request not sent: no response
+Nov/14/2025 21:51:11 hotspot,warning,debug 55007384244@userman2 (10.21.146.3): RADIUS accounting request not sent: no response
+Nov/14/2025 22:15:43 dhcp,warning KT70822 offering lease 10.21.32.17 for 2C:0E:3D:D2:B4:1B without success
+Nov/14/2025 22:16:02 dhcp,warning KT70822 offering lease 10.21.32.17 for 2C:0E:3D:D2:B4:1B without success
+Nov/14/2025 22:16:37 dhcp,warning KT70822 offering lease 10.21.32.17 for 2C:0E:3D:D2:B4:1B without success
+Nov/14/2025 22:20:53 dhcp,warning KT70822 offering lease 10.21.32.17 for 2C:0E:3D:D2:B4:1B without success
+Nov/14/2025 23:08:14 hotspot,warning,debug 27809248543@userman2 (10.21.42.7): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:41 hotspot,warning,debug 77381489 (10.21.40.9): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:41 hotspot,warning,debug 27858962491@userman2 (10.21.53.15): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:41 hotspot,warning,debug 77325771 (10.21.58.3): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:41 hotspot,warning,debug 27827647561@userman2 (10.21.27.31): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:42 hotspot,warning,debug 1008153387 (10.21.34.8): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:42 hotspot,warning,debug 27897045888@userman2 (10.21.67.6): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:42 hotspot,warning,debug D4:4D:A4:E5:08:D5 (10.21.8.3): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:42 hotspot,warning,debug 36410280034@userman2 (10.21.51.5): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:42 hotspot,warning,debug 17626739497@userman2 (10.21.54.5): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:42 hotspot,warning,debug 27716035852@userman2 (10.21.87.12): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:42 hotspot,warning,debug 17390297965@userman2 (10.21.39.7): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:42 hotspot,warning,debug 666985665 (10.21.40.10): RADIUS accounting request not sent: no response
+Nov/15/2025 01:21:52 hotspot,error,info,debug 76360769851@userman2 (10.21.103.7): RADIUS accounting stop request not sent: no response
+Nov/15/2025 01:22:21 hotspot,error,info,debug 666985665 (10.21.40.10): RADIUS accounting stop request not sent: no response

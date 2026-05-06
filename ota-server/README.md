@@ -40,6 +40,26 @@ npm run seed:test-release
 
 This seeds an active stable release that points to the placeholder firmware artifact at `/firmware/AR-07-102H-1.1.0-test.bin`. It is only for backend and delivery validation and must not be flashed to devices.
 
+## Model Registry
+
+Supported model metadata is defined once in `../alemprator-models.json`. Dashboard seed scripts read that registry instead of carrying their own KM12/KM14/AR07 tables.
+
+```bash
+npm run seed:models
+npm run seed:release -- km12
+npm run seed:release -- km14
+npm run seed:test-release
+```
+
+Release seeding refuses to replace an existing `model` + `version` by default. To intentionally refresh an existing release and artifact metadata, pass an explicit overwrite guard:
+
+```bash
+npm run seed:release -- km12 --allow-overwrite
+npm run seed:test-release -- ar07 --allow-overwrite
+```
+
+For non-interactive jobs, set `ALEMPRATOR_ALLOW_RELEASE_OVERWRITE=1` instead of passing the flag.
+
 ## One-Command OTA Smoke Test
 
 After the API is up and the test release is seeded, run:

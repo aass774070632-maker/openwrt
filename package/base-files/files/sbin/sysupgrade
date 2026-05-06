@@ -35,13 +35,27 @@ export IGNORE_MINOR_COMPAT=0
 export FORCE=0
 export CONFFILES=/tmp/sysupgrade.conffiles
 
+should_force_save_config() {
+	[ -f /etc/alemprator/firmware-version ] && return 0
+	[ -f /etc/config/alemprator_firstboot ] && return 0
+	[ -f /etc/config/setup ] && return 0
+	return 1
+}
+
 # parse options
 while [ -n "$1" ]; do
 	case "$1" in
 		-i) export INTERACTIVE=1;;
 		-v) export VERBOSE="$(($VERBOSE + 1))";;
 		-q) export VERBOSE="$(($VERBOSE - 1))";;
-		-n) export SAVE_CONFIG=0;;
+		-n)
+			if should_force_save_config; then
+				echo "Ignoring '-n' to preserve device configuration on this firmware." >&2
+				export SAVE_CONFIG=1
+			else
+				export SAVE_CONFIG=0
+			fi
+		;;
 		-c) SAVE_OVERLAY=1 SAVE_OVERLAY_PATH=/etc;;
 		-o) SAVE_OVERLAY=1 SAVE_OVERLAY_PATH=/;;
 		-p) SAVE_PARTITIONS=0;;

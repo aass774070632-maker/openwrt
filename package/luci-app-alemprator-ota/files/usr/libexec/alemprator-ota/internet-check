@@ -1,0 +1,52 @@
+#!/bin/sh
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "$SCRIPT_DIR/common.sh"
+
+load_config
+
+lan_ip="$(uci -q get network.lan.ipaddr 2>/dev/null)"
+[ -n "$lan_ip" ] || lan_ip="$(ip -4 addr show br-lan 2>/dev/null | awk '/inet / { sub(/\/.*$/, "", $2); print $2; exit }')"
+[ -n "$lan_ip" ] || lan_ip="192.168.1.20"
+
+gateway="$(ip route show default 2>/dev/null | awk '/default/ { print $3; exit }')"
+[ -n "$gateway" ] || gateway="$(uci -q get network.lan.gateway 2>/dev/null)"
+
+server_url="$SERVER_URL"
+server_host="$(printf '%s' "$server_url" | sed -e 's#^[a-zA-Z][a-zA-Z0-9+.-]*://##' -e 's#/.*$##' -e 's/:.*$//')"
+
+internet_ok=false
+server_ok=false
+status="no_internet"
+message="لا يوجد اتصال إنترنت من هذا الراوتر."
+
+if [ -z "$gateway" ]; then
+	status="no_default_route"
+	message="لا يوجد مسار افتراضي للإنترنت على هذا الراوتر."
+else
+	if ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 3 8.8.8.8 >/dev/null 2>&1; then
+		internet_ok=true
+		status="server_unreachable"
+		message="الإنترنت يعمل، لكن خادم التحديثات غير متاح حاليًا."
+
+		if [ -n "$server_url" ] && check_update_json >/dev/null 2>&1; then
+			server_ok=true
+			status="online"
+			message="الإنترنت وخادم التحديثات يعملان."
+		fi
+	fi
+fi
+
+mikrotik_command="/ip firewall nat add chain=srcnat src-address=$lan_ip action=masquerade comment=\"Alemprator updater internet access\""
+
+printf '{'
+printf '"status":"%s",' "$(json_escape "$status")"
+printf '"internet_ok":%s,' "$internet_ok"
+printf '"server_ok":%s,' "$server_ok"
+printf '"message":"%s",' "$(json_escape "$message")"
+printf '"lan_ip":"%s",' "$(json_escape "$lan_ip")"
+printf '"gateway":"%s",' "$(json_escape "$gateway")"
+printf '"server_url":"%s",' "$(json_escape "$server_url")"
+printf '"server_host":"%s",' "$(json_escape "$server_host")"
+printf '"mikrotik_command":"%s"' "$(json_escape "$mikrotik_command")"
+printf '}\n'

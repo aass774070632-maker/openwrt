@@ -82,8 +82,7 @@ Response if no update:
 6. Verify `sha256`
 7. Validate image with `sysupgrade -T`
 8. Execute `sysupgrade` with policy:
-   - preserve config by default
-   - optional wipe (`keep_config=0`)
+  - always preserve config to keep the current LAN/device configuration intact
    - optional force if server marks force and `allow_force=1`
 
 ## 5) Scalable Rollout Controls

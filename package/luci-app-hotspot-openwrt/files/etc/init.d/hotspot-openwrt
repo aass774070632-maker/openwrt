@@ -1,0 +1,13 @@
+#!/bin/sh /etc/rc.common
+
+START=91
+USE_PROCD=1
+
+start_service() {
+	[ "$(uci -q get hotspot_openwrt.main.enabled)" = '1' ] || return 0
+	/usr/libexec/hotspot-openwrt/apply --start
+}
+
+stop_service() {
+	/etc/init.d/chilli stop 2>/dev/null || true
+}

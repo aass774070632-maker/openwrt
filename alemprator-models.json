@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "defaults": {
+    "firstboot": {
+      "lanIp": "192.168.1.20",
+      "setupIp": "192.168.8.1"
+    }
+  },
+  "sharedPackages": [
+    "alemprator-firstboot",
+    "luci-app-setup",
+    "luci-app-alemprator-ota"
+  ],
+  "models": {
+    "km12": {
+      "id": "km12",
+      "boardName": "kt,km12-007h",
+      "dashboard": {
+        "modelKey": "kt,km12-007h",
+        "boardIdentifier": "kt,km12-007h",
+        "slug": "km12-007h",
+        "displayName": "KM12-007H",
+        "artifactKind": "sysupgrade",
+        "notes": "Ramips MT7621 KM12 production model.",
+        "aliases": ["KM12-007H"]
+      },
+      "openwrt": {
+        "target": "ramips",
+        "subtarget": "mt7621",
+        "profile": "DEVICE_kt_km12-007h",
+        "imageSlug": "kt_km12-007h",
+        "configFile": "KT-KM12-007H-01-05-2026.config",
+        "imagePath": "bin/targets/ramips/mt7621/openwrt-ramips-mt7621-kt_km12-007h-squashfs-sysupgrade.bin"
+      },
+      "firmware": {
+        "version": "24.10.4.1-km12-r7",
+        "versionCode": "24.10.4.1-km12-r7"
+      },
+      "firstboot": {
+        "lanIp": "192.168.1.20",
+        "ssidPrefix": "ALemprator-KT-KM12-007H"
+      },
+      "release": {
+        "channel": "stable",
+        "publicBaseUrlDefault": "https://ota.kartnet.org",
+        "artifactNameTemplate": "openwrt-ramips-mt7621-{imageSlug}-squashfs-sysupgrade-{version}.bin",
+        "changelog": "KM12 Alemprator r7 release: includes the shared firstboot LAN default on 192.168.1.20, temporary setup access on 192.168.8.1, and the latest setup/OTA identity updates."
+      }
+    },
+    "km14": {
+      "id": "km14",
+      "boardName": "kt,km14-102h",
+      "dashboard": {
+        "modelKey": "kt,km14-102h",
+        "boardIdentifier": "kt,km14-102h",
+        "slug": "km14-102h",
+        "displayName": "KM14-102H",
+        "artifactKind": "sysupgrade",
+        "notes": "Ramips MT7621 KM14 production model.",
+        "aliases": ["KM14-102H"]
+      },
+      "openwrt": {
+        "target": "ramips",
+        "subtarget": "mt7621",
+        "profile": "DEVICE_kt_km14-102h",
+        "imageSlug": "kt_km14-102h",
+        "configFile": "KT-KM14-102H-01-05-2026.config",
+        "imagePath": "bin/targets/ramips/mt7621/openwrt-ramips-mt7621-kt_km14-102h-squashfs-sysupgrade.bin"
+      },
+      "firmware": {
+        "version": "24.10.4-km14-r37",
+        "versionCode": "24.10.4-km14-r37"
+      },
+      "firstboot": {
+        "lanIp": "192.168.1.20",
+        "ssidPrefix": "ALemprator-KT-KM14-102H"
+      },
+      "release": {
+        "channel": "stable",
+        "publicBaseUrlDefault": "https://ota.kartnet.org",
+        "artifactNameTemplate": "openwrt-ramips-mt7621-{imageSlug}-squashfs-sysupgrade-{version}.bin",
+        "changelog": "KM14 Alemprator r37 release: fixes KM14 bridge port defaults so LuCI shows the board's lan/wan ports instead of KM12 lan1-lan4 ports, while keeping factory LAN on 192.168.1.20 and temporary setup access on 192.168.8.1."
+      }
+    },
+    "ar07": {
+      "id": "ar07",
+      "boardName": "kt,ar07-102h",
+      "dashboard": {
+        "modelKey": "AR-07-102H",
+        "boardIdentifier": "kt,ar07-102h",
+        "slug": "ar-07-102h",
+        "displayName": "AR-07-102H",
+        "artifactKind": "sysupgrade",
+        "notes": "Qualcommax AP profile backed by board kt,ar07-102h.",
+        "aliases": ["AR07-102H"]
+      },
+      "openwrt": {
+        "target": "qualcommax",
+        "subtarget": "ipq60xx",
+        "profile": "DEVICE_kt_ar07-102h",
+        "imageSlug": "kt_ar07-102h",
+        "configFile": "AR-07-102H-12-04-2026.config",
+        "imagePath": "bin/targets/qualcommax/ipq60xx/openwrt-qualcommax-ipq60xx-kt_ar07-102h-squashfs-sysupgrade.bin"
+      },
+      "firmware": {
+        "version": "24.10.4-ar07-r1",
+        "versionCode": "24.10.4-ar07-r1"
+      },
+      "firstboot": {
+        "lanIp": "192.168.1.20",
+        "ssidPrefix": "ALemprator-KT-AR07-102H"
+      },
+      "release": {
+        "channel": "stable",
+        "publicBaseUrlDefault": "https://ota.kartnet.org",
+        "artifactNameTemplate": "openwrt-qualcommax-ipq60xx-{imageSlug}-squashfs-sysupgrade-{version}.bin",
+        "changelog": "AR07 Alemprator r1 release: production sysupgrade image with shared firstboot LAN default on 192.168.1.20, temporary setup access on 192.168.8.1, and Alemprator OTA identity."
+      }
+    }
+  }
+}

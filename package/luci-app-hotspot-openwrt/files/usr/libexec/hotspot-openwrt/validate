@@ -1,0 +1,77 @@
+#!/bin/sh
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+errors=''
+add_error() {
+	[ -z "$errors" ] && errors="$1" || errors="$errors|$1"
+}
+
+network_for() {
+	local ipaddr="$1" cidr="$2" output
+	output="$(/bin/ipcalc.sh "$ipaddr/$cidr" 2>/dev/null)" || return 1
+	eval "$output"
+	printf '%s' "$NETWORK"
+}
+
+hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip)"
+hotspot_cidr="$(uci -q get hotspot_openwrt.main.hotspot_cidr)"
+pool_start="$(uci -q get hotspot_openwrt.main.pool_start)"
+pool_end="$(uci -q get hotspot_openwrt.main.pool_end)"
+radius_server="$(uci -q get hotspot_openwrt.main.radius_server)"
+radius_secret="$(uci -q get hotspot_openwrt.main.radius_secret)"
+radius_auth_port="$(uci -q get hotspot_openwrt.main.radius_auth_port)"
+radius_acct_port="$(uci -q get hotspot_openwrt.main.radius_acct_port)"
+subscriber_interface="$(uci -q get hotspot_openwrt.main.subscriber_interface)"
+bridge_ports="$(uci -q get hotspot_openwrt.main.bridge_ports)"
+portal_path="$(uci -q get hotspot_openwrt.main.portal_path)"
+portal_storage_path="$(uci -q get hotspot_openwrt.main.portal_storage_path)"
+shared_users="$(uci -q get hotspot_openwrt.main.shared_users)"
+
+case "$hotspot_ip" in *.*.*.*) ;; *) add_error 'hotspot_ip_invalid' ;; esac
+case "$hotspot_cidr" in ''|*[!0-9]*) add_error 'hotspot_cidr_invalid' ;; *) [ "$hotspot_cidr" -ge 8 ] && [ "$hotspot_cidr" -le 30 ] || add_error 'hotspot_cidr_invalid' ;; esac
+hotspot_network="$(network_for "$hotspot_ip" "$hotspot_cidr" 2>/dev/null)"
+[ -n "$hotspot_network" ] || add_error 'hotspot_network_invalid'
+[ "$(network_for "$pool_start" "$hotspot_cidr" 2>/dev/null)" = "$hotspot_network" ] || add_error 'pool_start_outside_hotspot_subnet'
+[ "$(network_for "$pool_end" "$hotspot_cidr" 2>/dev/null)" = "$hotspot_network" ] || add_error 'pool_end_outside_hotspot_subnet'
+case "$radius_server" in *.*.*.*) ;; *) add_error 'radius_server_invalid' ;; esac
+[ -n "$radius_secret" ] || add_error 'radius_secret_missing'
+[ "$radius_auth_port" = '1812' ] || add_error 'radius_auth_port_should_be_1812_udp'
+[ "$radius_acct_port" = '1813' ] || add_error 'radius_acct_port_should_be_1813_udp'
+[ -n "$subscriber_interface" ] || add_error 'subscriber_interface_missing'
+case "$subscriber_interface" in *[!A-Za-z0-9_]*|'') add_error 'subscriber_interface_name_invalid' ;; esac
+case "${portal_path:-/hotspot}" in /*) ;; *) add_error 'portal_path_must_start_with_slash' ;; esac
+case "${portal_storage_path:-/www/hotspot}" in /www|/www/*) ;; *) add_error 'portal_storage_path_must_be_under_www' ;; esac
+case "${shared_users:-3}" in *[!0-9]*|'') add_error 'shared_users_must_be_number' ;; esac
+
+management_ip="$(ip -4 addr show br-lan 2>/dev/null | awk '/inet / { sub(/\/.*$/, "", $2); print $2; exit }')"
+warning=''
+case "$subscriber_interface" in
+	lan|br-lan)
+		warning='subscriber_interface_may_be_management_bridge'
+		add_error 'subscriber_interface_must_not_be_management_bridge'
+		;;
+esac
+
+for port in $(printf '%s' "$bridge_ports" | tr ',' ' '); do
+	case "$port" in
+		lan|br-lan|hotspot|br-hotspot)
+			add_error 'bridge_ports_must_not_include_management_bridge'
+			;;
+	esac
+done
+
+ok='false'
+[ -z "$errors" ] && ok='true'
+
+printf '{'
+printf '"ok":%s,' "$ok"
+printf '"errors":"%s",' "$(json_escape "$errors")"
+printf '"warning":"%s",' "$(json_escape "$warning")"
+printf '"management_ip":"%s",' "$(json_escape "$management_ip")"
+printf '"radius_transport":"udp"'
+printf '}\n'
+
+[ -z "$errors" ]

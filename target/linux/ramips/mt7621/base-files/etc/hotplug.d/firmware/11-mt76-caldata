@@ -9,6 +9,7 @@ board=$(board_name)
 case "$FIRMWARE" in
 "mediatek/mt7915_eeprom_dbdc.bin")
 	case "$board" in
+  kt,km12-007h)
 	kt,km14-102h)
 		caldata_extract "Factory" 0x0 0xe00
 		;;

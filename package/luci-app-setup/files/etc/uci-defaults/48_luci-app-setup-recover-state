@@ -9,6 +9,43 @@ strip_generated_suffix() {
 	printf '%s' "$value"
 }
 
+strip_ip_suffix() {
+	local value="$1"
+	local lan_ipaddr
+	local ip_suffix
+
+	[ "$(uci -q get setup.default.wifi_ssid_vlan_ip_suffix)" = '1' ] || { printf '%s' "$value"; return; }
+
+	lan_ipaddr="$(uci -q get network.lan.ipaddr)"
+	[ -n "$lan_ipaddr" ] || lan_ipaddr="$(uci -q get setup.default.lan_ipaddr)"
+	case "$lan_ipaddr" in
+		*.*.*.*) ip_suffix="$(printf '%s' "$lan_ipaddr" | awk -F. 'NF == 4 { print $3 "." $4 }')" ;;
+	esac
+
+	if [ -n "$ip_suffix" ]; then
+		case "$value" in
+			*"_$ip_suffix") value="${value%_$ip_suffix}" ;;
+		esac
+	fi
+
+	printf '%s' "$value"
+}
+
+strip_primary_5g_ip_suffix() {
+	local value="$1"
+	local base
+
+	case "$value" in
+		*_5G)
+			base="${value%_5G}"
+			printf '%s_5G' "$(strip_ip_suffix "$base")"
+			;;
+		*)
+			strip_ip_suffix "$value"
+			;;
+	esac
+}
+
 find_ap_iface_by_network_band() {
 	local network_name="$1"
 	local band_name="$2"
@@ -35,9 +72,9 @@ lan_5g="$(find_ap_iface_by_network_band lan 5g)"
 vlan_2g="$(find_ap_iface_by_network_band wizardvlan 2g)"
 vlan_5g="$(find_ap_iface_by_network_band wizardvlan 5g)"
 
-base_ssid="$(uci -q get setup.default.wifi_ssid)"
-[ -n "$base_ssid" ] || base_ssid="$(strip_generated_suffix "$(uci -q get wireless.$lan_2g.ssid)")"
-[ -n "$base_ssid" ] || base_ssid="$(strip_generated_suffix "$(uci -q get wireless.$lan_5g.ssid)")"
+base_ssid="$(strip_ip_suffix "$(uci -q get setup.default.wifi_ssid)")"
+[ -n "$base_ssid" ] || base_ssid="$(strip_ip_suffix "$(strip_generated_suffix "$(uci -q get wireless.$lan_2g.ssid)")")"
+[ -n "$base_ssid" ] || base_ssid="$(strip_ip_suffix "$(strip_generated_suffix "$(uci -q get wireless.$lan_5g.ssid)")")"
 [ -n "$base_ssid" ] || exit 0
 
 wifi_key="$(uci -q get setup.default.wifi_key)"
@@ -55,8 +92,10 @@ fi
 
 is_vlan='0'
 [ -n "$vlan_2g$vlan_5g" ] && is_vlan='1'
+vlan_ip_suffix_enabled="$(uci -q get setup.default.wifi_ssid_vlan_ip_suffix)"
+[ -n "$vlan_ip_suffix_enabled" ] || vlan_ip_suffix_enabled='0'
 
-ssid_5g="$(uci -q get wireless.$lan_5g.ssid)"
+ssid_5g="$(strip_primary_5g_ip_suffix "$(uci -q get wireless.$lan_5g.ssid)")"
 ssid_5g_mode='derived'
 ssid_5g_custom=''
 if [ -n "$ssid_5g" ] && [ "$ssid_5g" != "${base_ssid}_5G" ]; then
@@ -65,14 +104,26 @@ if [ -n "$ssid_5g" ] && [ "$ssid_5g" != "${base_ssid}_5G" ]; then
 fi
 
 ssid_vlan=''
-ssid_vlan_2g="$(uci -q get wireless.$vlan_2g.ssid)"
-ssid_vlan_5g="$(uci -q get wireless.$vlan_5g.ssid)"
+ssid_vlan_2g="$(strip_ip_suffix "$(uci -q get wireless.$vlan_2g.ssid)")"
+ssid_vlan_5g="$(strip_ip_suffix "$(uci -q get wireless.$vlan_5g.ssid)")"
+ssid_vlan_2g_custom=''
+ssid_vlan_5g_custom=''
 if [ -n "$ssid_vlan_2g" ] && [ "$ssid_vlan_2g" != "${base_ssid}_VLAN" ]; then
 	ssid_vlan="$ssid_vlan_2g"
+	ssid_vlan_2g_custom="$ssid_vlan_2g"
 elif [ -n "$ssid_vlan_5g" ]; then
 	derived_vlan_5g="${ssid_vlan_5g%_5G}"
 	if [ "$ssid_vlan_5g" != "$derived_vlan_5g" ] && [ "$derived_vlan_5g" != "${base_ssid}_VLAN" ]; then
 		ssid_vlan="$derived_vlan_5g"
+		ssid_vlan_2g_custom="$derived_vlan_5g"
+	fi
+fi
+
+if [ -n "$ssid_vlan_5g" ]; then
+	expected_vlan_5g="${base_ssid}_VLAN_5G"
+	[ -n "$ssid_vlan_2g_custom" ] && expected_vlan_5g="${ssid_vlan_2g_custom}_5G"
+	if [ "$ssid_vlan_5g" != "$expected_vlan_5g" ]; then
+		ssid_vlan_5g_custom="$ssid_vlan_5g"
 	fi
 fi
 
@@ -113,6 +164,9 @@ uci -q batch <<EOF >/dev/null
 	set setup.default.wifi_ssid_5g_mode='$ssid_5g_mode'
 	set setup.default.wifi_ssid_5g='$ssid_5g_custom'
 	set setup.default.wifi_ssid_vlan='$ssid_vlan'
+	set setup.default.wifi_ssid_vlan_2g='$ssid_vlan_2g_custom'
+	set setup.default.wifi_ssid_vlan_5g='$ssid_vlan_5g_custom'
+	set setup.default.wifi_ssid_vlan_ip_suffix='$vlan_ip_suffix_enabled'
 	set setup.default.wifi_key='$wifi_key'
 	set setup.default.is_vlan='$is_vlan'
 	set setup.default.channel_2g='$channel_2g'

@@ -16,6 +16,9 @@
     "prisma:migrate": "prisma migrate dev",
     "seed:models": "node --env-file=.env scripts/seed-firmware-models.mjs",
     "seed:test-release": "node --env-file=.env scripts/seed-test-release.mjs",
+    "seed:release": "node --env-file=.env scripts/seed-km12-release.mjs",
+    "seed:km12-release": "node --env-file=.env scripts/seed-km12-release.mjs km12",
+    "seed:km14-release": "node --env-file=.env scripts/seed-km12-release.mjs km14",
     "seed:admin": "node --env-file=.env scripts/seed-admin.mjs"
   },
   "dependencies": {

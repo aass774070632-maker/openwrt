@@ -1,6 +1,6 @@
 {
 	"admin/system/ota-update": {
-		"title": "تحديث OTA",
+		"title": "تحديث النظام",
 		"order": 80,
 		"action": {
 			"type": "view",

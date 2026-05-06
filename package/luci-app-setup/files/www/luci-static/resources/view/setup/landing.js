@@ -4,7 +4,7 @@
 
 var DEFAULT_ADMIN_ROUTE = '/cgi-bin/luci/admin/status/overview';
 var WIZARD_ROUTE = '/cgi-bin/luci/admin/applications/alemprator';
-var WIZARD_BUILD_TAG = 'r90';
+var WIZARD_BUILD_TAG = 'r93';
 var REAL_OVERVIEW_ROUTE = '/cgi-bin/luci/admin/status/overview-real';
 
 function buildAbsoluteUrl(route, buildTag) {

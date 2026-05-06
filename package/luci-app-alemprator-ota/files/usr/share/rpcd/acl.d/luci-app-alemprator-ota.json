@@ -3,7 +3,8 @@
 		"description": "Allow OTA status display without login when no password is set",
 		"read": {
 			"file": {
-				"/usr/libexec/alemprator-ota/status-json": [ "exec" ]
+				"/usr/libexec/alemprator-ota/status-json": [ "exec" ],
+				"/usr/libexec/alemprator-ota/internet-check": [ "exec" ]
 			},
 			"ubus": {
 				"file": [ "exec" ],
@@ -18,6 +19,7 @@
 			"uci": [ "alemprator_ota" ],
 			"file": {
 				"/usr/libexec/alemprator-ota/status-json": [ "exec" ],
+				"/usr/libexec/alemprator-ota/internet-check": [ "exec" ],
 				"/usr/libexec/alemprator-ota/manual-info": [ "exec" ]
 			},
 			"ubus": {
@@ -29,6 +31,7 @@
 			"cgi-io": [ "upload" ],
 			"uci": [ "alemprator_ota" ],
 			"file": {
+				"/tmp/alemprator-ota/manual-update.bin": [ "write" ],
 				"/usr/libexec/alemprator-ota/run-once": [ "exec" ],
 				"/usr/libexec/alemprator-ota/manual-clear": [ "exec" ],
 				"/usr/libexec/alemprator-ota/start-check": [ "exec" ],

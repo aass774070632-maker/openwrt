@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>شروط الاستخدام</title>
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<main class="hotspot-shell">
+		<h1>شروط الاستخدام</h1>
+		<p>باستخدام هذه الخدمة أنت توافق على الالتزام بسياسة الشبكة وعدم إساءة استخدام الاتصال.</p>
+			<form id="terms-form" method="get" action="/hotspot/login.html">
+			<button type="submit">موافق ومتابعة</button>
+		</form>
+	</main>
+		<script>
+			document.getElementById('terms-form').action = 'login.html' + location.search;
+		</script>
+</body>
+</html>

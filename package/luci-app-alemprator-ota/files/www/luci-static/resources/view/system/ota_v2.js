@@ -7,6 +7,7 @@
 
 var refreshTimer = null;
 var MANUAL_IMAGE_PATH = '/tmp/alemprator-ota/manual-update.bin';
+var OTA_STYLE_ID = 'alemprator-ota-styles';
 var STATUS_LABELS = {
 	idle: 'خامل',
 	checking: 'جارٍ التحقق',
@@ -93,6 +94,20 @@ function fetchManualInfo() {
 	});
 }
 
+function fetchInternetInfo() {
+	return L.resolveDefault(fs.exec_direct('/usr/libexec/alemprator-ota/internet-check', [], 'json'), {
+		status: 'unknown',
+		internet_ok: false,
+		server_ok: false,
+		message: 'لم يتم فحص اتصال الإنترنت بعد.',
+		lan_ip: '',
+		gateway: '',
+		server_url: '',
+		server_host: '',
+		mikrotik_command: ''
+	});
+}
+
 function clearManualImage() {
 	return fs.exec_direct('/usr/libexec/alemprator-ota/manual-clear', [], 'json');
 }
@@ -129,6 +144,183 @@ function boolText(v) {
 
 function enabledText(v) {
 	return v ? 'مفعّل' : 'متوقف';
+}
+
+function ensureOtaStyles() {
+	var styleTag;
+
+	if (document.getElementById(OTA_STYLE_ID))
+		return;
+
+	styleTag = document.createElement('style');
+	styleTag.id = OTA_STYLE_ID;
+	styleTag.textContent = [
+		'.alemprator-ota-shell {',
+		'  display:grid;',
+		'  gap:18px;',
+		'}',
+		'.alemprator-ota-card {',
+		'  position:relative;',
+		'  overflow:hidden;',
+		'  margin:0;',
+		'  padding:18px 20px;',
+		'  border:1px solid #d7e3ea;',
+		'  border-radius:22px;',
+		'  background:linear-gradient(180deg, #ffffff 0%, #f8fbfc 100%);',
+		'  box-shadow:0 14px 36px rgba(7, 59, 76, 0.08);',
+		'}',
+		'.alemprator-ota-hero {',
+		'  padding:24px;',
+		'  border-color:rgba(9, 36, 47, 0.28);',
+		'  background:linear-gradient(135deg, #073b4c 0%, #0f766e 58%, #c97a12 100%);',
+		'  box-shadow:0 18px 40px rgba(7, 59, 76, 0.22);',
+		'}',
+		'.alemprator-ota-hero::after {',
+		'  content:"";',
+		'  position:absolute;',
+		'  inset:auto -45px -55px auto;',
+		'  width:170px;',
+		'  height:170px;',
+		'  border-radius:50%;',
+		'  background:rgba(255, 255, 255, 0.10);',
+		'}',
+		'.alemprator-ota-hero-grid {',
+		'  position:relative;',
+		'  z-index:1;',
+		'  display:grid;',
+		'  grid-template-columns:minmax(0, 1.5fr) minmax(240px, .9fr);',
+		'  gap:18px;',
+		'  align-items:end;',
+		'}',
+		'@media (max-width: 760px) {',
+		'  .alemprator-ota-hero-grid { grid-template-columns:1fr; }',
+		'}',
+		'.alemprator-ota-eyebrow {',
+		'  display:inline-flex;',
+		'  align-items:center;',
+		'  gap:6px;',
+		'  padding:5px 10px;',
+		'  border-radius:999px;',
+		'  background:rgba(255, 255, 255, 0.16);',
+		'  color:#fff7d1;',
+		'  font-size:11px;',
+		'  font-weight:700;',
+		'  letter-spacing:.08em;',
+		'}',
+		'.alemprator-ota-title {',
+		'  margin:10px 0 0 0;',
+		'  color:#fff;',
+		'  font:700 28px/1.15 "Trebuchet MS", Tahoma, sans-serif;',
+		'}',
+		'.alemprator-ota-desc {',
+		'  margin:10px 0 0 0;',
+		'  color:rgba(255, 255, 255, 0.88);',
+		'  line-height:1.7;',
+		'}',
+		'.alemprator-ota-facts {',
+		'  display:grid;',
+		'  grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));',
+		'  gap:12px;',
+		'}',
+		'.alemprator-ota-fact {',
+		'  padding:14px 16px;',
+		'  border-radius:18px;',
+		'  background:rgba(255, 255, 255, 0.14);',
+		'  border:1px solid rgba(255, 255, 255, 0.18);',
+		'}',
+		'.alemprator-ota-fact__label {',
+		'  display:block;',
+		'  font-size:12px;',
+		'  color:rgba(255, 255, 255, 0.74);',
+		'}',
+		'.alemprator-ota-fact__value {',
+		'  display:block;',
+		'  margin-top:6px;',
+		'  color:#fff;',
+		'  font:700 16px/1.45 "Trebuchet MS", Tahoma, sans-serif;',
+		'  word-break:break-word;',
+		'}',
+		'.alemprator-ota-card-title {',
+		'  margin:0;',
+		'  color:#102a43;',
+		'  font:700 22px/1.25 "Trebuchet MS", Tahoma, sans-serif;',
+		'}',
+		'.alemprator-ota-card-desc {',
+		'  margin:8px 0 0 0;',
+		'  color:#52606d;',
+		'  line-height:1.7;',
+		'}',
+		'.alemprator-ota-grid {',
+		'  display:grid;',
+		'  grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));',
+		'  gap:18px;',
+		'}',
+		'.alemprator-ota-actions {',
+		'  display:flex;',
+		'  gap:10px;',
+		'  flex-wrap:wrap;',
+		'  margin-top:16px;',
+		'}',
+		'.alemprator-ota-actions .cbi-button {',
+		'  min-width:120px;',
+		'  border-radius:999px;',
+		'}',
+		'.alemprator-ota-status-line {',
+		'  margin-top:12px;',
+		'  padding:12px 14px;',
+		'  border-radius:16px;',
+		'  border:1px solid #dbe7ef;',
+		'  background:linear-gradient(180deg, #fbfdff 0%, #eef5f9 100%);',
+		'  color:#12344d;',
+		'  font-weight:600;',
+		'  line-height:1.7;',
+		'}',
+		'.alemprator-ota-status-line.is-ok {',
+		'  border-color:#cfe8df;',
+		'  background:#f8fdfa;',
+		'  color:#0f766e;',
+		'}',
+		'.alemprator-ota-status-line.is-warning {',
+		'  border-color:#f4c38a;',
+		'  background:#fff4e8;',
+		'  color:#8a3d06;',
+		'}',
+		'.alemprator-ota-code-box {',
+		'  margin-top:12px;',
+		'  padding:12px 14px;',
+		'  border-radius:16px;',
+		'  border:1px solid #d7e3ea;',
+		'  background:#0f172a;',
+		'  color:#e5f3ff;',
+		'  direction:ltr;',
+		'  text-align:left;',
+		'  white-space:pre-wrap;',
+		'  word-break:break-word;',
+		'  font-family:monospace;',
+		'}',
+		'.alemprator-ota-progress-card {',
+		'  padding:14px;',
+		'  border:1px solid #d9e4ea;',
+		'  border-radius:18px;',
+		'  background:linear-gradient(180deg, #fbfdff, #eef5f8);',
+		'}',
+		'.alemprator-ota-progress-track {',
+		'  height:12px;',
+		'  margin-top:10px;',
+		'  background:#d7e3e8;',
+		'  border-radius:999px;',
+		'  overflow:hidden;',
+		'}',
+		'.alemprator-ota-table-wrap {',
+		'  margin-top:14px;',
+		'  overflow:auto;',
+		'}',
+		'.alemprator-ota-table-wrap table th {',
+		'  color:#12344d;',
+		'}'
+	].join('\n');
+
+	document.head.appendChild(styleTag);
 }
 
 function translateValue(value, labels) {
@@ -263,6 +455,31 @@ function setText(node, value) {
 	node.textContent = (value == null || value === '') ? '-' : String(value);
 }
 
+function copyTextToClipboard(text) {
+	if (navigator.clipboard && navigator.clipboard.writeText)
+		return navigator.clipboard.writeText(text);
+
+	return new Promise(function(resolve, reject) {
+		var input = document.createElement('textarea');
+		input.value = text;
+		input.setAttribute('readonly', 'readonly');
+		input.style.position = 'fixed';
+		input.style.opacity = '0';
+		document.body.appendChild(input);
+		input.select();
+
+		try {
+			document.execCommand('copy');
+			document.body.removeChild(input);
+			resolve();
+		}
+		catch (e) {
+			document.body.removeChild(input);
+			reject(e);
+		}
+	});
+}
+
 function isUpdateBusy(status) {
 	return status.status == 'downloading' || status.status == 'upgrading' || status.last_result == 'upgrade_start';
 }
@@ -294,7 +511,7 @@ function describeStatus(status, action) {
 	if (status.status == 'downloading')
 		return 'بدأ تنزيل حزمة التحديث. سيظهر التقدم الحي أدناه.';
 
-	return 'اكتملت عملية OTA.';
+	return 'اكتملت عملية التحديث.';
 }
 
 return view.extend({
@@ -311,10 +528,25 @@ return view.extend({
 		var board = data[1] || {};
 		var status = data[2] || {};
 		var manualInfo = data[3] || {};
+		var internetInfo = {
+			status: 'unknown',
+			internet_ok: false,
+			server_ok: false,
+			message: 'لم يتم فحص اتصال الإنترنت بعد.',
+			mikrotik_command: ''
+		};
 		var statusCells = {};
+		var heroCurrentVersion;
+		var heroLatestVersion;
+		var heroStatus;
 		var guardTitle;
 		var guardBody;
 		var guardMeta;
+		var internetSummary;
+		var internetDetail;
+		var internetCommandHelp;
+		var internetCommandText;
+		var internetCommandBox;
 		var progressTitle;
 		var progressFill;
 		var progressSummary;
@@ -323,25 +555,36 @@ return view.extend({
 		var manualDetail;
 		var manualUploadProgress = document.createTextNode('-');
 
-		var checkBtn = E('button', {
+		ensureOtaStyles();
+
+		var internetCheckBtn = E('button', {
 			'class': 'btn cbi-button cbi-button-action'
+		}, [ 'فحص الإنترنت' ]);
+
+		var copyMikrotikBtn = E('button', {
+			'class': 'btn cbi-button cbi-button-neutral',
+			'style': 'display:none;'
+		}, [ 'نسخ الأمر' ]);
+
+		var checkBtn = E('button', {
+			'class': 'btn cbi-button cbi-button-action important'
 		}, [ 'فحص التحديث' ]);
 
 		var updateBtn = E('button', {
 			'class': 'btn cbi-button cbi-button-apply'
-		}, [ 'تحديث الآن' ]);
+		}, [ 'تثبيت التحديث' ]);
 
 		var uploadManualBtn = E('button', {
 			'class': 'btn cbi-button cbi-button-action'
-		}, [ 'رفع ملف يدوي' ]);
+		}, [ 'رفع ملف التحديث' ]);
 
 		var applyManualBtn = E('button', {
 			'class': 'btn cbi-button cbi-button-apply'
-		}, [ 'تطبيق الملف اليدوي' ]);
+		}, [ 'تثبيت الملف' ]);
 
 		var clearManualBtn = E('button', {
 			'class': 'btn cbi-button cbi-button-neutral'
-		}, [ 'حذف الملف اليدوي' ]);
+		}, [ 'حذف الملف' ]);
 
 		function createValueCell() {
 			return E('td');
@@ -383,16 +626,16 @@ return view.extend({
 			'style': 'display:none; margin-top:12px;'
 		}, [
 			E('div', {
-				'style': 'padding:14px; border:1px solid #d9e4ea; border-radius:12px; background:linear-gradient(180deg, #fbfdff, #eef5f8);'
+				'class': 'alemprator-ota-progress-card'
 			}, [
 				progressTitle = E('div', {
 					'style': 'font-size:15px; font-weight:600;'
 				}),
 				E('div', {
-					'style': 'height:12px; margin-top:10px; background:#d7e3e8; border-radius:999px; overflow:hidden;'
+					'class': 'alemprator-ota-progress-track'
 				}, [
 					progressFill = E('div', {
-						'style': 'height:100%; width:0%; border-radius:999px; transition:width .8s ease; background:linear-gradient(90deg, #2b8a3e, #74b816);'
+						'style': 'height:100%; width:0%; border-radius:999px; transition:width .8s ease; background:linear-gradient(90deg, #0f766e, #22c55e);'
 					})
 				]),
 				progressSummary = E('div', {
@@ -404,7 +647,10 @@ return view.extend({
 			])
 		]);
 
-		var statusBox = E('div', { 'style': 'margin-top:12px;' }, [
+		var statusBox = E('div', { 'class': 'alemprator-ota-card' }, [
+			E('h3', { 'class': 'alemprator-ota-card-title' }, 'حالة النظام'),
+			E('p', { 'class': 'alemprator-ota-card-desc' }, 'ملخص تفصيلي لهوية الجهاز وحالة آخر فحص.'),
+			E('div', { 'class': 'alemprator-ota-table-wrap' }, [
 			E('table', { 'class': 'table cbi-section-table' }, [
 				createRow('طراز الجهاز', statusCells.deviceModel),
 				createRow('اسم اللوحة', statusCells.boardName),
@@ -425,22 +671,33 @@ return view.extend({
 				createRow('آخر خطأ', statusCells.lastError),
 				createRow('سجل التغييرات', statusCells.changelog)
 			])
+			])
+		]);
+
+		var internetBox = E('div', { 'class': 'alemprator-ota-card' }, [
+			E('h3', { 'class': 'alemprator-ota-card-title' }, 'فحص اتصال الإنترنت'),
+			E('p', { 'class': 'alemprator-ota-card-desc' }, 'افحص اتصال الراوتر بالإنترنت وخادم التحديثات قبل طلب التحديث.'),
+			E('div', { 'class': 'alemprator-ota-actions' }, [ internetCheckBtn ]),
+			internetSummary = E('div', { 'class': 'alemprator-ota-status-line' }, 'لم يتم فحص اتصال الإنترنت بعد.'),
+			internetDetail = E('p', { 'class': 'alemprator-ota-card-desc' }),
+			internetCommandHelp = E('p', {
+				'class': 'alemprator-ota-card-desc',
+				'style': 'display:none;'
+			}, 'انسخ هذا الأمر إلى MikroTik للسماح لهذا الراوتر بالخروج إلى الإنترنت، ثم أعد الفحص.'),
+			internetCommandBox = E('pre', {
+				'class': 'alemprator-ota-code-box',
+				'style': 'display:none;'
+			}, [ internetCommandText = document.createTextNode('') ]),
+			E('div', { 'class': 'alemprator-ota-actions' }, [ copyMikrotikBtn ])
 		]);
 
 		var manualBox = E('div', {
-			'style': 'margin-top:12px;'
+			'class': 'alemprator-ota-card'
 		}, [
-			E('div', {
-				'style': 'padding:14px; border:1px solid #e7dcc5; border-radius:12px; background:linear-gradient(180deg, #fffdf8, #f7f1e7);'
-			}, [
+				E('h3', { 'class': 'alemprator-ota-card-title' }, 'التحديث اليدوي'),
+				E('p', { 'class': 'alemprator-ota-card-desc' }, 'ارفع ملف sysupgrade من جهازك إلى الراوتر ثم ثبّته بعد التحقق المحلي.'),
 				E('div', {
-					'style': 'font-size:15px; font-weight:600;'
-				}, 'التحديث اليدوي من ملف'),
-				E('p', {
-					'style': 'margin:6px 0 10px 0; color:#666;'
-				}, 'يرفع هذا المسار ملف sysupgrade من جهازك إلى الراوتر ثم يفحصه محليًا قبل السماح بالتطبيق.'),
-				E('div', {
-					'style': 'display:flex; gap:10px; flex-wrap:wrap;'
+					'class': 'alemprator-ota-actions'
 				}, [ uploadManualBtn, applyManualBtn, clearManualBtn ]),
 				E('div', {
 					'style': 'margin-top:10px; color:#666;'
@@ -451,7 +708,37 @@ return view.extend({
 				manualDetail = E('div', {
 					'style': 'margin-top:4px; color:#666; unicode-bidi: plaintext;'
 				})
+		]);
+
+		var heroBox = E('div', { 'class': 'alemprator-ota-card alemprator-ota-hero' }, [
+			E('div', { 'class': 'alemprator-ota-hero-grid' }, [
+				E('div', [
+					E('span', { 'class': 'alemprator-ota-eyebrow' }, 'ALEMPRATOR SYSTEM'),
+					E('h2', { 'class': 'alemprator-ota-title' }, 'تحديثات النظام'),
+					E('p', { 'class': 'alemprator-ota-desc' }, 'افحص اتصال الإنترنت، ثم ثبّت آخر إصدار متاح أو ارفع ملف تحديث يدوي عند الحاجة.')
+				]),
+				E('div', { 'class': 'alemprator-ota-facts' }, [
+					E('div', { 'class': 'alemprator-ota-fact' }, [
+						E('span', { 'class': 'alemprator-ota-fact__label' }, 'الإصدار الحالي'),
+						heroCurrentVersion = E('span', { 'class': 'alemprator-ota-fact__value' }, '-')
+					]),
+					E('div', { 'class': 'alemprator-ota-fact' }, [
+						E('span', { 'class': 'alemprator-ota-fact__label' }, 'أحدث إصدار'),
+						heroLatestVersion = E('span', { 'class': 'alemprator-ota-fact__value' }, '-')
+					]),
+					E('div', { 'class': 'alemprator-ota-fact' }, [
+						E('span', { 'class': 'alemprator-ota-fact__label' }, 'الحالة'),
+						heroStatus = E('span', { 'class': 'alemprator-ota-fact__value' }, '-')
+					])
+				])
 			])
+		]);
+
+		var onlineUpdateBox = E('div', { 'class': 'alemprator-ota-card' }, [
+			E('h3', { 'class': 'alemprator-ota-card-title' }, 'التحديث عبر الإنترنت'),
+			E('p', { 'class': 'alemprator-ota-card-desc' }, 'افحص آخر إصدار متاح وثبّته من خادم التحديثات بعد التأكد من اتصال الإنترنت.'),
+			E('div', { 'class': 'alemprator-ota-actions' }, [ checkBtn, updateBtn ]),
+			progressBox
 		]);
 
 		function renderProgress(currentStatus) {
@@ -520,7 +807,7 @@ return view.extend({
 
 			if (!manualInfo.available) {
 				setText(manualSummary, 'لا يوجد ملف يدوي مرفوع حاليًا');
-				setText(manualDetail, 'اضغط على "رفع ملف يدوي" لاختيار ملف sysupgrade من جهازك ثم فحصه قبل التثبيت.');
+				setText(manualDetail, 'اضغط على "رفع ملف التحديث" لاختيار ملف sysupgrade من جهازك ثم فحصه قبل التثبيت.');
 				applyManualBtn.removeAttribute('title');
 				clearManualBtn.removeAttribute('title');
 				return;
@@ -551,6 +838,65 @@ return view.extend({
 				applyManualBtn.setAttribute('title', 'يوجد تحديث يعمل بالفعل.');
 			else
 				applyManualBtn.removeAttribute('title');
+		}
+
+		function applyInternetInfo(nextInternetInfo) {
+			var detailParts = [];
+			var showCommand;
+
+			internetInfo = nextInternetInfo || {};
+			internetSummary.className = 'alemprator-ota-status-line';
+			setText(internetSummary, internetInfo.message || 'لم يتم فحص اتصال الإنترنت بعد.');
+
+			if (internetInfo.status == 'online')
+				internetSummary.classList.add('is-ok');
+			else if (internetInfo.status && internetInfo.status != 'unknown')
+				internetSummary.classList.add('is-warning');
+
+			if (internetInfo.lan_ip)
+				detailParts.push('عنوان الراوتر: ' + internetInfo.lan_ip);
+			if (internetInfo.gateway)
+				detailParts.push('البوابة: ' + internetInfo.gateway);
+			if (internetInfo.server_host)
+				detailParts.push('خادم التحديثات: ' + internetInfo.server_host);
+
+			setText(internetDetail, detailParts.length ? detailParts.join(' | ') : 'اضغط على فحص الإنترنت لقراءة حالة الاتصال.');
+
+			showCommand = internetInfo.status == 'no_internet' || internetInfo.status == 'no_default_route';
+			if (showCommand && internetInfo.mikrotik_command) {
+				internetCommandHelp.style.display = '';
+				internetCommandBox.style.display = '';
+				copyMikrotikBtn.style.display = '';
+				internetCommandText.data = internetInfo.mikrotik_command;
+			}
+			else {
+				internetCommandHelp.style.display = 'none';
+				internetCommandBox.style.display = 'none';
+				copyMikrotikBtn.style.display = 'none';
+				internetCommandText.data = '';
+			}
+		}
+
+		function runInternetCheck() {
+			internetCheckBtn.disabled = true;
+			setText(internetSummary, 'جارٍ فحص اتصال الإنترنت...');
+			internetSummary.className = 'alemprator-ota-status-line';
+
+			return fetchInternetInfo().then(function(nextInternetInfo) {
+				applyInternetInfo(nextInternetInfo);
+				return nextInternetInfo;
+			}).catch(function(err) {
+				var msg = (err && err.message) ? err.message : String(err || '');
+				applyInternetInfo({
+					status: 'error',
+					internet_ok: false,
+					server_ok: false,
+					message: 'تعذر فحص اتصال الإنترنت: ' + msg
+				});
+				return internetInfo;
+			}).finally(function() {
+				internetCheckBtn.disabled = false;
+			});
 		}
 
 		function refreshManualInfo() {
@@ -625,6 +971,9 @@ return view.extend({
 			setText(statusCells.tokenTail, status.token_tail || '-');
 			setText(statusCells.lastError, status.last_error || '-');
 			setText(statusCells.changelog, status.changelog || '-');
+			setText(heroCurrentVersion, status.current_version || '-');
+			setText(heroLatestVersion, status.latest_version || '-');
+			setText(heroStatus, statusText || '-');
 
 			renderProgress(status);
 			applyManualInfo(manualInfo);
@@ -650,9 +999,38 @@ return view.extend({
 			}, delay || 0);
 		}
 
+		internetCheckBtn.addEventListener('click', function() {
+			runInternetCheck();
+		});
+
+		copyMikrotikBtn.addEventListener('click', function() {
+			var command = internetCommandText.data || '';
+
+			if (!command)
+				return;
+
+			copyTextToClipboard(command).then(function() {
+				ui.addNotification(null, E('p', 'تم نسخ أمر MikroTik.'));
+			}).catch(function(err) {
+				var msg = (err && err.message) ? err.message : String(err || '');
+				ui.addNotification(null, E('p', 'تعذر نسخ الأمر: ' + msg));
+			});
+		});
+
 		checkBtn.addEventListener('click', function() {
 			checkBtn.disabled = true;
-			startCheckRequest().then(function(res) {
+			runInternetCheck().then(function(nextInternetInfo) {
+				if (nextInternetInfo && nextInternetInfo.internet_ok === false) {
+					checkBtn.disabled = false;
+					ui.addNotification(null, E('p', 'لا يوجد إنترنت لهذا الراوتر. انسخ أمر MikroTik المقترح ثم أعد الفحص.'));
+					return null;
+				}
+
+				return startCheckRequest();
+			}).then(function(res) {
+				if (!res)
+					return;
+
 				if (res && res.started === false && res.already_running)
 					ui.addNotification(null, E('p', 'يوجد فحص تحديث يعمل بالفعل. سيتم تحديث الحالة الحية أدناه.'));
 				scheduleRefresh(800);
@@ -742,10 +1120,10 @@ return view.extend({
 				manualUploadProgress.data = '-';
 				return refreshManualInfo();
 			}).then(function() {
-				ui.addNotification(null, E('p', 'تم حذف الملف اليدوي من الراوتر.'));
+				ui.addNotification(null, E('p', 'تم حذف ملف التحديث من الراوتر.'));
 			}).catch(function(err) {
 				var msg = (err && err.message) ? err.message : String(err || '');
-				ui.addNotification(null, E('p', 'تعذر حذف الملف اليدوي: ' + msg));
+				ui.addNotification(null, E('p', 'تعذر حذف ملف التحديث: ' + msg));
 			}).finally(function() {
 				applyManualInfo(manualInfo);
 			});
@@ -770,6 +1148,7 @@ return view.extend({
 			});
 		});
 
+		applyInternetInfo(internetInfo);
 		applyStatus(status);
 
 		if (refreshTimer)
@@ -786,16 +1165,16 @@ return view.extend({
 			}
 		}, { once: true });
 
-		return E('div', { 'class': 'cbi-map' }, [
-			E('h2', 'تحديث OTA'),
-			E('p', 'تعرض هذه الصفحة هوية OTA وحالة التحديث، وتسمح بفحص التحديث من الخادم أو تطبيق تحديث يدوي من ملف محلي.'),
-			E('div', { 'style': 'display:flex; gap:10px; margin: 12px 0;' }, [ checkBtn, updateBtn ])
-		].concat([
+		return E('div', { 'class': 'cbi-map alemprator-ota-shell' }, [
+			heroBox,
 			guardBox,
-			progressBox,
-			manualBox,
+			E('div', { 'class': 'alemprator-ota-grid' }, [
+				onlineUpdateBox,
+				internetBox,
+				manualBox
+			]),
 			statusBox
-		]));
+		]);
 	},
 
 	handleSaveApply: null,

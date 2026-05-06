@@ -1,52 +1,109 @@
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
+import {
+  firmwareModelData,
+  getCliTarget,
+  getModelEntry,
+  otaServerRoot,
+  releaseOverwriteAllowed,
+  trimTrailingSlash,
+} from './model-registry.mjs';
 
 const prisma = new PrismaClient();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, '..');
-const artifactRelativePath = 'public/firmware/AR-07-102H-1.1.0-test.bin';
-const artifactPath = path.join(projectRoot, artifactRelativePath);
-const artifactPublicPath = '/firmware/AR-07-102H-1.1.0-test.bin';
-const model = 'AR-07-102H';
-const version = '1.1.0-test';
+const target = getCliTarget('ar07', 'ALEMPRATOR_TEST_RELEASE_TARGET');
+const allowOverwrite = releaseOverwriteAllowed();
 
-function trimTrailingSlash(value) {
-  return value.endsWith('/') ? value.slice(0, -1) : value;
+async function ensureFirmwareModel(tx, entry) {
+  const modelData = firmwareModelData(entry);
+
+  return tx.firmwareModel.upsert({
+    where: {
+      modelKey: modelData.modelKey,
+    },
+    update: {
+      slug: modelData.slug,
+      displayName: modelData.displayName,
+      boardIdentifier: modelData.boardIdentifier,
+      artifactKind: modelData.artifactKind,
+      notes: modelData.notes,
+      active: true,
+    },
+    create: {
+      slug: modelData.slug,
+      modelKey: modelData.modelKey,
+      displayName: modelData.displayName,
+      boardIdentifier: modelData.boardIdentifier,
+      artifactKind: modelData.artifactKind,
+      notes: modelData.notes,
+      active: true,
+    },
+  });
 }
 
 async function main() {
+  const entry = await getModelEntry(target);
+  const testRelease = entry.testRelease;
+
+  if (!testRelease) {
+    throw new Error(`Model "${target}" does not define a test release seed.`);
+  }
+
+  const artifactPath = path.join(otaServerRoot, testRelease.artifactRelativePath);
+  const artifactPublicPath = testRelease.artifactPublicPath;
+  const model = entry.dashboard.modelKey;
+  const version = entry.firmware.version;
+  const versionCode = entry.firmware.versionCode ?? version;
   const [buffer, fileStats] = await Promise.all([readFile(artifactPath), stat(artifactPath)]);
   const sha256 = createHash('sha256').update(buffer).digest('hex');
-  const publicBaseUrl = trimTrailingSlash(process.env.FIRMWARE_PUBLIC_BASE_URL ?? 'http://localhost:8080');
+  const publicBaseUrl = trimTrailingSlash(process.env.FIRMWARE_PUBLIC_BASE_URL ?? testRelease.publicBaseUrlDefault);
   const downloadUrl = `${publicBaseUrl}${artifactPublicPath}`;
+  const channel = testRelease.channel ?? 'stable';
+
+  const existingRelease = await prisma.release.findFirst({
+    where: {
+      model,
+      version,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingRelease && !allowOverwrite) {
+    throw new Error(
+      `Release ${model} ${version} already exists. Re-run with --allow-overwrite or ALEMPRATOR_ALLOW_RELEASE_OVERWRITE=1 to replace it.`,
+    );
+  }
 
   await prisma.$transaction(async (tx) => {
-    await tx.releaseFile.deleteMany({
-      where: {
-        release: {
+    const firmwareModel = await ensureFirmwareModel(tx, entry);
+
+    if (allowOverwrite) {
+      await tx.releaseFile.deleteMany({
+        where: {
+          release: {
+            model,
+            version,
+          },
+        },
+      });
+
+      await tx.release.deleteMany({
+        where: {
           model,
           version,
         },
-      },
-    });
-
-    await tx.release.deleteMany({
-      where: {
-        model,
-        version,
-      },
-    });
+      });
+    }
 
     await tx.release.updateMany({
       where: {
         model,
         active: true,
-        channel: 'stable',
+        channel,
       },
       data: {
         active: false,
@@ -56,15 +113,16 @@ async function main() {
     await tx.release.create({
       data: {
         model,
+        firmwareModelId: firmwareModel.id,
         version,
-        versionCode: '110-test',
+        versionCode,
         downloadUrl,
         sha256,
-        changelog: 'Smoke-test release for OTA backend validation only.',
+        changelog: testRelease.changelog,
         force: false,
         rolloutPercent: 100,
         active: true,
-        channel: 'stable',
+        channel,
         files: {
           create: [
             {
@@ -79,7 +137,7 @@ async function main() {
     });
   });
 
-  console.log(JSON.stringify({ model, version, downloadUrl, sha256 }, null, 2));
+  console.log(JSON.stringify({ target, model, version, downloadUrl, sha256, overwritten: Boolean(existingRelease) }, null, 2));
 }
 
 main()

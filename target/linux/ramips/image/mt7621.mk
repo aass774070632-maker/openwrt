@@ -2002,6 +2002,24 @@ define Device/kt_km14-102h
 endef
 TARGET_DEVICES += kt_km14-102h
 
+define Device/kt_km12-007h
+  $(Device/nand)
+  DEVICE_VENDOR := KT 
+  DEVICE_MODEL := KM12-007H
+  DEVICE_DTS := mt7621_kt_km12-007h
+  SUPPORTED_DEVICES := kt,km12-007h
+  UIMAGE_NAME := MT7621-RFB-AX-NAND_0.0.00
+  KERNEL_LOADADDR := 0x80001000
+  KERNEL_ENTRY := 0x80001000
+  KERNEL := kernel-bin | lzma | fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb
+  SUBPAGESIZE := 2048
+  IMAGE_SIZE := 129280k
+  IMAGES += factory.bin
+  IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-ubi | check-size
+  DEVICE_PACKAGES += kmod-mt7915-firmware wpad-basic-mbedtls kmod-usb-ledtrig-usbport \
+	kmod-usb3 uboot-envtools kmod-usb-core kmod-usb-ohci kmod-usb-ehci kmod-usb-storage
+endef
+TARGET_DEVICES += kt_km12-007h
 
 define Device/mediatek_ap-mt7621a-v60
   $(Device/dsa-migration)

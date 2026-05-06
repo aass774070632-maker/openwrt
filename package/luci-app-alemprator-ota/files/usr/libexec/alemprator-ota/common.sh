@@ -9,7 +9,7 @@ STATE_DIR="/tmp/alemprator-ota"
 PERSIST_DIR="/etc/alemprator"
 RETRY_FILE="$PERSIST_DIR/ota.retry"
 REGISTERED_FILE="$PERSIST_DIR/registered"
-MANUAL_IMAGE_PATH="$STATE_DIR/manual-update.bin"
+MANUAL_IMAGE_PATH="/tmp/alemprator-ota/manual-update.bin"
 
 SERVER_URL=""
 REGISTER_PATH=""
@@ -30,6 +30,7 @@ HMAC_SECRET=""
 CONNECT_TIMEOUT="20"
 UPGRADE_EXPECTED_SECONDS="180"
 MODEL_FILE="/etc/model"
+MODEL_IDENTITY_FILE="/etc/alemprator/model-identities"
 TOKEN_FILE="/etc/alemprator/device.token"
 VERSION_FILE="/etc/alemprator/firmware-version"
 STATE_FILE="/tmp/alemprator-ota/state.env"
@@ -123,6 +124,7 @@ load_config() {
 	config_get HMAC_SECRET "$SECTION" hmac_secret ""
 	config_get CONNECT_TIMEOUT "$SECTION" connect_timeout "20"
 	config_get MODEL_FILE "$SECTION" model_file "/etc/model"
+	config_get MODEL_IDENTITY_FILE "$SECTION" model_identity_file "/etc/alemprator/model-identities"
 	config_get TOKEN_FILE "$SECTION" token_file "/etc/alemprator/device.token"
 	config_get VERSION_FILE "$SECTION" version_file "/etc/alemprator/firmware-version"
 	config_get STATE_FILE "$SECTION" state_file "/tmp/alemprator-ota/state.env"
@@ -273,20 +275,66 @@ get_board_name() {
 	ubus call system board 2>/dev/null | jsonfilter -e '@.board_name'
 }
 
+get_model_identity_field() {
+	local board field field_index
+	board="$1"
+	field="$2"
+
+	[ -n "$board" ] || board="$(get_board_name)"
+	[ -n "$board" ] || return 1
+	[ -s "$MODEL_IDENTITY_FILE" ] || return 1
+
+	case "$field" in
+		model_key) field_index=2 ;;
+		firmware_version) field_index=3 ;;
+		version_code) field_index=4 ;;
+		model_id) field_index=5 ;;
+		*) return 1 ;;
+	esac
+
+	awk -F '|' -v board="$board" -v field_index="$field_index" '
+		$1 == board && $0 !~ /^#/ {
+			print $field_index
+			found = 1
+			exit
+		}
+		END {
+			if (found)
+				exit 0
+			exit 1
+		}
+	' "$MODEL_IDENTITY_FILE"
+}
+
+get_expected_device_model() {
+	get_model_identity_field "$(get_board_name)" model_key 2>/dev/null && return 0
+	ubus call system board 2>/dev/null | jsonfilter -e '@.model'
+}
+
 get_device_model() {
 	if [ -s "$MODEL_FILE" ]; then
 		head -n1 "$MODEL_FILE"
 		return 0
 	fi
-	ubus call system board 2>/dev/null | jsonfilter -e '@.model'
+	get_expected_device_model
+}
+
+get_board_firmware_version() {
+	get_model_identity_field "$(get_board_name)" firmware_version
 }
 
 get_current_version() {
-	local version revision
+	local version revision board_version
 	if [ -s "$VERSION_FILE" ]; then
-		head -n1 "$VERSION_FILE"
+		version="$(head -n1 "$VERSION_FILE")"
+		board_version="$(get_board_firmware_version 2>/dev/null || true)"
+		[ -n "$board_version" ] && [ "$version" != "$board_version" ] && echo "$board_version" && return 0
+		echo "$version"
 		return 0
 	fi
+
+	board_version="$(get_board_firmware_version 2>/dev/null || true)"
+	[ -n "$board_version" ] && echo "$board_version" && return 0
 
 	version="$(ubus call system board 2>/dev/null | jsonfilter -e '@.release.version')"
 	revision="$(ubus call system board 2>/dev/null | jsonfilter -e '@.release.revision')"
@@ -373,9 +421,19 @@ ensure_token() {
 }
 
 ensure_model_file() {
-	[ -s "$MODEL_FILE" ] && return 0
+	local expected current
+	expected="$(get_expected_device_model 2>/dev/null || true)"
+	current="$(head -n1 "$MODEL_FILE" 2>/dev/null)"
+
+	[ -n "$expected" ] && [ "$current" = "$expected" ] && return 0
+	[ -z "$expected" ] && [ -s "$MODEL_FILE" ] && return 0
+
 	mkdir -p "$(dirname "$MODEL_FILE")"
-	get_device_model > "$MODEL_FILE"
+	if [ -n "$expected" ]; then
+		printf '%s\n' "$expected" > "$MODEL_FILE"
+	else
+		get_device_model > "$MODEL_FILE"
+	fi
 }
 
 device_rollout_bucket() {
@@ -601,6 +659,41 @@ compare_is_newer() {
 	opkg compare-versions "$incoming" '>' "$current"
 }
 
+version_model_marker() {
+	local version board model_key firmware_version version_code model_id
+	version="$1"
+
+	[ -s "$MODEL_IDENTITY_FILE" ] || { echo ""; return 0; }
+	while IFS='|' read -r board model_key firmware_version version_code model_id; do
+		case "$board" in ''|'#'*) continue ;; esac
+		[ -n "$model_id" ] || continue
+		case "$version" in
+			*"$model_id"*) echo "$model_id"; return 0 ;;
+		esac
+	done < "$MODEL_IDENTITY_FILE"
+
+	echo ""
+}
+
+should_accept_update_version() {
+	local incoming current incoming_marker current_marker
+	incoming="$1"
+	current="$2"
+
+	[ -n "$incoming" ] || return 1
+	[ "$incoming" != "$current" ] || return 1
+
+	if compare_is_newer "$incoming" "$current"; then
+		return 0
+	fi
+
+	incoming_marker="$(version_model_marker "$incoming")"
+	current_marker="$(version_model_marker "$current")"
+	[ -n "$incoming_marker" ] || return 1
+	[ -n "$current_marker" ] || return 1
+	[ "$incoming_marker" != "$current_marker" ]
+}
+
 apply_sysupgrade() {
 	local image force_flag args
 	image="$1"
@@ -609,8 +702,10 @@ apply_sysupgrade() {
 	sysupgrade -T "$image" || return 1
 
 	args=""
+	# OTA upgrades must preserve configuration. A wiped config re-enables
+	# firstboot provisioning, which resets LAN to 192.168.1.20 on next boot.
 	if [ "$KEEP_CONFIG" != "1" ]; then
-		args="$args -n"
+		logger -t alemprator-ota "ignoring keep_config=$KEEP_CONFIG during OTA sysupgrade to preserve device configuration"
 	fi
 	if [ "$force_flag" = "1" ] && [ "$ALLOW_FORCE" = "1" ]; then
 		args="$args -F"

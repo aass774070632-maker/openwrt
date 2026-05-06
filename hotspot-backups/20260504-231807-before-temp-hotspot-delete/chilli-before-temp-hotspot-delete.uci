@@ -1,0 +1,24 @@
+package chilli
+
+config chilli
+	option disabled '0'
+	option tundev 'tun0'
+	option ipup '/etc/chilli/up.sh'
+	option ipdown '/etc/chilli/down.sh'
+	option radiusserver1 '192.168.1.2'
+	option radiusserver2 '192.168.1.2'
+	option uamserver 'http://192.168.10.1/hotspot/terms.html'
+	option network 'alemprator_setup'
+	option net '192.168.10.0/24'
+	option dynip '192.168.10.0/24'
+	option uamlisten '192.168.10.1'
+	option uamport '3990'
+	option uamhomepage 'http://192.168.10.1/hotspot/terms.html'
+	option radiussecret '123456'
+	option radiusauthport '1812'
+	option radiusacctport '1813'
+	option dns1 '8.8.8.8'
+	option dns2 '82.114.163.31'
+	option uamanydns '1'
+	option radiusnasid 'KT-KM14-102H-HOTSPOT'
+

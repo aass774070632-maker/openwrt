@@ -71,13 +71,16 @@ download_and_verify() {
 
 run_check_cycle() {
 	local response has_update server_version server_sha server_force server_rollout bucket should_rollout server_changelog server_size url
-	local allow_now block_reason bypass_retry
+	local allow_now block_reason bypass_retry check_only
 
 	bypass_retry=0
-	[ "$1" = "force-check" ] && bypass_retry=1
+	check_only=0
+	[ "$1" = "force-check" ] && { bypass_retry=1; check_only=1; }
+	[ "$1" = "check-only" ] && check_only=1
 	[ "$1" = "force-update" ] && bypass_retry=1
 
 	load_config
+	[ "$check_only" = "1" ] && AUTO_UPGRADE=0
 	load_state
 	ensure_model_file
 	ensure_token >/dev/null
@@ -132,7 +135,7 @@ run_check_cycle() {
 	changelog="${server_changelog:-}"
 
 	if [ "$has_update" = "1" ] || [ "$has_update" = "true" ]; then
-		if [ -n "$server_version" ] && compare_is_newer "$server_version" "$current_version"; then
+		if should_accept_update_version "$server_version" "$current_version"; then
 			update_available=1
 		fi
 	fi
@@ -256,11 +259,9 @@ case "$1" in
 		run_check_cycle
 		;;
 	check-only)
-		AUTO_UPGRADE=0
-		run_check_cycle
+		run_check_cycle check-only
 		;;
 	force-check)
-		AUTO_UPGRADE=0
 		run_check_cycle force-check
 		;;
 	update-now)

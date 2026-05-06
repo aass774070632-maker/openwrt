@@ -86,6 +86,10 @@ ramips_setup_interfaces()
 	zyxel,nr7101)
 		ucidef_set_interfaces_lan_wan "lan" "wan"
 		;;
+  kt,km15-103h|\
+  kt,km12-007h)
+		ucidef_set_interfaces_lan_wan  "lan1 lan2 lan3 lan4" "wan"
+		;;
 	asiarf,ap7621-nv1|\
 	beeline,smartbox-flash|\
 	beeline,smartbox-giga|\

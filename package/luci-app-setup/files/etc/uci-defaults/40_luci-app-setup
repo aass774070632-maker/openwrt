@@ -3,27 +3,54 @@
 touch /etc/config/setup
 touch /etc/config/wireless
 
+board_name="$(ubus call system board 2>/dev/null | jsonfilter -e '@.board_name' 2>/dev/null)"
+default_setup_ipaddr="192.168.1.20"
+default_setup_netmask="255.255.255.0"
+default_wifi_ssid="ALemprator-KT-KM12-007H"
+other_wifi_ssid="ALemprator-KT-KM14-102H"
+
+case "$board_name" in
+	kt,km14-102h)
+		default_wifi_ssid="ALemprator-KT-KM14-102H"
+		other_wifi_ssid="ALemprator-KT-KM12-007H"
+		;;
+	kt,km12-007h|'')
+		;;
+esac
+
 lan_ipaddr="$(uci -q get network.lan.ipaddr)"
 lan_netmask="$(uci -q get network.lan.netmask)"
 wifi_ssid="$(uci -q get wireless.@wifi-iface[0].ssid)"
 wifi_key="$(uci -q get wireless.@wifi-iface[0].key)"
 
-[ -n "$lan_ipaddr" ] || lan_ipaddr="192.168.1.1"
+[ -n "$lan_ipaddr" ] || lan_ipaddr="$default_setup_ipaddr"
 [ -n "$lan_netmask" ] || lan_netmask="255.255.255.0"
-[ -n "$wifi_ssid" ] || wifi_ssid="ALemprator-KT-KM14-102H"
-[ "$wifi_ssid" = "OpenWrt" ] && wifi_ssid="ALemprator-KT-KM14-102H"
-
-default_setup_ipaddr="192.168.1.20"
-default_setup_netmask="255.255.255.0"
+[ -n "$wifi_ssid" ] || wifi_ssid="$default_wifi_ssid"
+[ "$wifi_ssid" = "OpenWrt" ] && wifi_ssid="$default_wifi_ssid"
+[ "$wifi_ssid" = "$other_wifi_ssid" ] && wifi_ssid="$default_wifi_ssid"
 
 has_setup_default=0
 uci -q get setup.default >/dev/null && has_setup_default=1
 
 if [ "$has_setup_default" = 1 ]; then
+	existing_lan_ipaddr="$(uci -q get setup.default.lan_ipaddr)"
+	existing_wifi_ssid="$(uci -q get setup.default.wifi_ssid)"
+	case "$existing_lan_ipaddr" in
+		''|192.168.1.1|192.168.1.21|192.168.1.22) uci -q set setup.default.lan_ipaddr="$default_setup_ipaddr" ;;
+	esac
+	uci -q get setup.default.lan_netmask >/dev/null || uci -q set setup.default.lan_netmask="$default_setup_netmask"
+	case "$existing_wifi_ssid" in
+		''|OpenWrt|Alemprator|ALemprator|"$other_wifi_ssid") uci -q set setup.default.wifi_ssid="$wifi_ssid" ;;
+	esac
 	uci -q get setup.default.AlwSettings >/dev/null || uci -q set setup.default.AlwSettings='AL'
 	uci -q get setup.default.wifi_ssid_5g_mode >/dev/null || uci -q set setup.default.wifi_ssid_5g_mode='derived'
 	uci -q get setup.default.wifi_ssid_5g >/dev/null || uci -q set setup.default.wifi_ssid_5g=''
 	uci -q get setup.default.wifi_ssid_vlan >/dev/null || uci -q set setup.default.wifi_ssid_vlan=''
+	if ! uci -q get setup.default.wifi_ssid_vlan_2g >/dev/null; then
+		existing_vlan_ssid="$(uci -q get setup.default.wifi_ssid_vlan)"
+		uci -q set setup.default.wifi_ssid_vlan_2g="$existing_vlan_ssid"
+	fi
+	uci -q get setup.default.wifi_ssid_vlan_5g >/dev/null || uci -q set setup.default.wifi_ssid_vlan_5g=''
 	uci -q get setup.default.channel_2g >/dev/null || uci -q set setup.default.channel_2g='auto'
 	uci -q get setup.default.channel_5g >/dev/null || uci -q set setup.default.channel_5g='auto'
 	uci -q get setup.default.wifi_mode_2g >/dev/null || uci -q set setup.default.wifi_mode_2g='ax'
@@ -49,6 +76,8 @@ uci -q batch <<EOF >/dev/null
 	set setup.default.wifi_ssid_5g_mode='derived'
 	set setup.default.wifi_ssid_5g=''
 	set setup.default.wifi_ssid_vlan=''
+	set setup.default.wifi_ssid_vlan_2g=''
+	set setup.default.wifi_ssid_vlan_5g=''
 	set setup.default.wifi_key='$wifi_key'
 	set setup.default.uplink_ssid=''
 	set setup.default.uplink_key=''
@@ -58,7 +87,6 @@ uci -q batch <<EOF >/dev/null
 	set setup.default.mesh_band='2g'
 	set setup.default.is_vlan='0'
 	set setup.default.vlan_id='10'
-	set setup.default.wifi_ssid_vlan=''
 	set setup.default.channel_2g='auto'
 	set setup.default.channel_5g='auto'
 	set setup.default.wifi_mode_2g='ax'

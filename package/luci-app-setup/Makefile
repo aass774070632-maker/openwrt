@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-setup
 PKG_VERSION:=1.0
-PKG_RELEASE:=90
+PKG_RELEASE:=94
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKGARCH:=all
 PKG_LICENSE:=GPL-3.0-only
@@ -30,17 +30,39 @@ define Package/luci-app-setup/postinst
 [ -n "$$IPKG_INSTROOT" ] && exit 0
 
 base_ssid="$$(uci -q get setup.default.wifi_ssid)"
-manual_ssid="$$(uci -q get setup.default.wifi_ssid_vlan)"
-secondary_2g="$${manual_ssid:-$${base_ssid}_VLAN}"
-secondary_5g="$${manual_ssid:+$${manual_ssid}_5G}"
-secondary_5g="$${secondary_5g:-$${base_ssid}_VLAN_5G}"
+manual_ssid_2g="$$(uci -q get setup.default.wifi_ssid_vlan_2g)"
+[ -n "$$manual_ssid_2g" ] || manual_ssid_2g="$$(uci -q get setup.default.wifi_ssid_vlan)"
+manual_ssid_5g="$$(uci -q get setup.default.wifi_ssid_vlan_5g)"
+primary_ssid_5g_mode="$$(uci -q get setup.default.wifi_ssid_5g_mode)"
+primary_ssid_5g_custom="$$(uci -q get setup.default.wifi_ssid_5g)"
+lan_ipaddr="$$(uci -q get network.lan.ipaddr)"
+[ -n "$$lan_ipaddr" ] || lan_ipaddr="$$(uci -q get setup.default.lan_ipaddr)"
+ip_suffix=''
+case "$$lan_ipaddr" in
+	*.*.*.*) ip_suffix="$$(printf '%s' "$$lan_ipaddr" | awk -F. 'NF == 4 { print $$3 "." $$4 }')" ;;
+esac
+append_ip_suffix() {
+	local value="$$1"
+	[ "$$(uci -q get setup.default.wifi_ssid_vlan_ip_suffix)" = '1' ] || { printf '%s' "$$value"; return; }
+	[ -n "$$value" ] || { printf '%s' "$$value"; return; }
+	[ -n "$$ip_suffix" ] || { printf '%s' "$$value"; return; }
+	case "$$value" in *"_$$ip_suffix") printf '%s' "$$value" ;; *) printf '%s_%s' "$$value" "$$ip_suffix" ;; esac
+}
+secondary_2g="$${manual_ssid_2g:-$${base_ssid}_VLAN}"
+secondary_2g="$$(append_ip_suffix "$$secondary_2g")"
+secondary_5g="$${manual_ssid_5g:-$${secondary_2g}_5G}"
+[ -n "$$manual_ssid_5g" ] && secondary_5g="$$(append_ip_suffix "$$manual_ssid_5g")"
+primary_2g="$$(append_ip_suffix "$$base_ssid")"
+primary_5g="$${primary_2g}_5G"
+[ "$$primary_ssid_5g_mode" = 'custom' ] && [ -n "$$primary_ssid_5g_custom" ] && primary_5g="$$(append_ip_suffix "$$primary_ssid_5g_custom")"
 changed=0
 
 [ -n "$$base_ssid" ] || exit 0
 
 for section in $$(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.=]*\)=wifi-iface$$/\1/p"); do
 	[ "$$(uci -q get wireless.$$section.mode)" = 'ap' ] || continue
-	[ "$$(uci -q get wireless.$$section.network)" = 'wizardvlan' ] || continue
+	network="$$(uci -q get wireless.$$section.network)"
+	[ "$$network" = 'lan' ] || [ "$$network" = 'wizardvlan' ] || continue
 
 	device="$$(uci -q get wireless.$$section.device)"
 	[ -n "$$device" ] || continue
@@ -48,8 +70,13 @@ for section in $$(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.=]*\
 	[ "$$band" = '2g' ] || [ "$$band" = '5g' ] || continue
 
 	ssid="$$(uci -q get wireless.$$section.ssid)"
-	new_ssid="$$secondary_2g"
-	[ "$$band" = '5g' ] && new_ssid="$$secondary_5g"
+	if [ "$$network" = 'lan' ]; then
+		new_ssid="$$primary_2g"
+		[ "$$band" = '5g' ] && new_ssid="$$primary_5g"
+	else
+		new_ssid="$$secondary_2g"
+		[ "$$band" = '5g' ] && new_ssid="$$secondary_5g"
+	fi
 	[ "$$ssid" = "$$new_ssid" ] && continue
 
 	uci -q set wireless.$$section.ssid="$$new_ssid"
@@ -97,7 +124,7 @@ define Package/luci-app-setup/install
 	$(INSTALL_DATA) ./files/usr/share/rpcd/acl.d/luci-app-setup.json $(1)/usr/share/rpcd/acl.d/
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/setup
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/setup.js $(1)/www/luci-static/resources/view/setup/
-	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/setup.js $(1)/www/luci-static/resources/view/setup/setup_r90.js
+	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/setup.js $(1)/www/luci-static/resources/view/setup/setup_r93.js
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/landing.js $(1)/www/luci-static/resources/view/setup/
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/landing.js $(1)/www/luci-static/resources/view/setup/landing_r2.js
 	$(INSTALL_DIR) $(1)/usr/libexec/alemprator-setup

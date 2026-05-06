@@ -1,11 +1,53 @@
 #!/bin/sh
 
 model_file="/etc/model"
+version_file="/etc/alemprator/firmware-version"
+identity_file="/etc/alemprator/model-identities"
 board_name="$(ubus call system board 2>/dev/null | jsonfilter -e '@.board_name')"
+model_key=""
+firmware_version=""
 
-if [ ! -s "$model_file" ]; then
+read_identity_field() {
+	local field field_index
+	field="$1"
+
+	[ -n "$board_name" ] || return 1
+	[ -s "$identity_file" ] || return 1
+
+	case "$field" in
+		model_key) field_index=2 ;;
+		firmware_version) field_index=3 ;;
+		*) return 1 ;;
+	esac
+
+	awk -F '|' -v board="$board_name" -v field_index="$field_index" '
+		$1 == board && $0 !~ /^#/ {
+			print $field_index
+			found = 1
+			exit
+		}
+		END {
+			if (found)
+				exit 0
+			exit 1
+		}
+	' "$identity_file"
+}
+
+model_key="$(read_identity_field model_key 2>/dev/null || true)"
+firmware_version="$(read_identity_field firmware_version 2>/dev/null || true)"
+
+if [ -n "$model_key" ]; then
+	current_model="$(cat "$model_file" 2>/dev/null)"
+	[ "$current_model" = "$model_key" ] || printf '%s\n' "$model_key" > "$model_file"
+elif [ ! -s "$model_file" ]; then
 	[ -n "$board_name" ] || board_name="unknown"
 	printf '%s\n' "$board_name" > "$model_file"
+fi
+
+if [ -n "$firmware_version" ]; then
+	current_version="$(cat "$version_file" 2>/dev/null)"
+	[ "$current_version" = "$firmware_version" ] || printf '%s\n' "$firmware_version" > "$version_file"
 fi
 
 uci -q batch <<EOF >/dev/null
@@ -29,6 +71,7 @@ uci -q batch <<EOF >/dev/null
 	set alemprator_ota.main.hmac_secret=''
 	set alemprator_ota.main.connect_timeout='20'
 	set alemprator_ota.main.model_file='/etc/model'
+	set alemprator_ota.main.model_identity_file='/etc/alemprator/model-identities'
 	set alemprator_ota.main.token_file='/etc/alemprator/device.token'
 	set alemprator_ota.main.version_file='/etc/alemprator/firmware-version'
 	set alemprator_ota.main.state_file='/tmp/alemprator-ota/state.env'
