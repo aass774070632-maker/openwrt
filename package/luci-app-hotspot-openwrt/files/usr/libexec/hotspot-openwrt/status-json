@@ -17,20 +17,27 @@ portal_storage_path="$(uci -q get hotspot_openwrt.main.portal_storage_path || ec
 captive_notify="$(uci -q get hotspot_openwrt.main.captive_notify || echo 0)"
 mac_cookie_enabled="$(uci -q get hotspot_openwrt.main.mac_cookie_enabled || echo 0)"
 browser_cookie_enabled="$(uci -q get hotspot_openwrt.main.browser_cookie_enabled || echo 0)"
+terms_enabled="$(uci -q get hotspot_openwrt.main.terms_enabled || echo 0)"
+open_status_page="$(uci -q get hotspot_openwrt.main.open_status_page || echo always)"
 session_timeout="$(uci -q get hotspot_openwrt.main.session_timeout || echo none)"
 idle_timeout="$(uci -q get hotspot_openwrt.main.idle_timeout || echo none)"
 keepalive_timeout="$(uci -q get hotspot_openwrt.main.keepalive_timeout || echo 00:02:00)"
 status_autorefresh="$(uci -q get hotspot_openwrt.main.status_autorefresh || echo 00:01:00)"
 shared_users="$(uci -q get hotspot_openwrt.main.shared_users || echo 3)"
 rate_limit_rx_tx="$(uci -q get hotspot_openwrt.main.rate_limit_rx_tx || echo '')"
-mac_cookie_timeout="$(uci -q get hotspot_openwrt.main.mac_cookie_timeout || echo '3d 00:00:00')"
 socket_path="/var/run/chilli_hotspot_openwrt.sock"
+mac_cookie_helper='/usr/libexec/hotspot-openwrt/mac-cookies'
+watchdog_pid_file='/var/run/hotspot-openwrt-presence-watchdog.pid'
 last_client=''
 clients_total='0'
 active_clients='0'
 waiting_clients='0'
+active_list='[]'
+hosts_list='[]'
 ip_bindings_total='0'
+ip_bindings_blocked_total='0'
 cookies_total='0'
+cookies_list='[]'
 bridge_has_ip='false'
 route_ok='false'
 tun0='false'
@@ -39,7 +46,8 @@ tun0='false'
 [ -n "$(ip -4 addr show br-$subscriber_interface 2>/dev/null | awk '/inet / { print $2; exit }')" ] && bridge_has_ip='true'
 
 if [ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1; then
-	client_summary="$(chilli_query -s "$socket_path" list 2>/dev/null | awk '
+	client_lines="$(chilli_query -s "$socket_path" list 2>/dev/null)"
+	client_summary="$(printf '%s\n' "$client_lines" | awk '
 		NF >= 3 {
 			total++
 			if ($3 == "pass") active++
@@ -52,9 +60,34 @@ if [ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1; then
 	active_clients="$(printf '%s' "$client_summary" | awk '{ print $2 + 0 }')"
 	waiting_clients="$(printf '%s' "$client_summary" | awk '{ print $3 + 0 }')"
 	last_client="$(printf '%s' "$client_summary" | cut -d' ' -f4-)"
+	active_list="$(printf '%s\n' "$client_lines" | awk '
+		function esc(value) { gsub(/\\/, "\\\\", value); gsub(/\"/, "\\\"", value); return value }
+		function octets(value) { split(value, parts, "/"); return parts[1] + 0 }
+		function row(flag) {
+			return sprintf("{\"mac\":\"%s\",\"ip\":\"%s\",\"state\":\"%s\",\"flag\":\"%s\",\"session_id\":\"%s\",\"username\":\"%s\",\"input_octets\":%d,\"output_octets\":%d,\"url\":\"%s\"}", esc($1), esc($2), esc($3), flag, esc($4), esc($6), octets($9), octets($10), esc($15))
+		}
+		NF >= 3 && $3 == "pass" { if (items != "") items = items ","; items = items row("A") }
+		END { printf "[%s]", items }
+	')"
+	hosts_list="$(printf '%s\n' "$client_lines" | awk '
+		function esc(value) { gsub(/\\/, "\\\\", value); gsub(/\"/, "\\\"", value); return value }
+		function octets(value) { split(value, parts, "/"); return parts[1] + 0 }
+		function row(flag) {
+			return sprintf("{\"mac\":\"%s\",\"ip\":\"%s\",\"state\":\"%s\",\"flag\":\"%s\",\"session_id\":\"%s\",\"username\":\"%s\",\"input_octets\":%d,\"output_octets\":%d,\"url\":\"%s\"}", esc($1), esc($2), esc($3), flag, esc($4), esc($6), octets($9), octets($10), esc($15))
+		}
+		NF >= 3 && $3 != "pass" { if (items != "") items = items ","; items = items row("H") }
+		END { printf "[%s]", items }
+	')"
 fi
 
 ip_bindings_total="$(uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | wc -l | awk '{ print $1 + 0 }')"
+ip_bindings_blocked_total="$(uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | sed "s/^.*='//;s/'$//" | awk 'tolower($1) == "blocked" { total++ } END { print total + 0 }')"
+
+if [ -x "$mac_cookie_helper" ]; then
+	cookies_total="$($mac_cookie_helper count 2>/dev/null || echo 0)"
+	cookies_list="$($mac_cookie_helper list-json 2>/dev/null || echo '[]')"
+	case "$cookies_list" in \[*\]) ;; *) cookies_list='[]' ;; esac
+fi
 
 if [ "$tun0" = 'true' ] && ip route show 2>/dev/null | grep -q "^$(printf '%s' "$hotspot_ip" | awk -F. '{ print $1 "." $2 "." $3 }')\.0/.* dev tun0"; then
 	route_ok='true'
@@ -70,14 +103,20 @@ printf '"route_ok":%s,' "$route_ok"
 printf '"clients_total":%s,' "$clients_total"
 printf '"active_clients":%s,' "$active_clients"
 printf '"waiting_clients":%s,' "$waiting_clients"
+printf '"active_list":%s,' "$active_list"
+printf '"hosts_list":%s,' "$hosts_list"
 printf '"ip_bindings_total":%s,' "$ip_bindings_total"
+printf '"ip_bindings_blocked_total":%s,' "$ip_bindings_blocked_total"
 printf '"cookies_total":%s,' "$cookies_total"
+printf '"cookies_list":%s,' "$cookies_list"
 printf '"last_client":"%s",' "$(json_escape "$last_client")"
 printf '"hotspot_ip":"%s",' "$(json_escape "$hotspot_ip")"
 printf '"subscriber_interface":"%s",' "$(json_escape "$subscriber_interface")"
 printf '"portal_path":"%s",' "$(json_escape "$portal_path")"
 printf '"portal_storage_path":"%s",' "$(json_escape "$portal_storage_path")"
 printf '"captive_notify":%s,' "$([ "$captive_notify" = '1' ] && echo true || echo false)"
+printf '"terms_enabled":%s,' "$([ "$terms_enabled" = '1' ] && echo true || echo false)"
+printf '"open_status_page":"%s",' "$(json_escape "$open_status_page")"
 printf '"mac_cookie_enabled":%s,' "$([ "$mac_cookie_enabled" = '1' ] && echo true || echo false)"
 printf '"browser_cookie_enabled":%s,' "$([ "$browser_cookie_enabled" = '1' ] && echo true || echo false)"
 printf '"session_timeout":"%s",' "$(json_escape "$session_timeout")"
@@ -86,9 +125,9 @@ printf '"keepalive_timeout":"%s",' "$(json_escape "$keepalive_timeout")"
 printf '"status_autorefresh":"%s",' "$(json_escape "$status_autorefresh")"
 printf '"shared_users":"%s",' "$(json_escape "$shared_users")"
 printf '"rate_limit_rx_tx":"%s",' "$(json_escape "$rate_limit_rx_tx")"
-printf '"mac_cookie_timeout":"%s",' "$(json_escape "$mac_cookie_timeout")"
 printf '"radius_server":"%s",' "$(json_escape "$radius_server")"
 printf '"radius_auth_port":"%s",' "$(json_escape "$radius_auth_port")"
 printf '"radius_acct_port":"%s",' "$(json_escape "$radius_acct_port")"
+printf '"presence_watchdog_running":%s,' "$([ -s "$watchdog_pid_file" ] && kill -0 "$(cat "$watchdog_pid_file" 2>/dev/null)" 2>/dev/null && echo true || echo false)"
 printf '"radius_transport":"udp"'
 printf '}\n'

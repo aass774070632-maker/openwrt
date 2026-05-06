@@ -9,30 +9,81 @@
 <body>
 	<main class="hotspot-shell">
 		<h1>تسجيل دخول الهوتسبوت</h1>
-		<form id="login-form" method="get" action="/login">
+		<form id="login-form" method="get" action="/cgi-bin/hotspot-login">
 			<label for="username">رقم الكرت</label>
 			<input id="username" name="username" autocomplete="username" required>
 			<label for="password">كلمة المرور</label>
-			<input id="password" name="password" type="password" autocomplete="current-password" required>
-			<input id="userurl" name="userurl" type="hidden" value="http://192.168.10.1/">
+			<input id="password" name="password" type="password" autocomplete="current-password">
+			<input id="userurl" name="userurl" type="hidden" value="/hotspot/status.html">
 			<button type="submit">دخول</button>
 		</form>
 	</main>
 	<script src="settings.js"></script>
 	<script>
-		var params = new URLSearchParams(location.search);
 		var settings = window.HOTSPOT_OPENWRT_SETTINGS || {};
 		var form = document.getElementById('login-form');
 		var username = document.getElementById('username');
-		form.action = 'http://' + location.hostname + ':3990/login';
-		document.getElementById('userurl').value = params.get('userurl') || 'http://connectivitycheck.gstatic.com/generate_204';
-		if (settings.browserCookieEnabled && localStorage.getItem('hotspot_openwrt_username'))
-			username.value = localStorage.getItem('hotspot_openwrt_username');
+		var cookieDays = Number(settings.browserCookieDays || 7);
+		var cookieMaxAge = Math.max(1, Math.min(365, cookieDays)) * 86400000;
+		form.action = '/cgi-bin/hotspot-login';
+		function storedUsername(key) {
+			try {
+				var value = localStorage.getItem(key) || '';
+				var savedAt = Number(localStorage.getItem(key + '_saved_at') || 0);
+				if (value && savedAt && Date.now() - savedAt > cookieMaxAge) {
+					localStorage.removeItem(key);
+					localStorage.removeItem(key + '_saved_at');
+					return '';
+				}
+				return value;
+			} catch (e) { return ''; }
+		}
+		function savedUsername() {
+			try { return sessionStorage.getItem('hotspot_openwrt_session_username') || storedUsername('hotspot_openwrt_username') || storedUsername('hotspot_openwrt_last_username') || ''; } catch (e) { return ''; }
+		}
+		function statusUrl(card) {
+			if (settings.openStatusPage == 'none')
+				return settings.postLoginUrl || 'http://connectivitycheck.gstatic.com/generate_204';
+			var baseUrl = settings.postLoginUrl || ('http://' + location.hostname + '/hotspot/status.html');
+			var separator = baseUrl.indexOf('?') == -1 ? '?' : '&';
+			var url = baseUrl + separator + 't=' + new Date().getTime();
+			if (card)
+				url += '&username=' + encodeURIComponent(card);
+			return url;
+		}
+		document.getElementById('userurl').value = statusUrl(savedUsername());
+		if (settings.browserCookieEnabled && savedUsername())
+			username.value = savedUsername();
+		if (settings.openStatusPage != 'none') {
+			fetch('/cgi-bin/hotspot-card-info?username=' + encodeURIComponent(savedUsername()), { cache: 'no-store' })
+				.then(function(response) { return response.ok ? response.json() : null; })
+				.then(function(data) {
+					if (data && data.authenticated)
+						window.location.replace(statusUrl(data.card_number || savedUsername()));
+				})
+				.catch(function() {});
+			fetch('/cgi-bin/hotspot-login?format=json&mac_cookie=1&userurl=' + encodeURIComponent(statusUrl('')), { cache: 'no-store' })
+				.then(function(response) { return response.ok ? response.json() : null; })
+				.then(function(data) {
+					if (data && data.ok && data.mac_cookie_used) {
+						try { sessionStorage.setItem('hotspot_openwrt_session_username', data.card_number || data.username || ''); } catch (e) {}
+						window.location.replace(data.redirect || statusUrl(data.card_number || data.username || ''));
+					}
+				})
+				.catch(function() {});
+		}
 		form.addEventListener('submit', function() {
-			if (settings.browserCookieEnabled)
+			document.getElementById('password').value = '';
+			try { sessionStorage.setItem('hotspot_openwrt_session_username', username.value); } catch (e) {}
+			try { localStorage.setItem('hotspot_openwrt_last_username', username.value); localStorage.setItem('hotspot_openwrt_last_username_saved_at', String(Date.now())); } catch (e) {}
+			document.getElementById('userurl').value = statusUrl(username.value);
+			if (settings.browserCookieEnabled) {
 				localStorage.setItem('hotspot_openwrt_username', username.value);
-			else
+				localStorage.setItem('hotspot_openwrt_username_saved_at', String(Date.now()));
+			} else {
 				localStorage.removeItem('hotspot_openwrt_username');
+				localStorage.removeItem('hotspot_openwrt_username_saved_at');
+			}
 		});
 	</script>
 </body>

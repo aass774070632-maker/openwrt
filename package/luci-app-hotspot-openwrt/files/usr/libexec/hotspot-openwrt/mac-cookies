@@ -1,0 +1,79 @@
+#!/bin/sh
+
+db_file='/etc/hotspot-openwrt/mac-cookies.db'
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+normalize_mac() {
+	printf '%s' "$1" | tr 'A-Z-' 'a-z:'
+}
+
+strip_realm() {
+	printf '%s' "$1" | awk -F@ '{ print $1 }'
+}
+
+enabled() {
+	[ "$(uci -q get hotspot_openwrt.main.mac_cookie_enabled || echo 0)" = '1' ]
+}
+
+ensure_db() {
+	mkdir -p "$(dirname "$db_file")" || return 1
+	[ -f "$db_file" ] || : > "$db_file"
+	chmod 0600 "$db_file" 2>/dev/null || true
+}
+
+save_cookie() {
+	local mac="$1" ip="$2" username="$3" card now temp created
+	enabled || exit 0
+	mac="$(normalize_mac "$mac")"
+	card="$(strip_realm "$username")"
+	[ -n "$mac" ] && [ -n "$username" ] || exit 0
+	case "$mac" in *:*:*:*:*:*) ;; *) exit 0 ;; esac
+	ensure_db || exit 1
+	now="$(date +%s)"
+	temp="$db_file.$$"
+	created="$(awk -F '\t' -v mac="$mac" '$1 == mac { print $5; found = 1; exit } END { if (!found) exit 0 }' "$db_file" 2>/dev/null)"
+	[ -n "$created" ] || created="$now"
+	awk -F '\t' -v mac="$mac" '$1 != mac { print }' "$db_file" > "$temp" 2>/dev/null || : > "$temp"
+	printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$mac" "$ip" "$username" "$card" "$created" "$now" >> "$temp"
+	mv "$temp" "$db_file"
+	chmod 0600 "$db_file" 2>/dev/null || true
+}
+
+find_cookie() {
+	local mac="$1"
+	enabled || exit 1
+	mac="$(normalize_mac "$mac")"
+	[ -f "$db_file" ] || exit 1
+	awk -F '\t' -v mac="$mac" '$1 == mac { print; found = 1; exit } END { if (!found) exit 1 }' "$db_file"
+}
+
+count_cookies() {
+	[ -f "$db_file" ] || { printf '0\n'; exit 0; }
+	awk -F '\t' 'NF >= 4 { total++ } END { print total + 0 }' "$db_file"
+}
+
+list_json() {
+	if [ ! -f "$db_file" ]; then
+		printf '[]\n'
+		exit 0
+	fi
+	awk -F '\t' '
+		function esc(value) { gsub(/\\/, "\\\\", value); gsub(/\"/, "\\\"", value); return value }
+		NF >= 4 {
+			if (items != "") items = items ","
+			items = items sprintf("{\"mac\":\"%s\",\"ip\":\"%s\",\"username\":\"%s\",\"card\":\"%s\",\"created_at\":%d,\"last_seen\":%d}", esc($1), esc($2), esc($3), esc($4), $5 + 0, $6 + 0)
+		}
+		END { printf "[%s]\n", items }
+	' "$db_file"
+}
+
+case "$1" in
+	save) shift; save_cookie "$@" ;;
+	find) shift; find_cookie "$@" ;;
+	count) count_cookies ;;
+	list-json) list_json ;;
+	*) printf 'Usage: %s save <mac> <ip> <username> | find <mac> | count | list-json\n' "$0" >&2; exit 1 ;;
+esac

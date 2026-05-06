@@ -50,8 +50,11 @@ define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_BIN) ./files/etc/init.d/hotspot-openwrt $(1)/etc/init.d/
 	$(INSTALL_DIR) $(1)/usr/libexec/hotspot-openwrt
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/apply $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/mac-cookies $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/portal-upload $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/presence-watchdog $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/status-json $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/userman-info $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/validate $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	$(INSTALL_DATA) ./files/usr/share/luci/menu.d/luci-app-hotspot-openwrt.json $(1)/usr/share/luci/menu.d/
@@ -61,10 +64,15 @@ define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/services/hotspot-openwrt.js $(1)/www/luci-static/resources/view/services/
 	$(INSTALL_DIR) $(1)/www/hotspot
 	$(INSTALL_DATA) ./files/www/hotspot/login.html $(1)/www/hotspot/
+	$(INSTALL_DATA) ./files/www/hotspot/status.html $(1)/www/hotspot/
 	$(INSTALL_DATA) ./files/www/hotspot/terms.html $(1)/www/hotspot/
 	$(INSTALL_DATA) ./files/www/hotspot/style.css $(1)/www/hotspot/
 	$(INSTALL_DATA) ./files/www/hotspot/settings.js $(1)/www/hotspot/
 	$(INSTALL_DATA) ./files/www/hotspot/api.json $(1)/www/hotspot/
+	$(INSTALL_DIR) $(1)/www/cgi-bin
+	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-login $(1)/www/cgi-bin/
+	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-card-info $(1)/www/cgi-bin/
+	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-logout $(1)/www/cgi-bin/
 endef
 
 $(eval $(call BuildPackage,luci-app-hotspot-openwrt))

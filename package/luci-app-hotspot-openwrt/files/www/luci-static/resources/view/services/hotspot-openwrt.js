@@ -27,19 +27,11 @@ var FIELD_GROUPS = {
 		{ option: 'domain', label: 'DNS Name', hint: 'اسم داخلي للبوابة', placeholder: 'hotspot.local' },
 		{ option: 'session_timeout', label: 'Session Timeout', hint: 'none أو مدة مثل 01:00:00. يطبق كـ CoovaChilli defsessiontimeout عند تحديد مدة.', placeholder: 'none' },
 		{ option: 'idle_timeout', label: 'Idle Timeout', hint: 'none أو مدة مثل 00:10:00. يطبق كـ CoovaChilli defidletimeout عند تحديد مدة.', placeholder: 'none' },
-		{ option: 'keepalive_timeout', label: 'Keepalive Timeout', hint: 'قيمة توافق مثل MikroTik، وتحفظ ضمن البروفايل للعرض والإدارة.', placeholder: '00:02:00' },
 		{ option: 'status_autorefresh', label: 'Status Autorefresh', hint: 'فترة تحديث صفحة الحالة، مثل 00:01:00.', placeholder: '00:01:00' },
 		{ option: 'shared_users', label: 'Shared Users', hint: 'عدد الجلسات لنفس المستخدم. يفضل ضبط enforcement النهائي من MikroTik User Manager.', placeholder: '3' },
 		{ option: 'rate_limit_rx_tx', label: 'Rate Limit (rx/tx)', hint: 'اختياري مثل 2M/5M. يطبق كحد افتراضي upload/download إذا لم يرجعه RADIUS.', placeholder: '2M/5M' },
-		{ option: 'mac_cookie_enabled', label: 'Add MAC Cookie', hint: 'يفعل MAC Auth في CoovaChilli بدون strictmacauth حتى لا يمنع صفحة الدخول.', type: 'checkbox' },
-		{ option: 'mac_cookie_timeout', label: 'MAC Cookie Timeout', hint: 'قيمة توافق مثل 3d 00:00:00. مدة الكوكي الفعلية تعتمد على RADIUS/CoovaChilli.', placeholder: '3d 00:00:00' },
-		{ option: 'address_list', label: 'Address List', hint: 'حقل توافق مع MikroTik؛ يحفظ ولا يغير firewall تلقائيًا.', placeholder: '' },
-		{ option: 'incoming_filter', label: 'Incoming Filter', hint: 'حقل توافق مع MikroTik؛ يحفظ فقط.', placeholder: '' },
-		{ option: 'outgoing_filter', label: 'Outgoing Filter', hint: 'حقل توافق مع MikroTik؛ يحفظ فقط.', placeholder: '' },
-		{ option: 'incoming_packet_mark', label: 'Incoming Packet Mark', hint: 'حقل توافق مع MikroTik؛ يحفظ فقط.', placeholder: '' },
-		{ option: 'outgoing_packet_mark', label: 'Outgoing Packet Mark', hint: 'حقل توافق مع MikroTik؛ يحفظ فقط.', placeholder: '' },
+		{ option: 'mac_cookie_enabled', label: 'Add MAC Cookie', hint: 'يحفظ MAC وIP واسم الكرت بعد نجاح الدخول، ثم يسمح بالدخول التلقائي لنفس الجهاز لاحقًا مثل MikroTik Cookies.', type: 'checkbox' },
 		{ option: 'open_status_page', label: 'Open Status Page', hint: 'اختيار طريقة فتح صفحة الحالة بعد الدخول.', placeholder: 'always', choices: getOpenStatusPageChoices },
-		{ option: 'transparent_proxy', label: 'Transparent Proxy', hint: 'حفظ الخيار فقط؛ يحتاج proxy upstream منفصل قبل تطبيقه فعليًا.', type: 'checkbox' },
 		{ option: 'terms_enabled', label: 'صفحة الشروط', hint: 'اعرض الشروط قبل تسجيل الدخول', type: 'checkbox' }
 	],
 	portal: [
@@ -55,7 +47,16 @@ var FIELD_GROUPS = {
 		{ option: 'radius_auth_port', label: 'Auth Port UDP', hint: 'ثابت 1812', placeholder: '1812' },
 		{ option: 'radius_acct_port', label: 'Accounting Port UDP', hint: 'ثابت 1813', placeholder: '1813' },
 		{ option: 'radius_nas_ip', label: 'NAS IP', hint: 'عنوان هذا الراوتر كما يراه MikroTik User Manager. غالبًا 192.168.1.20.', placeholder: '192.168.1.20', choices: getLocalIpChoices },
-		{ option: 'radius_nas_id', label: 'NAS ID', hint: 'اسم هذا الهوتسبوت عند MikroTik', placeholder: 'KT-KM14-102H-HOTSPOT' }
+		{ option: 'radius_nas_id', label: 'NAS ID', hint: 'اسم هذا الهوتسبوت عند MikroTik', placeholder: 'KT-KM14-102H-HOTSPOT' },
+		{ option: 'userman_rest_enabled', label: 'قراءة رصيد User Manager', hint: 'يفعل جسر RouterOS REST لعرض الرصيد والبروفايل ووقت الانتهاء في صفحة المشترك.', type: 'checkbox' },
+		{ option: 'userman_rest_scheme', label: 'RouterOS REST Scheme', hint: 'استخدم https مع www-ssl. يمكن استخدام http للاختبار فقط.', placeholder: 'https', choices: getRouterOsSchemeChoices },
+		{ option: 'userman_rest_host', label: 'RouterOS REST Host', hint: 'غالبًا نفس MikroTik User Manager.', placeholder: '192.168.1.2' },
+		{ option: 'userman_rest_port', label: 'RouterOS REST Port', hint: '443 لـ www-ssl أو 80 لـ www.', placeholder: '443' },
+		{ option: 'userman_rest_username', label: 'RouterOS API User', hint: 'مستخدم قراءة فقط على MikroTik بصلاحيات User Manager.', placeholder: 'hotspot-read' },
+		{ option: 'userman_rest_password', label: 'RouterOS API Password', hint: 'تحفظ على الراوتر فقط ولا ترسل للمتصفح.', placeholder: '', password: true },
+		{ option: 'userman_rest_insecure_ssl', label: 'قبول شهادة HTTPS ذاتية', hint: 'مفيد مع شهادة MikroTik ذاتية التوقيع.', type: 'checkbox' },
+		{ option: 'userman_rest_user_field', label: 'حقل البحث عن الكرت', hint: 'غالبًا name، ويمكن تغييره إلى username حسب إصدار User Manager.', placeholder: 'name' },
+		{ option: 'userman_rest_timeout', label: 'مهلة REST بالثواني', hint: 'مهلة قصيرة حتى لا تتأخر صفحة المشترك.', placeholder: '5' }
 	],
 	dns: [
 		{ option: 'dns1', label: 'DNS Server 1', hint: 'يستخدمه الراوتر خلف البوابة', placeholder: '8.8.8.8' },
@@ -63,7 +64,10 @@ var FIELD_GROUPS = {
 		{ option: 'walled_garden', label: 'Walled Garden Domains', hint: 'نطاقات مسموحة قبل الدخول، سطر لكل نطاق', multiline: true, placeholder: 'neverssl.com\nconnectivitycheck.gstatic.com' }
 	],
 	bindings: [
-		{ option: 'ip_binding', label: 'IP Bindings', hint: 'صيغة مبسطة: type mac address comment. الأنواع المقترحة: bypassed / blocked / regular', multiline: true, placeholder: 'bypassed 36:5D:F3:EF:19:25 192.168.10.11 phone\nblocked 00:11:22:33:44:55 - test' }
+		{ option: 'ip_binding', label: 'IP Bindings', hint: 'صيغة مبسطة: type mac address comment. النوع blocked يمنع تسجيل دخول الجهاز أو العنوان المطابق، والأنواع الأخرى تحفظ للتوثيق.', multiline: true, placeholder: 'blocked 00:11:22:33:44:55 192.168.10.11 phone\nregular 36:5D:F3:EF:19:25 - note' }
+	],
+	active: [
+		{ option: 'keepalive_timeout', label: 'مدة طرد المنفصلين من Active / Hosts', hint: 'إذا اختفى الجهاز من شبكة الهوتسبوت، يتم إخراجه من Active أو حذفه من Hosts بعد هذه المدة. اكتب مدة مثل 00:02:00 أو none لتعطيله.', placeholder: '00:02:00' }
 	]
 };
 
@@ -72,7 +76,7 @@ var TABS = [
 	{ key: 'profile', label: 'Server Profile' },
 	{ key: 'portal', label: 'Login Page' },
 	{ key: 'radius', label: 'RADIUS' },
-	{ key: 'active', label: 'Active / Hosts' },
+	{ key: 'active', label: 'Active / Hosts / الطرد' },
 	{ key: 'bindings', label: 'IP Bindings' },
 	{ key: 'dns', label: 'Walled Garden' },
 	{ key: 'cookies', label: 'Cookies' },
@@ -231,6 +235,13 @@ function getOpenStatusPageChoices() {
 	];
 }
 
+function getRouterOsSchemeChoices() {
+	return [
+		{ value: 'https', label: 'https - www-ssl' },
+		{ value: 'http', label: 'http - اختبار فقط' }
+	];
+}
+
 function readList(option) {
 	var value = uci.get('hotspot_openwrt', 'main', option);
 
@@ -269,7 +280,7 @@ function getValue(option) {
 		return readList('walled_garden').join('\n');
 	if (option == 'ip_binding')
 		return readLineList('ip_binding').join('\n');
-	if (option == 'terms_enabled' || option == 'captive_notify' || option == 'browser_cookie_enabled' || option == 'mac_cookie_enabled' || option == 'transparent_proxy')
+	if (option == 'terms_enabled' || option == 'captive_notify' || option == 'browser_cookie_enabled' || option == 'mac_cookie_enabled' || option == 'userman_rest_enabled' || option == 'userman_rest_insecure_ssl')
 		return uci.get('hotspot_openwrt', 'main', option) == '1';
 
 	return uci.get('hotspot_openwrt', 'main', option) || '';
@@ -404,6 +415,12 @@ function ensureStyles() {
 		'.hotspot-table{width:100%;border-collapse:collapse;margin-top:10px}',
 		'.hotspot-table th,.hotspot-table td{border:1px solid #e2ebf1;padding:8px 10px;text-align:right}',
 		'.hotspot-table th{background:#f7fafb;color:#12344d}',
+		'.hotspot-table td{word-break:break-word}',
+		'.hotspot-list-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:16px 0 4px}',
+		'.hotspot-list-title h3{margin:0;color:#12344d;font-size:18px}',
+		'.hotspot-badge{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;border-radius:999px;background:#e8f5f2;color:#0f766e;font-weight:800}',
+		'.hotspot-badge.is-host{background:#fff3df;color:#9a5b00}',
+		'.hotspot-empty{border:1px dashed #cbd8e6;border-radius:8px;padding:12px;margin-top:10px;color:#64748b;background:#fbfdff}',
 		'.hotspot-upload{margin-top:14px;border-top:1px solid #edf2f7;padding-top:14px}',
 		'.hotspot-upload-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}',
 		'.hotspot-upload-row input[type="text"]{width:100%;max-width:280px;box-sizing:border-box;border:1px solid #cbd8e6;border-radius:6px;padding:8px 10px}',
@@ -625,20 +642,77 @@ function renderReview(status) {
 	]);
 }
 
+function formatBytes(value) {
+	value = Number(value || 0);
+
+	if (value >= 1073741824)
+		return (value / 1073741824).toFixed(2) + ' GB';
+	if (value >= 1048576)
+		return (value / 1048576).toFixed(2) + ' MB';
+	if (value >= 1024)
+		return (value / 1024).toFixed(1) + ' KB';
+
+	return String(value) + ' B';
+}
+
+function clientTable(title, count, clients, hostMode) {
+	clients = Array.isArray(clients) ? clients : [];
+
+	return E('div', [
+		E('div', { 'class': 'hotspot-list-title' }, [
+			E('h3', {}, title),
+			E('span', { 'class': 'hotspot-badge' + (hostMode ? ' is-host' : '') }, String(count || clients.length || 0))
+		]),
+		clients.length ? E('table', { 'class': 'hotspot-table' }, [
+			E('tr', [
+				E('th', {}, hostMode ? 'H' : 'A'),
+				E('th', {}, 'IP'),
+				E('th', {}, 'MAC'),
+				E('th', {}, 'User'),
+				E('th', {}, 'State'),
+				E('th', {}, 'In'),
+				E('th', {}, 'Out')
+			])
+		].concat(clients.map(function(client) {
+			return E('tr', [
+				E('td', {}, E('span', { 'class': 'hotspot-badge' + (hostMode ? ' is-host' : '') }, client.flag || (hostMode ? 'H' : 'A'))),
+				E('td', {}, client.ip || '-'),
+				E('td', {}, client.mac || '-'),
+				E('td', {}, client.username || '-'),
+				E('td', {}, client.state || '-'),
+				E('td', {}, formatBytes(client.input_octets)),
+				E('td', {}, formatBytes(client.output_octets))
+			]);
+		}))) : E('div', { 'class': 'hotspot-empty' }, hostMode ? 'لا توجد أجهزة في Hosts الآن.' : 'لا توجد جلسات Active الآن.')
+	]);
+}
+
+function renderActiveContent(status) {
+	return [
+		E('div', { 'class': 'hotspot-summary' }, [
+			statusItem('Active', String(status.active_clients || 0)),
+			statusItem('Hosts', String(status.waiting_clients || 0)),
+			statusItem('Total', String(status.clients_total || 0)),
+			statusItem('مهلة الطرد', status.keepalive_timeout || getValue('keepalive_timeout') || '-'),
+			statusItem('Last Client', status.last_client || '-')
+		]),
+		clientTable('Active', status.active_clients, status.active_list, false),
+		clientTable('Hosts', status.waiting_clients, status.hosts_list, true),
+		E('div', { 'class': 'hotspot-note' }, 'في هذا النظام Active هي جلسات CoovaChilli بحالة pass، وHosts هي الأجهزة الموجودة بحالة dnat أو انتظار. عند تسجيل الخروج ينتقل الجهاز من Active إلى Hosts، وعند تسجيل الدخول يعود إلى Active.')
+	];
+}
+
 function renderActive(status) {
 	return E('div', [
-		E('table', { 'class': 'hotspot-table' }, [
-			E('tr', [ E('th', 'العنصر'), E('th', 'القيمة') ]),
-			E('tr', [ E('td', 'Active'), E('td', String(status.active_clients || 0)) ]),
-			E('tr', [ E('td', 'Hosts'), E('td', String(status.clients_total || 0)) ]),
-			E('tr', [ E('td', 'Waiting'), E('td', String(status.waiting_clients || 0)) ]),
-			E('tr', [ E('td', 'Last Client'), E('td', status.last_client || '-') ])
-		]),
-		E('div', { 'class': 'hotspot-note' }, 'هذا القسم للقراءة فقط مثل Active وHosts في MikroTik. إدارة الكروت والمستخدمين تبقى في MikroTik User Manager.')
+		E('div', renderFields('active')),
+		E('div', { 'class': 'hotspot-note' }, 'هذا الخيار هو وقت الانتظار بعد اختفاء الجهاز فعليًا من WiFi. بعد انتهاء المدة يتم إخراج جلسة Active أو حذف الجهاز من Hosts.'),
+		E('div', { 'id': 'hotspot-openwrt-active-hosts' }, renderActiveContent(status))
 	]);
 }
 
 function renderCookies(status) {
+	var cookies = Array.isArray(status.cookies_list) ? status.cookies_list : [];
+
 	return E('div', [
 		E('table', { 'class': 'hotspot-table' }, [
 			E('tr', [ E('th', 'العنصر'), E('th', 'القيمة') ]),
@@ -646,7 +720,25 @@ function renderCookies(status) {
 			E('tr', [ E('td', 'Active sessions'), E('td', String(status.active_clients || 0)) ]),
 			E('tr', [ E('td', 'Last client'), E('td', status.last_client || '-') ])
 		]),
-		E('div', { 'class': 'hotspot-note' }, 'في MikroTik توجد قائمة Cookies مستقلة. في CoovaChilli المستخدم هنا لا يوجد جدول RouterOS مطابق؛ الجلسات الحية تظهر في Active / Hosts، والكوكيز الفعلية تكون في متصفح العميل أو ضمن آلية تسجيل الدخول.')
+		cookies.length ? E('table', { 'class': 'hotspot-table' }, [
+			E('tr', [
+				E('th', {}, 'MAC'),
+				E('th', {}, 'IP'),
+				E('th', {}, 'User'),
+				E('th', {}, 'Card'),
+				E('th', {}, 'Last Seen')
+			])
+		].concat(cookies.map(function(cookie) {
+			var lastSeen = Number(cookie.last_seen || 0);
+			return E('tr', [
+				E('td', {}, cookie.mac || '-'),
+				E('td', {}, cookie.ip || '-'),
+				E('td', {}, cookie.username || '-'),
+				E('td', {}, cookie.card || '-'),
+				E('td', {}, lastSeen ? new Date(lastSeen * 1000).toLocaleString() : '-')
+			]);
+		}))) : E('div', { 'class': 'hotspot-empty' }, 'لا توجد MAC Cookies محفوظة حتى الآن.'),
+		E('div', { 'class': 'hotspot-note' }, 'عند تفعيل Add MAC Cookie ونجاح تسجيل الدخول، يحفظ الراوتر MAC وIP واسم الكرت. عند رجوع نفس الجهاز يحاول النظام إدخاله تلقائيًا بنفس الكرت بدون فتح صفحة تسجيل الدخول.')
 	]);
 }
 
@@ -707,6 +799,7 @@ return view.extend({
 				var total = document.getElementById('hotspot-openwrt-live-total');
 				var active = document.getElementById('hotspot-openwrt-live-active');
 				var runtime = document.getElementById('hotspot-openwrt-live-runtime');
+				var activeHosts = document.getElementById('hotspot-openwrt-active-hosts');
 
 				if (total)
 					total.textContent = String(nextStatus.clients_total || 0);
@@ -714,6 +807,8 @@ return view.extend({
 					active.textContent = String(nextStatus.active_clients || 0);
 				if (runtime)
 					runtime.textContent = nextStatus.chilli_running ? 'يعمل' : 'متوقف';
+				if (activeHosts)
+					activeHosts.replaceChildren.apply(activeHosts, renderActiveContent(nextStatus));
 			});
 		}, 8);
 
@@ -727,7 +822,9 @@ return view.extend({
 					statusItem('Bridge IP', statusText(!status.bridge_has_ip, 'بدون IP', 'يوجد IP')),
 					statusItem('Active', E('span', { 'id': 'hotspot-openwrt-live-active' }, String(status.active_clients || 0))),
 					statusItem('Hosts', E('span', { 'id': 'hotspot-openwrt-live-total' }, String(status.clients_total || 0))),
+					statusItem('مهلة الطرد', status.keepalive_timeout || getValue('keepalive_timeout') || '-'),
 					statusItem('Bindings', String(status.ip_bindings_total || 0)),
+					statusItem('Blocked Bindings', String(status.ip_bindings_blocked_total || 0)),
 					statusItem('Cookies', String(status.cookies_total || 0)),
 					statusItem('Login Page', (status.portal_path || '/hotspot')),
 					statusItem('Captive Notify', statusText(status.captive_notify, 'مفعّل', 'متوقف')),

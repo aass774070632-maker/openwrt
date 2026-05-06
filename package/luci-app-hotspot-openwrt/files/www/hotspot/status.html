@@ -1,25 +1,21 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-	<meta charset="utf-8" />
-	<meta name="theme-color" content="#673ab7" />
-	<link rel="icon" type="image/png" href="assets/img/favicon.png">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
-	<title>حالة الاتصال</title>
-	<link rel="stylesheet" href="assets/css/assets.css" />
-	<link rel="stylesheet" type="text/css" href="assets/fonts/Almarai.css" />
-	<link rel="stylesheet" href="assets/css/fontello.css" />
-	<script src="assets/js/mine.js"></script>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>حالة الهوتسبوت</title>
+	<link rel="stylesheet" href="style.css">
 </head>
 <body>
-	<form action="/cgi-bin/hotspot-logout" name="logout" id="logout-form" method="get">
-		<div class="box">
-			<div class="info blue"><div class="floateed"><i class="icon-user"></i><p class="header">حالة الاتصال</p><div class="clear"></div></div><p class="valuee" id="connection-state">جاري القراءة</p></div>
-			<div class="info green"><div class="floateed"><i class="icon-clock-1"></i><p class="header">رقم الكرت</p><div class="clear"></div></div><p class="valuee" id="card-number">قيد القراءة</p></div>
-			<div class="info red"><div class="floateed"><i class="icon-download-1"></i><p class="header">معلومات الرصيد</p><div class="clear"></div></div><p class="valuee" id="balance-info">جاري القراءة من النظام</p></div>
-			<div class="submit"><button type="submit">تسجيل الخروج<i class="icon-login"></i></button></div>
-		</div>
-	</form>
+	<main class="hotspot-shell">
+		<h1>حالة الاتصال</h1>
+		<p id="connection-state">جاري قراءة حالة الاتصال</p>
+		<p>رقم الكرت: <strong id="card-number">قيد القراءة</strong></p>
+		<p id="balance-info">جاري قراءة معلومات الجلسة</p>
+		<form id="logout-form" method="get" action="/cgi-bin/hotspot-logout">
+			<button type="submit">تسجيل الخروج</button>
+		</form>
+	</main>
 	<script src="settings.js"></script>
 	<script>
 		(function() {
@@ -33,13 +29,13 @@
 			var username = '';
 			try { username = new URLSearchParams(window.location.search).get('username') || ''; } catch (e) {}
 			if (!username) {
-				try { username = sessionStorage.getItem('hotspot_session_username') || ''; } catch (e) {}
+				try { username = sessionStorage.getItem('hotspot_openwrt_session_username') || ''; } catch (e) {}
 			}
 			if (!username) {
-				try { username = localStorage.getItem('hotspot_username') || ''; } catch (e) {}
+				try { username = localStorage.getItem('hotspot_openwrt_username') || ''; } catch (e) {}
 			}
 			if (!username) {
-				try { username = localStorage.getItem('hotspot_last_username') || ''; } catch (e) {}
+				try { username = localStorage.getItem('hotspot_openwrt_last_username') || ''; } catch (e) {}
 			}
 
 			if (logoutForm) {
@@ -65,8 +61,8 @@
 						.then(function(statusData) {
 							if (!statusData || statusData.authenticated !== false)
 								throw new Error('still_authenticated');
-							try { sessionStorage.removeItem('hotspot_session_username'); } catch (e) {}
-							try { localStorage.removeItem('hotspot_username'); localStorage.removeItem('hotspot_username_saved_at'); } catch (e) {}
+							try { sessionStorage.removeItem('hotspot_openwrt_session_username'); } catch (e) {}
+							try { localStorage.removeItem('hotspot_openwrt_username'); localStorage.removeItem('hotspot_openwrt_username_saved_at'); } catch (e) {}
 							window.location.replace('/hotspot/login.html?t=' + new Date().getTime() + '&logged_out=1');
 						})
 						.catch(function() {
@@ -82,22 +78,14 @@
 				});
 			}
 
-			var card = username;
-			if (card.indexOf('@') != -1)
-				card = card.split('@')[0];
-			if (cardNumber)
-				cardNumber.textContent = card || 'غير متوفر';
-			if (connectionState)
-				connectionState.textContent = 'متصل عبر Hotspot OpenWrt';
-
 			function updateStatus() {
 				fetch('/cgi-bin/hotspot-card-info?username=' + encodeURIComponent(username), { cache: 'no-store' })
 				.then(function(response) { return response.ok ? response.json() : null; })
 				.then(function(data) {
 					if (!data)
 						return;
-					if (data.card_number && cardNumber)
-						cardNumber.textContent = data.card_number;
+					if (cardNumber)
+						cardNumber.textContent = data.card_number || username || 'غير متوفر';
 					if (connectionState)
 						connectionState.textContent = data.authenticated ? 'متصل ومصرح' : 'متصل بانتظار الاعتماد';
 					if (balanceInfo) {
@@ -114,7 +102,7 @@
 				})
 				.catch(function() {
 					if (balanceInfo)
-						balanceInfo.textContent = 'الجلسة تدار بالمصادقة عبر MikroTik User Manager';
+						balanceInfo.textContent = 'تدار الجلسة من MikroTik User Manager';
 				});
 			}
 

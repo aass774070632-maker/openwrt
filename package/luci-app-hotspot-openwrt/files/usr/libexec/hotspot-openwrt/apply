@@ -122,7 +122,7 @@ configure_chilli_local_access() {
 }
 
 configure_dnsmasq_compat() {
-	local hotspot_ip="$1" portal_path="$2" captive_notify="$3"
+	local hotspot_ip="$1" portal_path="$2" captive_notify="$3" domain="$4"
 	local config_dir='/etc/dnsmasq.d' config_file='/etc/dnsmasq.d/hotspot-openwrt.conf'
 
 	mkdir -p "$config_dir" || return 1
@@ -131,6 +131,12 @@ configure_dnsmasq_compat() {
 	filter-rr=HTTPS
 	filter-rr=SVCB
 	EOF
+	case "$domain" in
+		''|*[!A-Za-z0-9.-]*|.*|*.) domain='' ;;
+	esac
+	if [ -n "$domain" ]; then
+		printf 'address=/%s/%s\n' "$domain" "$hotspot_ip" >> "$config_file"
+	fi
 	if [ "$captive_notify" = '1' ]; then
 		printf 'dhcp-option=114,http://%s%s/api.json\n' "$hotspot_ip" "$portal_path" >> "$config_file"
 	fi
@@ -141,10 +147,44 @@ configure_dnsmasq_compat() {
 	uci commit dhcp
 }
 
+configure_domain_landing() {
+	local hotspot_ip="$1" portal_path="$2" domain="$3" index_file='/www/index.html' backup_file='/www/index.html.hotspot-openwrt.orig'
+	case "$domain" in
+		''|*[!A-Za-z0-9.-]*|.*|*.) return 0 ;;
+	esac
+	case "$portal_path" in
+		/*) ;;
+		*) portal_path='/hotspot' ;;
+	esac
+	[ -f "$backup_file" ] || cp "$index_file" "$backup_file" 2>/dev/null || true
+	cat > "$index_file" <<-EOF
+	<!doctype html>
+	<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>OpenWrt</title>
+		<script>
+		(function() {
+			var hostname = String(location.hostname || '').toLowerCase();
+			var domain = '$domain'.toLowerCase();
+			if (hostname === domain || hostname === '$hotspot_ip')
+				location.replace('$portal_path/status.html');
+		})();
+		</script>
+	</head>
+	<body>
+		<a href="/cgi-bin/luci/">LuCI - Lua Configuration Interface</a>
+	</body>
+	</html>
+	EOF
+	chmod 0644 "$index_file" 2>/dev/null || true
+}
+
 configure_portal_files() {
 	local hotspot_ip="$1" portal_path="$2" portal_storage_path="$3" terms_enabled="$4"
-	local browser_cookie_enabled="$5" browser_cookie_days="$6" source_dir='/www/hotspot'
-	local login_url
+	local browser_cookie_enabled="$5" browser_cookie_days="$6" open_status_page="$7" status_autorefresh_seconds="$8" source_dir='/www/hotspot'
+	local login_url status_url post_login_url
 
 	case "$portal_path" in
 		/*) ;;
@@ -162,12 +202,22 @@ configure_portal_files() {
 		cp "$source_dir/style.css" "$portal_storage_path/style.css" 2>/dev/null || true
 	fi
 
-	login_url="http://$hotspot_ip$portal_path/login.html"
+	if [ "$terms_enabled" = '1' ]; then
+		login_url="http://$hotspot_ip$portal_path/terms.html"
+	else
+		login_url="http://$hotspot_ip$portal_path/login.html"
+	fi
+	status_url="http://$hotspot_ip$portal_path/status.html"
+	case "$open_status_page" in
+		always|http-login) post_login_url="$status_url" ;;
+		none) post_login_url='http://connectivitycheck.gstatic.com/generate_204' ;;
+		*) open_status_page='always'; post_login_url="$status_url" ;;
+	esac
 	cat > "$portal_storage_path/api.json" <<-EOF
 	{"captive":true,"user-portal-url":"$login_url","venue-info-url":"$login_url","can-extend-session":true}
 	EOF
 	cat > "$portal_storage_path/settings.js" <<-EOF
-	window.HOTSPOT_OPENWRT_SETTINGS={browserCookieEnabled:$([ "$browser_cookie_enabled" = '1' ] && echo true || echo false),browserCookieDays:$(printf '%s' "$browser_cookie_days" | awk '{ v=$1+0; if (v < 1) v=7; if (v > 365) v=365; print v }')};
+	window.HOTSPOT_OPENWRT_SETTINGS={browserCookieEnabled:$([ "$browser_cookie_enabled" = '1' ] && echo true || echo false),browserCookieDays:$(printf '%s' "$browser_cookie_days" | awk '{ v=$1+0; if (v < 1) v=7; if (v > 365) v=365; print v }'),openStatusPage:"$open_status_page",postLoginUrl:"$post_login_url",statusAutorefreshSeconds:$(printf '%s' "$status_autorefresh_seconds" | awk '{ v=$1+0; if (v < 0) v=0; if (v > 86400) v=86400; print v }')};
 	EOF
 	chmod 0644 "$portal_storage_path/api.json" "$portal_storage_path/settings.js" 2>/dev/null || true
 }
@@ -250,12 +300,24 @@ configure_firewall_nft_compat() {
 	chmod 0644 "$config_file" 2>/dev/null || true
 }
 
+restart_presence_watchdog() {
+	local pid_file='/var/run/hotspot-openwrt-presence-watchdog.pid' pid
+	if [ -s "$pid_file" ]; then
+		pid="$(cat "$pid_file" 2>/dev/null)"
+		[ -n "$pid" ] && kill "$pid" >/dev/null 2>&1 || true
+		rm -f "$pid_file"
+	fi
+	[ -x /usr/libexec/hotspot-openwrt/presence-watchdog ] || return 0
+	/usr/libexec/hotspot-openwrt/presence-watchdog >/dev/null 2>&1 &
+	echo $! > "$pid_file"
+}
+
 apply_config() {
 	local backup_dir subscriber_interface bridge_ports wan_interface device_section device_name
 	local hotspot_ip hotspot_cidr pool_start pool_end dhcp_start dhcp_end dhcp_limit
 	local domain radius_server radius_secret radius_auth_port radius_acct_port radius_nas_ip radius_nas_id
-	local terms_enabled portal_path portal_storage_path captive_notify mac_cookie_enabled browser_cookie_enabled browser_cookie_days
-	local session_timeout idle_timeout keepalive_timeout status_autorefresh shared_users rate_limit_rx_tx mac_cookie_timeout
+	local terms_enabled portal_path portal_storage_path captive_notify mac_cookie_enabled browser_cookie_enabled browser_cookie_days open_status_page
+	local session_timeout idle_timeout status_autorefresh shared_users rate_limit_rx_tx
 	local session_timeout_seconds idle_timeout_seconds status_autorefresh_seconds bandwidth_up bandwidth_down rate_rx rate_tx
 	local uam_page dns_list dns1 dns2 wan_zone calc_output network_addr netmask walled_garden runtime_mode
 
@@ -269,11 +331,9 @@ apply_config() {
 	domain="$(uci -q get hotspot_openwrt.main.domain)"
 	session_timeout="$(uci -q get hotspot_openwrt.main.session_timeout)"
 	idle_timeout="$(uci -q get hotspot_openwrt.main.idle_timeout)"
-	keepalive_timeout="$(uci -q get hotspot_openwrt.main.keepalive_timeout)"
 	status_autorefresh="$(uci -q get hotspot_openwrt.main.status_autorefresh)"
 	shared_users="$(uci -q get hotspot_openwrt.main.shared_users)"
 	rate_limit_rx_tx="$(uci -q get hotspot_openwrt.main.rate_limit_rx_tx)"
-	mac_cookie_timeout="$(uci -q get hotspot_openwrt.main.mac_cookie_timeout)"
 	radius_server="$(uci -q get hotspot_openwrt.main.radius_server)"
 	radius_secret="$(uci -q get hotspot_openwrt.main.radius_secret)"
 	radius_auth_port="$(uci -q get hotspot_openwrt.main.radius_auth_port)"
@@ -287,15 +347,15 @@ apply_config() {
 	mac_cookie_enabled="$(uci -q get hotspot_openwrt.main.mac_cookie_enabled)"
 	browser_cookie_enabled="$(uci -q get hotspot_openwrt.main.browser_cookie_enabled)"
 	browser_cookie_days="$(uci -q get hotspot_openwrt.main.browser_cookie_days)"
+	open_status_page="$(uci -q get hotspot_openwrt.main.open_status_page)"
 	[ -n "$portal_path" ] || portal_path='/hotspot'
 	[ -n "$portal_storage_path" ] || portal_storage_path='/www/hotspot'
 	[ -n "$browser_cookie_days" ] || browser_cookie_days='7'
+	[ -n "$open_status_page" ] || open_status_page='always'
 	[ -n "$session_timeout" ] || session_timeout='none'
 	[ -n "$idle_timeout" ] || idle_timeout='none'
-	[ -n "$keepalive_timeout" ] || keepalive_timeout='00:02:00'
 	[ -n "$status_autorefresh" ] || status_autorefresh='00:01:00'
 	[ -n "$shared_users" ] || shared_users='3'
-	[ -n "$mac_cookie_timeout" ] || mac_cookie_timeout='3d 00:00:00'
 	[ -n "$radius_nas_ip" ] || radius_nas_ip="$(ip -4 addr show br-lan 2>/dev/null | awk '/inet / { sub(/\/.*/, "", $2); print $2; exit }')"
 	session_timeout_seconds="$(duration_to_seconds "$session_timeout")"
 	idle_timeout_seconds="$(duration_to_seconds "$idle_timeout")"
@@ -331,6 +391,7 @@ apply_config() {
 	[ "$subscriber_interface" = 'hotspot' ] && device_name='br-hotspot'
 	wan_zone="$(zone_for_network "$wan_interface")"
 	uam_page="$portal_path/login.html"
+	[ "$terms_enabled" = '1' ] && uam_page="$portal_path/terms.html"
 	runtime_mode='chilli'
 	if [ ! -x /etc/init.d/chilli ] || { [ ! -c /dev/net/tun ] && ! modprobe tun >/dev/null 2>&1; }; then
 		runtime_mode='dnsmasq'
@@ -444,6 +505,7 @@ apply_config() {
 		set chilli.hotspot_openwrt.radiusacctport='$radius_acct_port'
 		set chilli.hotspot_openwrt.nasip='$radius_nas_ip'
 		set chilli.hotspot_openwrt.radiusnasid='$radius_nas_id'
+		set chilli.hotspot_openwrt.domain='$domain'
 		set chilli.hotspot_openwrt.dns1='$hotspot_ip'
 		set chilli.hotspot_openwrt.dns2='$hotspot_ip'
 		set chilli.hotspot_openwrt.forcedns1='$hotspot_ip'
@@ -472,15 +534,11 @@ apply_config() {
 	if [ "$captive_notify" = '1' ]; then
 		uci set chilli.hotspot_openwrt.dhcpopt="$(captive_portal_dhcpopt "$hotspot_ip" "$portal_path")"
 	fi
-	if [ "$mac_cookie_enabled" = '1' ]; then
-		uci set chilli.hotspot_openwrt.macauth='1'
-		uci set chilli.hotspot_openwrt.macreauth='1'
-		uci set chilli.hotspot_openwrt.macauthdeny='0'
-	fi
 	uci commit chilli
-	configure_portal_files "$hotspot_ip" "$portal_path" "$portal_storage_path" "$terms_enabled" "$browser_cookie_enabled" "$browser_cookie_days" || fail_json 'portal' 'Could not update portal page files'
+	configure_portal_files "$hotspot_ip" "$portal_path" "$portal_storage_path" "$terms_enabled" "$browser_cookie_enabled" "$browser_cookie_days" "$open_status_page" "$status_autorefresh_seconds" || fail_json 'portal' 'Could not update portal page files'
+	configure_domain_landing "$hotspot_ip" "$portal_path" "$domain" || fail_json 'portal' 'Could not update hotspot domain landing page'
 	configure_chilli_local_access || fail_json 'chilli' 'Could not update /etc/chilli/config for local portal access'
-	configure_dnsmasq_compat "$hotspot_ip" "$portal_path" "$captive_notify" || fail_json 'dnsmasq' 'Could not update dnsmasq captive portal compatibility settings'
+	configure_dnsmasq_compat "$hotspot_ip" "$portal_path" "$captive_notify" "$domain" || fail_json 'dnsmasq' 'Could not update dnsmasq captive portal compatibility settings'
 	configure_firewall_nft_compat "$network_addr" "$hotspot_cidr" "$wan_interface" || fail_json 'firewall' 'Could not update firewall4 hotspot compatibility rules'
 
 	uci set hotspot_openwrt.main.enabled='1'
@@ -512,13 +570,24 @@ apply_config() {
 	/etc/init.d/chilli enable >/dev/null 2>&1 || true
 	/etc/init.d/chilli restart >/dev/null 2>&1 || true
 
-	if ! runtime_error="$(verify_runtime "$subscriber_interface" "$hotspot_ip")"; then
+	runtime_error=''
+	for attempt in 1 2 3 4 5 6 7 8 9 10; do
+		if runtime_error="$(verify_runtime "$subscriber_interface" "$hotspot_ip")"; then
+			runtime_error=''
+			break
+		fi
+		sleep 1
+	done
+
+	if [ -n "$runtime_error" ]; then
 		/etc/init.d/chilli stop >/dev/null 2>&1 || true
 		/etc/init.d/chilli disable >/dev/null 2>&1 || true
 		uci set hotspot_openwrt.main.enabled='0'
 		uci commit hotspot_openwrt
 		fail_json 'runtime' "Hotspot configuration was saved, but runtime verification failed: $runtime_error. Backup: $backup_dir"
 	fi
+
+	restart_presence_watchdog
 
 	printf '{'
 	printf '"ok":true,'

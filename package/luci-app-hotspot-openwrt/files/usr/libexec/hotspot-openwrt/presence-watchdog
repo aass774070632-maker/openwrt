@@ -1,0 +1,113 @@
+#!/bin/sh
+
+socket_path='/var/run/chilli_hotspot_openwrt.sock'
+state_dir='/var/run/hotspot-openwrt-absent'
+
+duration_to_seconds() {
+	local value="$1" days='0' time_part seconds
+	value="$(printf '%s' "$value" | tr 'A-Z' 'a-z' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+	case "$value" in ''|none|0) printf '0'; return 0 ;; esac
+	case "$value" in *d*)
+		days="$(printf '%s' "$value" | sed 's/d.*//;s/[^0-9]//g')"
+		[ -n "$days" ] || days='0'
+		value="$(printf '%s' "$value" | sed 's/^[^d]*d[[:space:]]*//')"
+		;;
+	esac
+	case "$value" in
+		*:*:*) time_part="$(printf '%s' "$value" | awk -F: '{ print ($1 * 3600) + ($2 * 60) + $3 }')" ;;
+		*:*) time_part="$(printf '%s' "$value" | awk -F: '{ print ($1 * 60) + $2 }')" ;;
+		*[0-9]h) time_part="$(printf '%s' "$value" | sed 's/[^0-9]//g' | awk '{ print $1 * 3600 }')" ;;
+		*[0-9]m) time_part="$(printf '%s' "$value" | sed 's/[^0-9]//g' | awk '{ print $1 * 60 }')" ;;
+		*[0-9]s) time_part="$(printf '%s' "$value" | sed 's/[^0-9]//g')" ;;
+		*[!0-9]*) time_part='0' ;;
+		*) time_part="$value" ;;
+	esac
+	seconds="$((days * 86400 + ${time_part:-0}))"
+	printf '%s' "$seconds"
+}
+
+normalize_mac() {
+	printf '%s' "$1" | tr 'A-Z-' 'a-z:'
+}
+
+connected_macs() {
+	if command -v iw >/dev/null 2>&1; then
+		for iface in $(iw dev 2>/dev/null | awk '/Interface/ { iface=$2 } /type AP/ { print iface }'); do
+			iw dev "$iface" station dump 2>/dev/null | awk '/^Station / { print $2 }'
+		done
+	fi
+	bridge fdb show 2>/dev/null | awk '{ print $1 }'
+	ip neigh show 2>/dev/null | awk '{ print $5 }'
+}
+
+scan_once() {
+	local timeout="$1" mode="$2" now kicked checked mac ip state stamp_name stamp_file first_seen age normalized_mac connected_file client_file current_file
+	[ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1 || return 0
+	mkdir -p "$state_dir" || return 0
+	now="$(date +%s)"
+	kicked='0'
+	checked='0'
+	connected_file="$state_dir/connected.$$"
+	client_file="$state_dir/clients.$$"
+	current_file="$state_dir/current.$$"
+	connected_macs | while read mac; do
+		[ -n "$mac" ] && normalize_mac "$mac"
+	done | sort -u > "$connected_file"
+	chilli_query -s "$socket_path" list 2>/dev/null > "$client_file"
+	: > "$current_file"
+	while read mac ip state rest; do
+		[ -n "$mac" ] && [ -n "$ip" ] || continue
+		checked=$((checked + 1))
+		normalized_mac="$(normalize_mac "$mac")"
+		stamp_name="$(printf '%s' "$normalized_mac" | tr ':' '_')"
+		stamp_file="$state_dir/$stamp_name"
+		printf '%s\n' "$stamp_name" >> "$current_file"
+		if grep -qx "$normalized_mac" "$connected_file" 2>/dev/null; then
+			rm -f "$stamp_file"
+			continue
+		fi
+		if [ ! -s "$stamp_file" ]; then
+			printf '%s\n' "$now" > "$stamp_file"
+			continue
+		fi
+		first_seen="$(cat "$stamp_file" 2>/dev/null)"
+		case "$first_seen" in ''|*[!0-9]*) first_seen="$now"; printf '%s\n' "$now" > "$stamp_file" ;; esac
+		age=$((now - first_seen))
+		if [ "$age" -ge "$timeout" ]; then
+			if [ "$state" = 'pass' ]; then
+				chilli_query -s "$socket_path" logout ip "$ip" >/dev/null 2>&1 || true
+				logger -t hotspot-openwrt-watchdog "logged out disconnected active client mac=$normalized_mac ip=$ip absent_seconds=$age timeout=$timeout"
+			else
+				chilli_query -s "$socket_path" dhcp-release "$normalized_mac" >/dev/null 2>&1 || true
+				logger -t hotspot-openwrt-watchdog "released disconnected host mac=$normalized_mac ip=$ip state=$state absent_seconds=$age timeout=$timeout"
+			fi
+			rm -f "$stamp_file"
+			kicked=$((kicked + 1))
+		fi
+	done < "$client_file"
+	for stamp_file in "$state_dir"/*; do
+		[ -f "$stamp_file" ] || continue
+		case "$(basename "$stamp_file")" in connected.*|clients.*|current.*) continue ;; esac
+		grep -qx "$(basename "$stamp_file")" "$current_file" 2>/dev/null || rm -f "$stamp_file"
+	done
+	rm -f "$connected_file" "$client_file" "$current_file"
+	[ "$mode" = '--once' ] && printf '{"checked":%s,"kicked":%s}\n' "$checked" "$kicked"
+}
+
+timeout="$(duration_to_seconds "$(uci -q get hotspot_openwrt.main.keepalive_timeout || echo 00:02:00)")"
+case "$timeout" in ''|*[!0-9]*) timeout='0' ;; esac
+[ "$timeout" -gt 0 ] || exit 0
+
+if [ "$1" = '--once' ]; then
+	scan_once "$timeout" --once
+	exit 0
+fi
+
+interval=$((timeout / 3))
+[ "$interval" -ge 5 ] || interval='5'
+[ "$interval" -le 30 ] || interval='30'
+
+while :; do
+	scan_once "$timeout"
+	sleep "$interval"
+done

@@ -67,9 +67,9 @@
 				<marquee direction="right" onMouseOver="this.stop();" onMouseOut="this.start();" class="gif">...:::: أهلا بكم في شبكة البرق <img width="50" src="img/new.gif" align="absmiddle"/> يوجد حماية لمنع أختراق الحسابات <img width="50" src="img/new.gif" align="absmiddle"/> ننصح بالاحتفاط بالكرت حتى ينتهي فلسنا مسؤولين عن نسيان الرمز <img width="50" src="img/new.gif" align="absmiddle"/> أهلا بكم ودمتم سالمين <img width="50" src="img/new.gif" align="absmiddle"/> نتمنى لكم قضاء اجمل واسعد الاوقات معنا وفي حالة اي خلل فني لاتتردد في التواصل معنا ::::...</marquee>
 			</div>
 
-			<form name="login" id="login-form" action="http://192.168.10.1:3990/login" method="get" onsubmit="return submitOpenWrtLogin()">
+			<form name="login" id="login-form" action="/cgi-bin/hotspot-login" method="get" onsubmit="return submitOpenWrtLogin()">
 				<input type="hidden" name="password" id="paswd">
-				<input type="hidden" name="userurl" id="userurl" value="http://192.168.10.1/hotspot/status.html">
+				<input type="hidden" name="userurl" id="userurl" value="/hotspot/status.html">
 				<div class="form-title" style="text-align:center;padding:10px;background:linear-gradient(to right,#4CAF50,#8BC34A);color:white;border-radius:5px;margin-bottom:15px;">
 					<h4 style="margin:0;">موقع القرآن الكريم مجاناً <a href="https://www.islambook.com/" style="color:#ffeb3b;text-decoration:none;">(إضغط هنا)</a></h4>
 				</div>
@@ -91,7 +91,7 @@
 						<label for="remember" class="checkbox-label" data-off="لا تتذكرني" data-on="تذكرني"></label>
 					</div>
 					<div class="submit">
-						<a id="login-button" class="login-button" href="http://192.168.10.1:3990/login" onclick="return submitOpenWrtLogin()">تسجيل الدخول<i class="icon-login"></i></a>
+						<a id="login-button" class="login-button" href="/cgi-bin/hotspot-login" onclick="return submitOpenWrtLogin()">تسجيل الدخول<i class="icon-login"></i></a>
 					</div>
 					<div class="submit">
 						<a class="login-button" href="status.html">معلومات الكرت<i class="icon-user"></i></a>
@@ -123,8 +123,90 @@
 		<div class="modal"><div class="modal-icon place"><i class="icon-location"></i></div><div class="title place">الوكلاء و المعتمدين :</div><div class="modal-clear"></div><div id="line"></div><div class="modal-body"><div>0 - <p id="titel"> -- مراكز توزيع البطاقات -- </p></div><div>1 - جميع البقالات اللتي يتواجد فيها التغطية</div></div></div>
 	</div>
 
+	<script src="settings.js"></script>
 	<script>
+		var OPENWRT_SETTINGS = window.HOTSPOT_OPENWRT_SETTINGS || {};
 		var OPENWRT_REALM_FOR_11_DIGIT_CARDS = '@userman2';
+		var OPENWRT_POST_LOGIN_URL = OPENWRT_SETTINGS.postLoginUrl || ('http://' + window.location.hostname + '/hotspot/status.html');
+		var OPENWRT_COOKIE_DAYS = Number(OPENWRT_SETTINGS.browserCookieDays || 7);
+		var OPENWRT_COOKIE_MAX_AGE = Math.max(1, Math.min(365, OPENWRT_COOKIE_DAYS)) * 86400000;
+
+		function getOpenWrtStoredUsername(key) {
+			try {
+				var value = localStorage.getItem(key) || '';
+				var savedAt = Number(localStorage.getItem(key + '_saved_at') || 0);
+				if (value && savedAt && Date.now() - savedAt > OPENWRT_COOKIE_MAX_AGE) {
+					localStorage.removeItem(key);
+					localStorage.removeItem(key + '_saved_at');
+					return '';
+				}
+				return value;
+			} catch (e) { return ''; }
+		}
+
+		function getOpenWrtPostLoginUrl(username) {
+			if (OPENWRT_SETTINGS.openStatusPage == 'none')
+				return OPENWRT_SETTINGS.postLoginUrl || 'http://connectivitycheck.gstatic.com/generate_204';
+			var separator = OPENWRT_POST_LOGIN_URL.indexOf('?') == -1 ? '?' : '&';
+			var url = OPENWRT_POST_LOGIN_URL + separator + 't=' + new Date().getTime();
+			if (username)
+				url += '&username=' + encodeURIComponent(username);
+			return url;
+		}
+
+		function saveOpenWrtSessionUsername(username, remember) {
+			try { sessionStorage.setItem('hotspot_session_username', username); } catch (e) {}
+			try { localStorage.setItem('hotspot_last_username', username); localStorage.setItem('hotspot_last_username_saved_at', String(Date.now())); } catch (e) {}
+			try {
+				if (remember && OPENWRT_SETTINGS.browserCookieEnabled !== false) {
+					localStorage.setItem('hotspot_username', username);
+					localStorage.setItem('hotspot_username_saved_at', String(Date.now()));
+				}
+				else {
+					localStorage.removeItem('hotspot_username');
+					localStorage.removeItem('hotspot_username_saved_at');
+				}
+			} catch (e) {}
+		}
+
+		function getOpenWrtSavedUsername() {
+			var saved = '';
+			try { saved = sessionStorage.getItem('hotspot_session_username') || ''; } catch (e) {}
+			if (!saved) {
+				saved = getOpenWrtStoredUsername('hotspot_username');
+			}
+			if (!saved) {
+				saved = getOpenWrtStoredUsername('hotspot_last_username');
+			}
+			return saved;
+		}
+
+		function redirectAuthenticatedClient() {
+			if (OPENWRT_SETTINGS.openStatusPage == 'none')
+				return;
+			var username = getOpenWrtSavedUsername();
+			fetch('/cgi-bin/hotspot-card-info?username=' + encodeURIComponent(username), { cache: 'no-store' })
+				.then(function(response) { return response.ok ? response.json() : null; })
+				.then(function(data) {
+					if (data && data.authenticated)
+						window.location.replace(getOpenWrtPostLoginUrl(data.card_number || username));
+				})
+				.catch(function() {});
+		}
+
+		function tryOpenWrtMacCookieLogin() {
+			if (OPENWRT_SETTINGS.openStatusPage == 'none')
+				return;
+			fetch('/cgi-bin/hotspot-login?format=json&mac_cookie=1&userurl=' + encodeURIComponent(getOpenWrtPostLoginUrl('')), { cache: 'no-store' })
+				.then(function(response) { return response.ok ? response.json() : null; })
+				.then(function(data) {
+					if (data && data.ok && data.mac_cookie_used) {
+						saveOpenWrtSessionUsername(data.card_number || data.username || '', true);
+						window.location.replace(data.redirect || getOpenWrtPostLoginUrl(data.card_number || data.username || ''));
+					}
+				})
+				.catch(function() {});
+		}
 
 		function getParam(name) {
 			var query = window.location.search ? window.location.search.substring(1).split('&') : [];
@@ -153,12 +235,7 @@
 			else
 				usernameInput.value = username;
 
-			try {
-				if (remember && remember.checked)
-					localStorage.setItem('hotspot_username', username);
-				else
-					localStorage.removeItem('hotspot_username');
-			} catch (e) {}
+			saveOpenWrtSessionUsername(username, remember && remember.checked);
 
 			return true;
 		}
@@ -172,10 +249,14 @@
 			if (!prepareOpenWrtLogin())
 				return false;
 
-			var loginUrl = 'http://192.168.10.1:3990/login?username=' + encodeURIComponent(usernameInput.value) + '&password=' + encodeURIComponent(password.value) + '&userurl=' + encodeURIComponent(userurl.value || 'http://192.168.10.1/hotspot/status.html');
+			var postLoginUrl = getOpenWrtPostLoginUrl(usernameInput.value.split('@')[0]);
+			if (userurl)
+				userurl.value = postLoginUrl;
+
+			var loginUrl = '/cgi-bin/hotspot-login?username=' + encodeURIComponent(usernameInput.value) + '&password=' + encodeURIComponent(password.value) + '&userurl=' + encodeURIComponent(postLoginUrl);
 			if (loginButton)
 				loginButton.href = loginUrl;
-			document.location = loginUrl;
+			window.location.replace(loginUrl);
 			return false;
 		}
 
@@ -186,15 +267,19 @@
 			if (username.length == 11 && OPENWRT_REALM_FOR_11_DIGIT_CARDS)
 				username += OPENWRT_REALM_FOR_11_DIGIT_CARDS;
 			if (loginButton)
-				loginButton.href = username ? 'http://192.168.10.1:3990/login?username=' + encodeURIComponent(username) + '&password=&userurl=http%3A%2F%2F192.168.10.1%2Fhotspot%2Fstatus.html' : 'http://192.168.10.1:3990/login';
+				loginButton.href = username ? '/cgi-bin/hotspot-login?username=' + encodeURIComponent(username) + '&password=&userurl=' + encodeURIComponent(getOpenWrtPostLoginUrl(username.split('@')[0])) : '/cgi-bin/hotspot-login';
 		}
 
 		function initOpenWrtLogin() {
 			var saved = '';
 			var error = getParam('reply') || getParam('error') || getParam('res');
 			var usernameInput = document.getElementById('uname');
+			var userurl = document.getElementById('userurl');
 
-			try { saved = localStorage.getItem('hotspot_username') || ''; } catch (e) {}
+			if (userurl)
+				userurl.value = getOpenWrtPostLoginUrl();
+
+			saved = getOpenWrtSavedUsername();
 
 			if (saved && usernameInput)
 				usernameInput.value = saved;
@@ -208,6 +293,9 @@
 			if (error == 'failed' || error == 'reject' || error == 'denied' || error == 'notallowed') {
 				document.getElementById('hotspot-error-text').textContent = 'فشل تسجيل الدخول، تأكد من رقم الكرت أو حالة الاشتراك.';
 				document.getElementById('alert-error').style.display = 'block';
+			} else {
+				redirectAuthenticatedClient();
+				tryOpenWrtMacCookieLogin();
 			}
 		}
 	</script>

@@ -1,0 +1,79 @@
+#!/bin/sh
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+query_value() {
+	printf '%s' "&$QUERY_STRING" | sed -n "s/.*[&?]$1=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%5[Ff]/_/g'
+}
+
+strip_realm() {
+	printf '%s' "$1" | awk -F@ '{ print $1 }'
+}
+
+socket_path='/var/run/chilli_hotspot_openwrt.sock'
+remote_addr="${REMOTE_ADDR:-}"
+requested_username="$(query_value username)"
+requested_card="$(strip_realm "$requested_username")"
+mac_address=''
+client_ip=''
+client_state='unknown'
+client_username=''
+session_id=''
+input_octets=''
+output_octets=''
+authenticated='false'
+source='browser'
+user_manager='{"enabled":false,"ok":false,"source":"not_requested","message":"لم يتم طلب معلومات MikroTik User Manager."}'
+message='لم يتم العثور على جلسة CoovaChilli لهذا الجهاز بعد.'
+
+if [ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1; then
+	client_line="$(chilli_query -s "$socket_path" list 2>/dev/null | awk -v remote_addr="$remote_addr" -v requested_username="$requested_username" '
+		remote_addr != "" && $2 == remote_addr { print; found = 1; exit }
+		requested_username != "" && $0 ~ requested_username { print; found = 1; exit }
+		END { if (!found) exit 0 }
+	')"
+	if [ -n "$client_line" ]; then
+		mac_address="$(printf '%s' "$client_line" | awk '{ print $1 }')"
+		client_ip="$(printf '%s' "$client_line" | awk '{ print $2 }')"
+		client_state="$(printf '%s' "$client_line" | awk '{ print $3 }')"
+		session_id="$(printf '%s' "$client_line" | awk '{ print $4 }')"
+		client_username="$(printf '%s' "$client_line" | awk '{ print $6 }')"
+		input_octets="$(printf '%s' "$client_line" | awk '{ print $9 }' | awk -F/ '{ print $1 }')"
+		output_octets="$(printf '%s' "$client_line" | awk '{ print $10 }' | awk -F/ '{ print $1 }')"
+		[ "$client_username" = '-' ] && client_username=''
+		[ -z "$requested_card" ] && requested_card="$(strip_realm "$client_username")"
+		[ "$client_state" = 'pass' ] && authenticated='true'
+		source='coovachilli'
+		message='تمت قراءة حالة الجلسة من CoovaChilli، وسيتم إرفاق معلومات MikroTik User Manager عند توفرها.'
+	fi
+fi
+
+if [ -n "$requested_card" ] && [ -x /usr/libexec/hotspot-openwrt/userman-info ]; then
+	user_manager="$(/usr/libexec/hotspot-openwrt/userman-info "$requested_card" 2>/dev/null)"
+	case "$user_manager" in
+		\{*\}) ;;
+		*) user_manager='{"enabled":false,"ok":false,"source":"helper_error","message":"تعذر تشغيل جسر MikroTik User Manager."}' ;;
+	esac
+fi
+
+printf 'Content-Type: application/json\r\n'
+printf 'Cache-Control: no-store\r\n\r\n'
+printf '{'
+printf '"ok":true,'
+printf '"source":"%s",' "$(json_escape "$source")"
+printf '"remote_addr":"%s",' "$(json_escape "$remote_addr")"
+printf '"card_number":"%s",' "$(json_escape "$requested_card")"
+printf '"username":"%s",' "$(json_escape "${client_username:-$requested_username}")"
+printf '"mac":"%s",' "$(json_escape "$mac_address")"
+printf '"ip":"%s",' "$(json_escape "$client_ip")"
+printf '"state":"%s",' "$(json_escape "$client_state")"
+printf '"session_id":"%s",' "$(json_escape "$session_id")"
+printf '"input_octets":"%s",' "$(json_escape "$input_octets")"
+printf '"output_octets":"%s",' "$(json_escape "$output_octets")"
+printf '"authenticated":%s,' "$authenticated"
+printf '"mikrotik_user_manager":"routeros_rest_optional",'
+printf '"user_manager":%s,' "$user_manager"
+printf '"message":"%s"' "$(json_escape "$message")"
+printf '}\n'
