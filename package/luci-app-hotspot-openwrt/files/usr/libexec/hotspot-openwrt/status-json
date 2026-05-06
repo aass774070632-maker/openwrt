@@ -28,6 +28,7 @@ rate_limit_rx_tx="$(uci -q get hotspot_openwrt.main.rate_limit_rx_tx || echo '')
 socket_path="/var/run/chilli_hotspot_openwrt.sock"
 mac_cookie_helper='/usr/libexec/hotspot-openwrt/mac-cookies'
 watchdog_pid_file='/var/run/hotspot-openwrt-presence-watchdog.pid'
+mac_cookie_watchdog_pid_file='/var/run/hotspot-openwrt-mac-cookie-watchdog.pid'
 last_client=''
 clients_total='0'
 active_clients='0'
@@ -129,5 +130,6 @@ printf '"radius_server":"%s",' "$(json_escape "$radius_server")"
 printf '"radius_auth_port":"%s",' "$(json_escape "$radius_auth_port")"
 printf '"radius_acct_port":"%s",' "$(json_escape "$radius_acct_port")"
 printf '"presence_watchdog_running":%s,' "$([ -s "$watchdog_pid_file" ] && kill -0 "$(cat "$watchdog_pid_file" 2>/dev/null)" 2>/dev/null && echo true || echo false)"
+printf '"mac_cookie_watchdog_running":%s,' "$([ -s "$mac_cookie_watchdog_pid_file" ] && kill -0 "$(cat "$mac_cookie_watchdog_pid_file" 2>/dev/null)" 2>/dev/null && echo true || echo false)"
 printf '"radius_transport":"udp"'
 printf '}\n'

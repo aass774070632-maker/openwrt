@@ -50,6 +50,17 @@ find_cookie() {
 	awk -F '\t' -v mac="$mac" '$1 == mac { print; found = 1; exit } END { if (!found) exit 1 }' "$db_file"
 }
 
+delete_cookie() {
+	local mac="$1" temp
+	mac="$(normalize_mac "$mac")"
+	[ -n "$mac" ] || exit 0
+	[ -f "$db_file" ] || exit 0
+	temp="$db_file.$$"
+	awk -F '\t' -v mac="$mac" '$1 != mac { print }' "$db_file" > "$temp" 2>/dev/null || : > "$temp"
+	mv "$temp" "$db_file"
+	chmod 0600 "$db_file" 2>/dev/null || true
+}
+
 count_cookies() {
 	[ -f "$db_file" ] || { printf '0\n'; exit 0; }
 	awk -F '\t' 'NF >= 4 { total++ } END { print total + 0 }' "$db_file"
@@ -73,7 +84,8 @@ list_json() {
 case "$1" in
 	save) shift; save_cookie "$@" ;;
 	find) shift; find_cookie "$@" ;;
+	delete) shift; delete_cookie "$@" ;;
 	count) count_cookies ;;
 	list-json) list_json ;;
-	*) printf 'Usage: %s save <mac> <ip> <username> | find <mac> | count | list-json\n' "$0" >&2; exit 1 ;;
+	*) printf 'Usage: %s save <mac> <ip> <username> | find <mac> | delete <mac> | count | list-json\n' "$0" >&2; exit 1 ;;
 esac

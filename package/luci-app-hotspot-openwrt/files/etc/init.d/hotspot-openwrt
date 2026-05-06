@@ -13,5 +13,9 @@ stop_service() {
 		kill "$(cat /var/run/hotspot-openwrt-presence-watchdog.pid 2>/dev/null)" 2>/dev/null || true
 		rm -f /var/run/hotspot-openwrt-presence-watchdog.pid
 	fi
+	if [ -s /var/run/hotspot-openwrt-mac-cookie-watchdog.pid ]; then
+		kill "$(cat /var/run/hotspot-openwrt-mac-cookie-watchdog.pid 2>/dev/null)" 2>/dev/null || true
+		rm -f /var/run/hotspot-openwrt-mac-cookie-watchdog.pid
+	fi
 	/etc/init.d/chilli stop 2>/dev/null || true
 }

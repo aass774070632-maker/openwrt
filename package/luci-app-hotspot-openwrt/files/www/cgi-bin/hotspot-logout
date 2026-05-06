@@ -13,6 +13,7 @@ strip_realm() {
 }
 
 socket_path='/var/run/chilli_hotspot_openwrt.sock'
+mac_cookie_helper='/usr/libexec/hotspot-openwrt/mac-cookies'
 remote_addr="${REMOTE_ADDR:-}"
 requested_username="$(query_value username)"
 requested_card="$(strip_realm "$requested_username")"
@@ -43,10 +44,13 @@ if [ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1; then
 		client_username="$(printf '%s' "$client_line" | awk '{ print $6 }')"
 		if [ -n "$client_ip" ]; then
 			chilli_query -s "$socket_path" logout ip "$client_ip" >/dev/null 2>&1 || true
+			chilli_query -s "$socket_path" logoff ip "$client_ip" >/dev/null 2>&1 || true
+			[ -n "$client_mac" ] && chilli_query -s "$socket_path" dhcp-release "$client_mac" >/dev/null 2>&1 || true
+			[ -x "$mac_cookie_helper" ] && [ -n "$client_mac" ] && "$mac_cookie_helper" delete "$client_mac" >/dev/null 2>&1 || true
 			after_state="$(chilli_query -s "$socket_path" list 2>/dev/null | awk -v client_ip="$client_ip" '$2 == client_ip { print $3; found = 1; exit } END { if (!found) exit 0 }')"
 			if [ -z "$after_state" ] || [ "$after_state" != 'pass' ]; then
 				logout_ok='true'
-				message='تم تسجيل الخروج وإيقاف تصريح الإنترنت لهذا الجهاز.'
+				message='تم تسجيل الخروج، وحذف MAC Cookie، وإيقاف تصريح الإنترنت لهذا الجهاز.'
 				client_state="${after_state:-logged_out}"
 			else
 				message='تم إرسال أمر الخروج، لكن الجلسة ما زالت مصرح بها.'

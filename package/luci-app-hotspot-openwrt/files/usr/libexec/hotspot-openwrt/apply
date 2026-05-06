@@ -301,7 +301,7 @@ configure_firewall_nft_compat() {
 }
 
 restart_presence_watchdog() {
-	local pid_file='/var/run/hotspot-openwrt-presence-watchdog.pid' pid
+	local pid_file='/var/run/hotspot-openwrt-presence-watchdog.pid' mac_pid_file='/var/run/hotspot-openwrt-mac-cookie-watchdog.pid' pid
 	if [ -s "$pid_file" ]; then
 		pid="$(cat "$pid_file" 2>/dev/null)"
 		[ -n "$pid" ] && kill "$pid" >/dev/null 2>&1 || true
@@ -310,6 +310,14 @@ restart_presence_watchdog() {
 	[ -x /usr/libexec/hotspot-openwrt/presence-watchdog ] || return 0
 	/usr/libexec/hotspot-openwrt/presence-watchdog >/dev/null 2>&1 &
 	echo $! > "$pid_file"
+	if [ -s "$mac_pid_file" ]; then
+		pid="$(cat "$mac_pid_file" 2>/dev/null)"
+		[ -n "$pid" ] && kill "$pid" >/dev/null 2>&1 || true
+		rm -f "$mac_pid_file"
+	fi
+	[ -x /usr/libexec/hotspot-openwrt/mac-cookie-watchdog ] || return 0
+	/usr/libexec/hotspot-openwrt/mac-cookie-watchdog >/dev/null 2>&1 &
+	echo $! > "$mac_pid_file"
 }
 
 apply_config() {
@@ -515,7 +523,7 @@ apply_config() {
 		set chilli.hotspot_openwrt.uamanydns='1'
 		set chilli.hotspot_openwrt.uamdomainttl='5'
 		set chilli.hotspot_openwrt.uamdomain='$walled_garden'
-		set chilli.hotspot_openwrt.uamallowed='$hotspot_ip,$hotspot_ip:80,$hotspot_ip:3990,$hotspot_ip:3991'
+		set chilli.hotspot_openwrt.uamallowed='$hotspot_ip,$hotspot_ip:80,$hotspot_ip:3990,$hotspot_ip:3991,$domain,$domain:80'
 		delete chilli.hotspot_openwrt.dhcpopt
 		delete chilli.hotspot_openwrt.defsessiontimeout
 		delete chilli.hotspot_openwrt.defidletimeout
