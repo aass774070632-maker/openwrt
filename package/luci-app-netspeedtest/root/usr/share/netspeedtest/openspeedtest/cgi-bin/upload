@@ -1,0 +1,16 @@
+#!/bin/sh
+
+case "$REQUEST_METHOD" in
+	POST)
+		cat >/dev/null
+	;;
+esac
+
+printf 'Status: 200 OK\r\n'
+printf 'Content-Type: text/plain\r\n'
+printf 'Cache-Control: no-store\r\n'
+printf 'Access-Control-Allow-Origin: *\r\n'
+printf 'Access-Control-Allow-Methods: GET, POST, HEAD, OPTIONS\r\n'
+printf 'Access-Control-Allow-Headers: Content-Type, Content-Length, Cache-Control\r\n'
+printf 'Content-Length: 0\r\n'
+printf '\r\n'

@@ -18,6 +18,7 @@
 			"file": {
 				"/tmp/hotspot-openwrt-upload": [ "write" ],
 				"/usr/libexec/hotspot-openwrt/apply": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/kick-client": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/portal-upload": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/validate": [ "exec" ]
 			},

@@ -37,6 +37,13 @@ var FIELD_GROUPS = {
 	portal: [
 		{ option: 'portal_path', label: 'رابط صفحة الهوتسبوت', hint: 'المسار الذي يفتحه العميل داخل المتصفح', placeholder: '/hotspot' },
 		{ option: 'portal_storage_path', label: 'مكان حفظ الصفحة', hint: 'المجلد على الراوتر. يجب أن يكون داخل /www حتى يخدمه uhttpd', placeholder: '/www/hotspot' },
+		{ option: 'network_name', label: 'اسم الشبكة', hint: 'يظهر في أعلى صفحة الدخول', placeholder: 'Hotspot OpenWrt' },
+		{ option: 'available_speeds', label: 'قائمة السرعات المتاحة للمشتركين', hint: 'أدخل خيارات السرعة، سطر لكل خيار. الصيغة: (السرعة الاسم). مثال: 1M/2M باقة_عادية', multiline: true, placeholder: '1M/2M Standard\n2M/4M Fast' },
+		{ option: 'support_phone', label: 'رقم الدعم الفني', hint: 'يظهر كزر تواصل في أسفل الصفحة', placeholder: '777000000' },
+		{ option: 'logo_url', label: 'رابط الشعار', hint: 'رابط صورة تظهر في الأعلى (يمكن تركه فارغاً)', placeholder: '/hotspot/logo.png' },
+		{ option: 'notice_text', label: 'تنبيه للمشتركين', hint: 'نص يظهر بشكل بارز للتنبيهات', placeholder: 'أهلاً بكم في شبكتنا' },
+		{ option: 'speedtest_enabled', label: 'تفعيل فحص السرعة في صفحة الحالة', hint: 'يظهر زر للمشترك لقياس سرعة اتصاله الحقيقية بالراوتر', type: 'checkbox' },
+		{ option: 'login_mode', label: 'طريقة تسجيل الدخول', hint: 'اختر ما إذا كان المشترك يحتاج لإدخال رقم الكرت فقط أو مع كلمة سر.', placeholder: 'both', choices: getLoginModeChoices },
 		{ option: 'captive_notify', label: 'إظهار نافذة الدخول تلقائيًا', hint: 'يضيف DHCP option 114 وapi.json لتتعرف الهواتف على الكابتف بورتال', type: 'checkbox' },
 		{ option: 'browser_cookie_enabled', label: 'Browser Cookie', hint: 'يتذكر المتصفح رقم الكرت محليًا عند فتح صفحة الدخول', type: 'checkbox' },
 		{ option: 'browser_cookie_days', label: 'مدة كوكي المتصفح بالأيام', hint: 'من 1 إلى 365 يومًا', placeholder: '7' }
@@ -64,7 +71,7 @@ var FIELD_GROUPS = {
 		{ option: 'walled_garden', label: 'Walled Garden Domains', hint: 'نطاقات مسموحة قبل الدخول، سطر لكل نطاق', multiline: true, placeholder: 'neverssl.com\nconnectivitycheck.gstatic.com' }
 	],
 	bindings: [
-		{ option: 'ip_binding', label: 'IP Bindings', hint: 'صيغة مبسطة: type mac address comment. النوع blocked يمنع تسجيل دخول الجهاز أو العنوان المطابق، والأنواع الأخرى تحفظ للتوثيق.', multiline: true, placeholder: 'blocked 00:11:22:33:44:55 192.168.10.11 phone\nregular 36:5D:F3:EF:19:25 - note' }
+		{ option: 'ip_binding', label: 'IP Bindings', hint: 'صيغة مبسطة: type mac address comment. النوع blocked يمنع تسجيل دخول الجهاز، والنوع bypassed يمرر الجهاز للإنترنت مباشرة دون صفحة الدخول.', multiline: true, placeholder: 'blocked 00:11:22:33:44:55 192.168.10.11 phone\nbypassed 36:5D:F3:EF:19:25 - manager' }
 	],
 	active: [
 		{ option: 'keepalive_timeout', label: 'مدة طرد المنفصلين من Active / Hosts', hint: 'إذا اختفى الجهاز من شبكة الهوتسبوت، يتم إخراجه من Active أو حذفه من Hosts بعد هذه المدة. اكتب مدة مثل 00:02:00 أو none لتعطيله.', placeholder: '00:02:00' }
@@ -183,6 +190,13 @@ function getBridgePortChoices() {
 	});
 
 	return choices;
+}
+
+function getLoginModeChoices() {
+	return [
+		{ value: 'username', label: 'رقم الكرت فقط (Voucher)' },
+		{ value: 'both', label: 'اسم مستخدم وكلمة سر' }
+	];
 }
 
 function getWifiChoices() {
@@ -446,7 +460,12 @@ function statusItem(label, value) {
 function renderField(field) {
 	var input;
 	var value = getValue(field.option);
-	var choices = field.choices ? field.choices() : null;
+	var choices = null;
+	if (typeof field.choices === 'function') {
+		choices = field.choices();
+	} else if (Array.isArray(field.choices)) {
+		choices = field.choices;
+	}
 
 	if (choices) {
 		var selected = field.multiple ? readList(field.option) : [ String(value || '') ];
@@ -485,7 +504,23 @@ function renderField(field) {
 
 	return E('div', { 'class': 'hotspot-field' }, [
 		E('div', [ E('label', { 'for': fieldId(field.option) }, field.label), E('small', {}, field.hint || '') ]),
-		E('div', [ input ])
+		E('div', [
+			field.option === 'ip_binding' ? E('button', {
+				'class': 'btn cbi-button cbi-button-add',
+				'style': 'margin-bottom: 10px;',
+				'click': function(ev) {
+					ev.preventDefault();
+					showBindingModal('', function(newLine) {
+						var textarea = document.getElementById(fieldId('ip_binding'));
+						if (textarea) {
+							var val = textarea.value.trim();
+							textarea.value = val ? val + '\n' + newLine : newLine;
+						}
+					});
+				}
+			}, 'إضافة جديد (+)') : '',
+			input
+		])
 	]);
 }
 
@@ -655,6 +690,87 @@ function formatBytes(value) {
 	return String(value) + ' B';
 }
 
+function showBindingModal(mac, onSaveCallback) {
+	ui.showModal('Make Binding', [
+		E('div', { 'class': 'cbi-section' }, [
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, 'MAC Address'),
+				E('div', { 'class': 'cbi-value-field' }, [
+					E('input', { 'type': 'text', 'class': 'cbi-input-text', 'id': 'binding-mac', 'value': mac || '', 'placeholder': '00:11:22:33:44:55', 'readonly': mac ? 'readonly' : null })
+				])
+			]),
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, 'Type'),
+				E('div', { 'class': 'cbi-value-field' }, [
+					E('select', { 'class': 'cbi-input-select', 'id': 'binding-type' }, [
+						E('option', { 'value': 'blocked' }, 'Blocked (حظر)'),
+						E('option', { 'value': 'bypassed' }, 'Bypassed (سماح مباشر)'),
+						E('option', { 'value': 'regular' }, 'Regular (عادي)')
+					])
+				])
+			]),
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, 'Comment'),
+				E('div', { 'class': 'cbi-value-field' }, [
+					E('input', { 'type': 'text', 'class': 'cbi-input-text', 'id': 'binding-comment', 'placeholder': 'Optional comment' })
+				])
+			])
+		]),
+		E('div', { 'class': 'right' }, [
+			E('button', {
+				'class': 'btn',
+				'click': ui.hideModal
+			}, 'إلغاء'),
+			' ',
+			E('button', {
+				'class': 'btn cbi-button cbi-button-apply',
+				'click': function(ev) {
+					ev.preventDefault();
+					var inputMac = document.getElementById('binding-mac').value.trim();
+					if (!inputMac) return;
+					var type = document.getElementById('binding-type').value;
+					var comment = document.getElementById('binding-comment').value || '-';
+					var newLine = type + ' ' + inputMac + ' ' + comment;
+
+					if (typeof onSaveCallback === 'function') {
+						onSaveCallback(newLine);
+						ui.hideModal();
+						return;
+					}
+
+					var currentList = uci.get('hotspot_openwrt', 'main', 'ip_binding') || [];
+					if (typeof currentList === 'string') {
+						currentList = currentList.split(/\n+/).filter(function(x) { return x.trim(); });
+					}
+					var newList = [];
+					for (var i = 0; i < currentList.length; i++) {
+						if (currentList[i].toLowerCase().indexOf(inputMac.toLowerCase()) === -1) {
+							newList.push(currentList[i]);
+						}
+					}
+					newList.push(newLine);
+					uci.set('hotspot_openwrt', 'main', 'ip_binding', newList);
+					var btn = this;
+					btn.disabled = true;
+					btn.textContent = 'جارٍ الحفظ...';
+					uci.save().then(function() {
+						return fs.exec_direct('/usr/libexec/hotspot-openwrt/apply', [], 'json');
+					}).then(function(res) {
+						if (res && res.ok) notify('تم تطبيق الـ Binding بنجاح.');
+						else notify((res && res.message) || 'فشل التطبيق.');
+						ui.hideModal();
+						window.setTimeout(function() { window.location.reload(); }, 1200);
+					}).catch(function(e) {
+						notify(e.message || String(e));
+						btn.disabled = false;
+						btn.textContent = 'حفظ وتطبيق';
+					});
+				}
+			}, typeof onSaveCallback === 'function' ? 'إضافة للجدول' : 'حفظ وتطبيق')
+		])
+	]);
+}
+
 function clientTable(title, count, clients, hostMode) {
 	clients = Array.isArray(clients) ? clients : [];
 
@@ -671,17 +787,54 @@ function clientTable(title, count, clients, hostMode) {
 				E('th', {}, 'User'),
 				E('th', {}, 'State'),
 				E('th', {}, 'In'),
-				E('th', {}, 'Out')
+				E('th', {}, 'Out'),
+				E('th', {}, 'Action')
 			])
 		].concat(clients.map(function(client) {
 			return E('tr', [
 				E('td', {}, E('span', { 'class': 'hotspot-badge' + (hostMode ? ' is-host' : '') }, client.flag || (hostMode ? 'H' : 'A'))),
 				E('td', {}, client.ip || '-'),
-				E('td', {}, client.mac || '-'),
+				E('td', {
+					'class': 'hotspot-mac-cell',
+					'style': 'cursor: context-menu; color: #0066cc; text-decoration: underline;',
+					'title': 'انقر بالزر الأيمن لعمل Make Binding',
+					'contextmenu': function(ev) {
+						ev.preventDefault();
+						if (client.mac) showBindingModal(client.mac);
+					}
+				}, client.mac || '-'),
 				E('td', {}, client.username || '-'),
 				E('td', {}, client.state || '-'),
 				E('td', {}, formatBytes(client.input_octets)),
-				E('td', {}, formatBytes(client.output_octets))
+				E('td', {}, formatBytes(client.output_octets)),
+				E('td', {}, [
+					E('button', {
+						'class': 'btn cbi-button cbi-button-add',
+						'style': 'margin-left: 5px;',
+						'title': 'Make Binding (+)',
+						'click': function(ev) {
+							ev.preventDefault();
+							if (client.mac) showBindingModal(client.mac);
+						}
+					}, '+'),
+					E('button', {
+						'class': 'btn cbi-button cbi-button-remove',
+						'click': function(ev) {
+						ev.preventDefault();
+						if (confirm('هل أنت متأكد من طرد/حذف الجهاز؟\nMAC: ' + client.mac)) {
+							fs.exec_direct('/usr/libexec/hotspot-openwrt/kick-client', [client.mac || '', client.ip || '', client.state || ''], 'json').then(function(res) {
+								if (res && res.ok) {
+									notify(res.message);
+									window.setTimeout(function() { window.location.reload(); }, 1500);
+								} else {
+									notify((res && res.message) || 'فشل تنفيذ أمر الطرد.');
+								}
+							}).catch(function(err) {
+								notify(err.message || String(err));
+							});
+						}
+					}
+				}, 'حذف') ])
 			]);
 		}))) : E('div', { 'class': 'hotspot-empty' }, hostMode ? 'لا توجد أجهزة في Hosts الآن.' : 'لا توجد جلسات Active الآن.')
 	]);

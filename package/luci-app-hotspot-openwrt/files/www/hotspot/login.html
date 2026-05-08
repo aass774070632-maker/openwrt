@@ -3,29 +3,131 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Hotspot OpenWrt</title>
+	<title>Hotspot Login</title>
 	<link rel="stylesheet" href="style.css">
 </head>
 <body>
 	<main class="hotspot-shell">
-		<h1>تسجيل دخول الهوتسبوت</h1>
+		<div id="dynamic-logo"></div>
+		<h1 id="dynamic-name">تسجيل الدخول</h1>
+		<div id="dynamic-notice"></div>
+		
 		<form id="login-form" method="get" action="/cgi-bin/hotspot-login">
-			<label for="username">رقم الكرت</label>
-			<input id="username" name="username" autocomplete="username" required>
-			<label for="password">كلمة المرور</label>
-			<input id="password" name="password" type="password" autocomplete="current-password">
+			<div id="user-field">
+				<label for="username">رقم الكرت</label>
+				<input id="username" name="username" placeholder="أدخل رقم الكرت هنا" autocomplete="username" required>
+			</div>
+			
+			<div id="pass-field">
+				<label for="password">كلمة المرور</label>
+				<input id="password" name="password" type="password" placeholder="أدخل كلمة المرور" autocomplete="current-password">
+			</div>
+
+			<div id="speed-field">
+				<label for="speed">اختر باقة السرعة</label>
+				<select id="speed" name="speed" style="width: 100%; padding: 14px; border-radius: 12px; border: 2px solid #e2e8f0; background: #f8fafc; font-size: 16px; outline: none;"></select>
+			</div>
+			
 			<input id="userurl" name="userurl" type="hidden" value="/hotspot/status.html">
-			<button type="submit">دخول</button>
+			<button type="submit">دخول الشبكة</button>
 		</form>
+		
+		<div id="dynamic-support"></div>
 	</main>
+
+	<style>
+		.hotspot-toast {
+			position: fixed;
+			top: 20px;
+			left: 50%;
+			transform: translateX(-50%) translateY(-100px);
+			background: rgba(255, 255, 255, 0.95);
+			backdrop-filter: blur(10px);
+			border-radius: 16px;
+			padding: 16px 24px;
+			box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+			z-index: 9999;
+			transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+			max-width: 90%;
+			width: 380px;
+			border: 1px solid rgba(239, 68, 68, 0.2);
+			display: flex;
+			align-items: center;
+			gap: 12px;
+		}
+		.hotspot-toast.show { transform: translateX(-50%) translateY(0); }
+		.toast-icon {
+			width: 24px;
+			height: 24px;
+			background: #ef4444;
+			color: white;
+			border-radius: 50%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-weight: bold;
+			flex-shrink: 0;
+		}
+		.toast-msg { color: #1e293b; font-size: 15px; line-height: 1.4; flex-grow: 1; }
+	</style>
+
+	<div id="toast" class="hotspot-toast">
+		<div class="toast-icon">!</div>
+		<div id="toast-msg" class="toast-msg"></div>
+	</div>
+
 	<script src="settings.js"></script>
 	<script>
 		var settings = window.HOTSPOT_OPENWRT_SETTINGS || {};
+		
+		function showToast(msg) {
+			var toast = document.getElementById('toast');
+			document.getElementById('toast-msg').textContent = msg;
+			toast.classList.add('show');
+			setTimeout(function() { toast.classList.remove('show'); }, 5000);
+		}
+
+		// Branding
+		if (settings.networkName) document.getElementById('dynamic-name').textContent = settings.networkName;
+		if (settings.logoUrl) document.getElementById('dynamic-logo').innerHTML = '<img src="' + settings.logoUrl + '" class="hotspot-logo" alt="Logo">';
+		if (settings.noticeText) document.getElementById('dynamic-notice').innerHTML = '<div class="hotspot-notice">' + settings.noticeText + '</div>';
+		if (settings.supportPhone) document.getElementById('dynamic-support').innerHTML = '<a href="https://wa.me/' + settings.supportPhone + '" class="hotspot-support">تواصل مع الدعم الفني</a>';
+
+		// Speed Selection
+		if (settings.availableSpeeds) {
+			var speedList = settings.availableSpeeds.split('\n').filter(Boolean);
+			if (speedList.length > 0) {
+				var speedSelect = document.getElementById('speed');
+				speedList.forEach(function(s) {
+					var parts = s.trim().split(/\s+/);
+					var val = parts[0];
+					var label = parts.slice(1).join(' ') || val;
+					var opt = document.createElement('option');
+					opt.value = val;
+					opt.textContent = label;
+					speedSelect.appendChild(opt);
+				});
+			} else {
+				document.getElementById('speed-field').style.display = 'none';
+			}
+		} else {
+			document.getElementById('speed-field').style.display = 'none';
+		}
+
+		// Login Mode Handling
+		if (settings.loginMode === 'username') {
+			document.getElementById('pass-field').style.display = 'none';
+			document.getElementById('password').removeAttribute('required');
+			document.querySelector('label[for="username"]').textContent = 'رقم الكرت';
+		} else {
+			document.querySelector('label[for="username"]').textContent = 'اسم المستخدم';
+		}
+
 		var form = document.getElementById('login-form');
-		var username = document.getElementById('username');
+		var usernameInput = document.getElementById('username');
 		var cookieDays = Number(settings.browserCookieDays || 7);
 		var cookieMaxAge = Math.max(1, Math.min(365, cookieDays)) * 86400000;
-		form.action = '/cgi-bin/hotspot-login';
+
 		function storedUsername(key) {
 			try {
 				var value = localStorage.getItem(key) || '';
@@ -38,52 +140,66 @@
 				return value;
 			} catch (e) { return ''; }
 		}
+
 		function savedUsername() {
 			try { return sessionStorage.getItem('hotspot_openwrt_session_username') || storedUsername('hotspot_openwrt_username') || storedUsername('hotspot_openwrt_last_username') || ''; } catch (e) { return ''; }
 		}
+
 		function statusUrl(card) {
 			if (settings.openStatusPage == 'none')
 				return settings.postLoginUrl || 'http://connectivitycheck.gstatic.com/generate_204';
 			var baseUrl = settings.postLoginUrl || ('http://' + location.hostname + '/hotspot/status.html');
 			var separator = baseUrl.indexOf('?') == -1 ? '?' : '&';
 			var url = baseUrl + separator + 't=' + new Date().getTime();
-			if (card)
-				url += '&username=' + encodeURIComponent(card);
+			if (card) url += '&username=' + encodeURIComponent(card);
 			return url;
 		}
+
 		document.getElementById('userurl').value = statusUrl(savedUsername());
-		if (settings.browserCookieEnabled && savedUsername())
-			username.value = savedUsername();
+		if (settings.browserCookieEnabled && savedUsername()) usernameInput.value = savedUsername();
+
 		if (settings.openStatusPage != 'none') {
 			fetch('/cgi-bin/hotspot-card-info?username=' + encodeURIComponent(savedUsername()), { cache: 'no-store' })
 				.then(function(response) { return response.ok ? response.json() : null; })
 				.then(function(data) {
-					if (data && data.authenticated)
-						window.location.replace(statusUrl(data.card_number || savedUsername()));
-				})
-				.catch(function() {});
-			fetch('/cgi-bin/hotspot-login?format=json&mac_cookie=1&userurl=' + encodeURIComponent(statusUrl('')), { cache: 'no-store' })
-				.then(function(response) { return response.ok ? response.json() : null; })
+					if (data && data.authenticated) window.location.replace(statusUrl(data.card_number || savedUsername()));
+				}).catch(function() {});
+		}
+
+		// AJAX Login Handling
+		form.addEventListener('submit', function(e) {
+			e.preventDefault();
+			var btn = form.querySelector('button');
+			btn.disabled = true;
+			btn.style.opacity = '0.5';
+			btn.textContent = 'جاري التحقق...';
+
+			var formData = new URLSearchParams(new FormData(form)).toString();
+			fetch('/cgi-bin/hotspot-login?format=json&' + formData, { cache: 'no-store' })
+				.then(function(r) { return r.json(); })
 				.then(function(data) {
-					if (data && data.ok && data.mac_cookie_used) {
-						try { sessionStorage.setItem('hotspot_openwrt_session_username', data.card_number || data.username || ''); } catch (e) {}
-						window.location.replace(data.redirect || statusUrl(data.card_number || data.username || ''));
+					if (data.ok) {
+						// Save and Redirect
+						try { sessionStorage.setItem('hotspot_openwrt_session_username', usernameInput.value); } catch (e) {}
+						try { localStorage.setItem('hotspot_openwrt_last_username', usernameInput.value); localStorage.setItem('hotspot_openwrt_last_username_saved_at', String(Date.now())); } catch (e) {}
+						if (settings.browserCookieEnabled) {
+							localStorage.setItem('hotspot_openwrt_username', usernameInput.value);
+							localStorage.setItem('hotspot_openwrt_username_saved_at', String(Date.now()));
+						}
+						window.location.replace(data.redirect || statusUrl(usernameInput.value));
+					} else {
+						showToast(data.message || 'فشل تسجيل الدخول');
+						btn.disabled = false;
+						btn.style.opacity = '1';
+						btn.textContent = 'دخول الشبكة';
 					}
 				})
-				.catch(function() {});
-		}
-		form.addEventListener('submit', function() {
-			document.getElementById('password').value = '';
-			try { sessionStorage.setItem('hotspot_openwrt_session_username', username.value); } catch (e) {}
-			try { localStorage.setItem('hotspot_openwrt_last_username', username.value); localStorage.setItem('hotspot_openwrt_last_username_saved_at', String(Date.now())); } catch (e) {}
-			document.getElementById('userurl').value = statusUrl(username.value);
-			if (settings.browserCookieEnabled) {
-				localStorage.setItem('hotspot_openwrt_username', username.value);
-				localStorage.setItem('hotspot_openwrt_username_saved_at', String(Date.now()));
-			} else {
-				localStorage.removeItem('hotspot_openwrt_username');
-				localStorage.removeItem('hotspot_openwrt_username_saved_at');
-			}
+				.catch(function() {
+					showToast('خطأ في الاتصال بالسيرفر، يرجى المحاولة لاحقاً.');
+					btn.disabled = false;
+					btn.style.opacity = '1';
+					btn.textContent = 'دخول الشبكة';
+				});
 		});
 	</script>
 </body>

@@ -68,28 +68,36 @@ scan_once() {
 		stamp_name="$(printf '%s' "$normalized_mac" | tr ':' '_')"
 		stamp_file="$state_dir/$stamp_name"
 		printf '%s\n' "$stamp_name" >> "$current_file"
-		if grep -qx "$normalized_mac" "$connected_file" 2>/dev/null || client_responds "$ip"; then
-			rm -f "$stamp_file"
-			continue
-		fi
-		if [ ! -s "$stamp_file" ]; then
-			printf '%s\n' "$now" > "$stamp_file"
-			continue
-		fi
-		first_seen="$(cat "$stamp_file" 2>/dev/null)"
-		case "$first_seen" in ''|*[!0-9]*) first_seen="$now"; printf '%s\n' "$now" > "$stamp_file" ;; esac
-		age=$((now - first_seen))
-		if [ "$age" -ge "$timeout" ]; then
-			if [ "$state" = 'pass' ]; then
-				chilli_query -s "$socket_path" logout ip "$ip" >/dev/null 2>&1 || true
-				logger -t hotspot-openwrt-watchdog "logged out disconnected active client mac=$normalized_mac ip=$ip absent_seconds=$age timeout=$timeout"
-			else
-				chilli_query -s "$socket_path" dhcp-release "$normalized_mac" >/dev/null 2>&1 || true
-				logger -t hotspot-openwrt-watchdog "released disconnected host mac=$normalized_mac ip=$ip state=$state absent_seconds=$age timeout=$timeout"
-			fi
-			rm -f "$stamp_file"
-			kicked=$((kicked + 1))
-		fi
+		   if grep -qx "$normalized_mac" "$connected_file" 2>/dev/null; then
+			   # MAC حاضر في ARP/iw/bridge: اعتبره متصلًا فورًا
+			   rm -f "$stamp_file"
+			   continue
+		   fi
+		   # MAC غير موجود: جرب ping مرتين
+		   if client_responds "$ip"; then
+			   # رد على ping: اعتبره حاضرًا
+			   rm -f "$stamp_file"
+			   continue
+		   fi
+		   # MAC غائب ولم يرد على ping: ابدأ عداد الغياب
+		   if [ ! -s "$stamp_file" ]; then
+			   printf '%s\n' "$now" > "$stamp_file"
+			   continue
+		   fi
+		   first_seen="$(cat "$stamp_file" 2>/dev/null)"
+		   case "$first_seen" in ''|*[!0-9]*) first_seen="$now"; printf '%s\n' "$now" > "$stamp_file" ;; esac
+		   age=$((now - first_seen))
+		   if [ "$age" -ge "$timeout" ]; then
+			   if [ "$state" = 'pass' ]; then
+				   chilli_query -s "$socket_path" logout ip "$ip" >/dev/null 2>&1 || true
+				   logger -t hotspot-openwrt-watchdog "logged out disconnected active client mac=$normalized_mac ip=$ip absent_seconds=$age timeout=$timeout"
+			   else
+				   chilli_query -s "$socket_path" dhcp-release "$normalized_mac" >/dev/null 2>&1 || true
+				   logger -t hotspot-openwrt-watchdog "released disconnected host mac=$normalized_mac ip=$ip state=$state absent_seconds=$age timeout=$timeout"
+			   fi
+			   rm -f "$stamp_file"
+			   kicked=$((kicked + 1))
+		   fi
 	done < "$client_file"
 	for stamp_file in "$state_dir"/*; do
 		[ -f "$stamp_file" ] || continue

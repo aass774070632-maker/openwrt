@@ -1,7 +1,7 @@
 #!/bin/sh
 
 json_escape() {
-	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+	printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s%s", (NR>1 ? "\\n" : ""), $0 }'
 }
 
 json_bool() {
@@ -217,7 +217,7 @@ configure_portal_files() {
 	{"captive":true,"user-portal-url":"$login_url","venue-info-url":"$login_url","can-extend-session":true}
 	EOF
 	cat > "$portal_storage_path/settings.js" <<-EOF
-	window.HOTSPOT_OPENWRT_SETTINGS={browserCookieEnabled:$([ "$browser_cookie_enabled" = '1' ] && echo true || echo false),browserCookieDays:$(printf '%s' "$browser_cookie_days" | awk '{ v=$1+0; if (v < 1) v=7; if (v > 365) v=365; print v }'),openStatusPage:"$open_status_page",postLoginUrl:"$post_login_url",statusAutorefreshSeconds:$(printf '%s' "$status_autorefresh_seconds" | awk '{ v=$1+0; if (v < 0) v=0; if (v > 86400) v=86400; print v }')};
+	window.HOTSPOT_OPENWRT_SETTINGS={browserCookieEnabled:$([ "$browser_cookie_enabled" = '1' ] && echo true || echo false),browserCookieDays:$(printf '%s' "$browser_cookie_days" | awk '{ v=$1+0; if (v < 1) v=7; if (v > 365) v=365; print v }'),openStatusPage:"$open_status_page",postLoginUrl:"$post_login_url",statusAutorefreshSeconds:$(printf '%s' "$status_autorefresh_seconds" | awk '{ v=$1+0; if (v < 0) v=0; if (v > 86400) v=86400; print v }'),networkName:"$(json_escape "$network_name")",supportPhone:"$(json_escape "$support_phone")",logoUrl:"$(json_escape "$logo_url")",noticeText:"$(json_escape "$notice_text")",loginMode:"$(json_escape "${login_mode:-both}")",availableSpeeds:"$(json_escape "$available_speeds")",speedtestEnabled:$([ "$speedtest_enabled" = '1' ] && echo true || echo false)};
 	EOF
 	chmod 0644 "$portal_storage_path/api.json" "$portal_storage_path/settings.js" 2>/dev/null || true
 }
@@ -286,6 +286,19 @@ configure_firewall_nft_compat() {
 
 	mkdir -p /etc/nftables.d || return 1
 	cat > "$config_file" <<-EOF
+	table inet fw4 {
+		chain hotspot_openwrt_shaper {
+		        type filter hook forward priority -150; policy accept;
+		}
+	
+		chain hotspot_openwrt_shaper_in {
+		        type filter hook input priority -150; policy accept;
+		}
+	
+		chain hotspot_openwrt_shaper_out {
+		        type filter hook output priority -150; policy accept;
+		}
+
 	chain hotspot_openwrt_forward {
 	        type filter hook forward priority -1; policy accept;
 	        iifname "tun0" oifname "$egress_device" counter accept
@@ -295,6 +308,7 @@ configure_firewall_nft_compat() {
 	chain hotspot_openwrt_srcnat {
 	        type nat hook postrouting priority 99; policy accept;
 	        $snat_rule
+	}
 	}
 	EOF
 	chmod 0644 "$config_file" 2>/dev/null || true
@@ -356,6 +370,13 @@ apply_config() {
 	browser_cookie_enabled="$(uci -q get hotspot_openwrt.main.browser_cookie_enabled)"
 	browser_cookie_days="$(uci -q get hotspot_openwrt.main.browser_cookie_days)"
 	open_status_page="$(uci -q get hotspot_openwrt.main.open_status_page)"
+	network_name="$(uci -q get hotspot_openwrt.main.network_name)"
+	support_phone="$(uci -q get hotspot_openwrt.main.support_phone)"
+	logo_url="$(uci -q get hotspot_openwrt.main.logo_url)"
+	notice_text="$(uci -q get hotspot_openwrt.main.notice_text)"
+	login_mode="$(uci -q get hotspot_openwrt.main.login_mode)"
+	available_speeds="$(uci -q get hotspot_openwrt.main.available_speeds)"
+	speedtest_enabled="$(uci -q get hotspot_openwrt.main.speedtest_enabled)"
 	[ -n "$portal_path" ] || portal_path='/hotspot'
 	[ -n "$portal_storage_path" ] || portal_storage_path='/www/hotspot'
 	[ -n "$browser_cookie_days" ] || browser_cookie_days='7'
@@ -379,6 +400,7 @@ apply_config() {
 	[ -n "$dns2" ] || dns2="$dns1"
 	walled_garden="$(uci -q get hotspot_openwrt.main.walled_garden | tr ' ' ',')"
 	[ -n "$walled_garden" ] || walled_garden='neverssl.com,connectivitycheck.gstatic.com,clients3.google.com,connectivitycheck.android.com,www.gstatic.com'
+	mac_allowed="$(uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | sed "s/^.*='//;s/'$//" | awk 'tolower($1) == "bypassed" { print $2 }' | tr 'A-Z-' 'a-z:' | tr '\n' ',' | sed 's/,$//')"
 
 	backup_dir="$(backup_configs)" || fail_json 'backup' 'Could not create configuration backup'
 	calc_output="$(/bin/ipcalc.sh "$hotspot_ip/$hotspot_cidr" 2>/dev/null)" || fail_json 'network' 'Invalid hotspot IP/CIDR'
@@ -401,7 +423,7 @@ apply_config() {
 	uam_page="$portal_path/login.html"
 	[ "$terms_enabled" = '1' ] && uam_page="$portal_path/terms.html"
 	runtime_mode='chilli'
-	if [ ! -x /etc/init.d/chilli ] || { [ ! -c /dev/net/tun ] && ! modprobe tun >/dev/null 2>&1; }; then
+	if [ ! -x /etc/init.d/chilli ] || ! modprobe tun >/dev/null 2>&1; then
 		runtime_mode='dnsmasq'
 	fi
 
@@ -533,7 +555,13 @@ apply_config() {
 		delete chilli.hotspot_openwrt.macauth
 		delete chilli.hotspot_openwrt.macreauth
 		delete chilli.hotspot_openwrt.macauthdeny
+		delete chilli.hotspot_openwrt.macallowed
+		delete chilli.hotspot_openwrt.macallowlocal
 	EOF
+	[ -n "$mac_allowed" ] && {
+		uci set chilli.hotspot_openwrt.macallowed="$mac_allowed"
+		uci set chilli.hotspot_openwrt.macallowlocal='1'
+	}
 	[ "$session_timeout_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt.defsessiontimeout="$session_timeout_seconds"
 	[ "$idle_timeout_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt.defidletimeout="$idle_timeout_seconds"
 	[ "$status_autorefresh_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt.definteriminterval="$status_autorefresh_seconds"
@@ -613,6 +641,10 @@ apply_config() {
 
 mode='draft'
 [ "$1" = '--start' ] && mode='start'
+
+if ! /usr/libexec/hotspot-openwrt/license-check; then
+	fail_json 'license' "This hardware is not authorized to run Hotspot Alemprator. Please contact technical support."
+fi
 
 if ! validation="$(/usr/libexec/hotspot-openwrt/validate 2>/dev/null)"; then
 	printf '{"ok":false,"stage":"validate","message":"Validation failed","validation":%s}\n' "${validation:-{}}"

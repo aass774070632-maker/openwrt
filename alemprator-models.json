@@ -4,6 +4,11 @@
     "firstboot": {
       "lanIp": "192.168.1.20",
       "setupIp": "192.168.8.1"
+    },
+    "licensing": {
+      "gracePeriodDays": 3,
+      "verifyPath": "/api/hotspot-verify",
+      "serverUrl": "https://ota.kartnet.org"
     }
   },
   "sharedPackages": [
@@ -115,6 +120,76 @@
         "publicBaseUrlDefault": "https://ota.kartnet.org",
         "artifactNameTemplate": "openwrt-qualcommax-ipq60xx-{imageSlug}-squashfs-sysupgrade-{version}.bin",
         "changelog": "AR07 Alemprator r1 release: production sysupgrade image with shared firstboot LAN default on 192.168.1.20, temporary setup access on 192.168.8.1, and Alemprator OTA identity."
+      }
+    },
+    "ar06": {
+      "id": "ar06",
+      "boardName": "kt,ar06-012h",
+      "dashboard": {
+        "modelKey": "AR-06-012H",
+        "boardIdentifier": "kt,ar06-012h",
+        "slug": "ar-06-012h",
+        "displayName": "AR-06-012H",
+        "artifactKind": "sysupgrade",
+        "notes": "Qualcommax AP profile backed by board kt,ar06-012h.",
+        "aliases": ["AR06-012H"]
+      },
+      "openwrt": {
+        "target": "qualcommax",
+        "subtarget": "ipq60xx",
+        "profile": "DEVICE_kt_ar06-012h",
+        "imageSlug": "kt_ar06-012h",
+        "configFile": "AR-06-012H-07-05-2026.config",
+        "imagePath": "bin/targets/qualcommax/ipq60xx/openwrt-qualcommax-ipq60xx-kt_ar06-012h-squashfs-sysupgrade.bin"
+      },
+      "firmware": {
+        "version": "24.10.4-ar06-r1",
+        "versionCode": "24.10.4-ar06-r1"
+      },
+      "firstboot": {
+        "lanIp": "192.168.1.20",
+        "ssidPrefix": "ALemprator-KT-AR06-012H"
+      },
+      "release": {
+        "channel": "stable",
+        "publicBaseUrlDefault": "https://ota.kartnet.org",
+        "artifactNameTemplate": "openwrt-qualcommax-ipq60xx-{imageSlug}-squashfs-sysupgrade-{version}.bin",
+        "changelog": "AR06 Alemprator r1 release: includes Alemprator Guard protection."
+      }
+    },
+    "dv02": {
+      "id": "dv02",
+      "boardName": "kt,dv02-012h",
+      "dashboard": {
+        "modelKey": "DV-02-012H",
+        "boardIdentifier": "kt,dv02-012h",
+        "slug": "dv-02-012h",
+        "displayName": "DV-02-012H",
+        "artifactKind": "sysupgrade",
+        "notes": "Qualcommax AP profile backed by board kt,dv02-012h.",
+        "aliases": ["DV02-012H"]
+      },
+      "openwrt": {
+        "target": "qualcommax",
+        "subtarget": "ipq60xx",
+        "profile": "DEVICE_kt_dv02-012h",
+        "imageSlug": "kt_dv02-012h",
+        "configFile": "DV-02-012H-07-05-2026.config",
+        "imagePath": "bin/targets/qualcommax/ipq60xx/openwrt-qualcommax-ipq60xx-kt_dv02-012h-squashfs-sysupgrade.bin"
+      },
+      "firmware": {
+        "version": "24.10.4-dv02-r1",
+        "versionCode": "24.10.4-dv02-r1"
+      },
+      "firstboot": {
+        "lanIp": "192.168.1.20",
+        "ssidPrefix": "ALemprator-KT-DV02-012H"
+      },
+      "release": {
+        "channel": "stable",
+        "publicBaseUrlDefault": "https://ota.kartnet.org",
+        "artifactNameTemplate": "openwrt-qualcommax-ipq60xx-{imageSlug}-squashfs-sysupgrade-{version}.bin",
+        "changelog": "DV02 Alemprator r1 release: includes Alemprator Guard protection."
       }
     }
   }

@@ -1,0 +1,393 @@
+'use strict';
+'require view';
+'require poll';
+'require dom';
+'require fs';
+'require rpc';
+'require uci';
+'require ui';
+'require form';
+
+const conf = 'netspeedtest';
+const instance = 'iperf3';
+const ResultFile = '/var/iperf3_result';
+const MetricGridStyle = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin:0 0 12px 0';
+const MetricStyle = 'border:1px solid var(--border-color,#ddd);border-radius:6px;padding:10px;background:var(--background-color,#fff);min-height:62px';
+const MetricLabelStyle = 'display:block;color:var(--text-muted,#666);font-size:12px;margin-bottom:4px';
+const MetricValueStyle = 'display:block;font-size:20px;font-weight:700;line-height:1.2';
+const MetricSubStyle = 'display:block;color:var(--text-muted,#666);font-size:12px;margin-top:4px';
+let clientRequestPending = false;
+
+const callServiceList = rpc.declare({
+	object: 'service',
+	method: 'list',
+	params: ['name'],
+	expect: { '': {} }
+});
+
+const callIperf3Client = rpc.declare({
+	object: 'luci.netspeedtest',
+	method: 'iperf3_client',
+	params: ['host', 'port', 'protocol', 'bandwidth', 'duration', 'interval', 'parallel', 'reverse'],
+	expect: { '': {} }
+});
+
+function splitResult(content) {
+	const value = content ? content.trim() : '';
+	return value ? value.split(/\r?\n|\r/) : [];
+}
+
+function bandwidthToMbps(value, unit) {
+	const rate = parseFloat(value);
+	const prefix = ((unit || 'Mbits/sec').match(/^([KMGT]?)/i) || [ '', 'M' ])[1].toUpperCase();
+
+	if (!isFinite(rate))
+		return null;
+
+	switch (prefix) {
+	case '':
+		return rate / 1000000;
+	case 'K':
+		return rate / 1000;
+	case 'G':
+		return rate * 1000;
+	case 'T':
+		return rate * 1000000;
+	default:
+		return rate;
+	}
+}
+
+function formatMbps(value) {
+	if (value == null || !isFinite(value))
+		return '-';
+
+	if (value >= 1000)
+		return '%.2f Gb/s'.format(value / 1000);
+
+	if (value < 1)
+		return '%.2f Kb/s'.format(value * 1000);
+
+	return '%.2f Mb/s'.format(value);
+}
+
+function summarizeSamples(samples) {
+	const values = samples.map((sample) => sample.mbps).filter((value) => value != null && isFinite(value));
+
+	if (!values.length)
+		return null;
+
+	return {
+		current: values[values.length - 1],
+		average: values.reduce((sum, value) => sum + value, 0) / values.length,
+		minimum: Math.min.apply(Math, values),
+		maximum: Math.max.apply(Math, values),
+		count: values.length
+	};
+}
+
+function parseIperf3Result(lines) {
+	const samples = [];
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		const match = line.match(/^\[\s*([^\]]+)\]\s+([0-9.]+)-\s*([0-9.]+)\s+sec\s+([0-9.]+)\s+([KMGT]?Bytes)\s+([0-9.]+)\s+([KMGT]?bits\/sec)(.*)$/i);
+
+		if (!match)
+			continue;
+
+		const mbps = bandwidthToMbps(match[6], match[7]);
+
+		if (mbps == null)
+			continue;
+
+		const suffix = match[8] || '';
+		const summary = (suffix.match(/\b(sender|receiver)\b/i) || [])[1];
+
+		samples.push({
+			index: samples.length + 1,
+			stream: match[1].trim(),
+			interval: '%s-%s sec'.format(match[2], match[3]),
+			transfer: '%s %s'.format(match[4], match[5]),
+			mbps: mbps,
+			summary: summary ? summary.toLowerCase() : '',
+			isSum: match[1].trim().toUpperCase() == 'SUM',
+			raw: line
+		});
+	}
+
+	const intervalSamples = samples.filter((sample) => !sample.summary);
+	const sumIntervalSamples = intervalSamples.filter((sample) => sample.isSum);
+	const summarySamples = samples.filter((sample) => sample.summary);
+	const sumSummarySamples = summarySamples.filter((sample) => sample.isSum);
+
+	return {
+		samples: samples,
+		intervals: sumIntervalSamples.length ? sumIntervalSamples : intervalSamples,
+		summary: sumSummarySamples.length ? sumSummarySamples : summarySamples
+	};
+}
+
+function renderMetric(label, value, detail) {
+	return E('div', { 'style': MetricStyle }, [
+		E('span', { 'style': MetricLabelStyle }, [ label ]),
+		E('span', { 'style': MetricValueStyle }, [ value ]),
+		detail ? E('span', { 'style': MetricSubStyle }, [ detail ]) : ''
+	]);
+}
+
+function renderRawOutput(lines) {
+	return E('details', { 'style': 'margin-top:12px' }, [
+		E('summary', { 'style': 'cursor:pointer' }, [ _('Raw output') ]),
+		E('pre', { 'style': 'white-space:pre-wrap;overflow-x:auto;margin:8px 0 0 0' }, [ lines.join('\n') ])
+	]);
+}
+
+function renderSampleTable(samples) {
+	if (!samples.length)
+		return '';
+
+	const rows = samples.slice(-12).map((sample) => E('tr', { 'class': 'tr cbi-section-table-row' }, [
+		E('td', { 'class': 'td' }, [ sample.interval ]),
+		E('td', { 'class': 'td' }, [ sample.stream ]),
+		E('td', { 'class': 'td' }, [ sample.transfer ]),
+		E('td', { 'class': 'td' }, [ formatMbps(sample.mbps) ])
+	]));
+
+	return E('table', { 'class': 'table cbi-section-table', 'style': 'margin-top:12px' }, [
+		E('tr', { 'class': 'tr cbi-section-table-titles' }, [
+			E('th', { 'class': 'th left' }, [ _('Interval') ]),
+			E('th', { 'class': 'th left' }, [ _('Stream') ]),
+			E('th', { 'class': 'th left' }, [ _('Transfer') ]),
+			E('th', { 'class': 'th left' }, [ _('Rate') ])
+		])
+	].concat(rows));
+}
+
+function renderClientResult(lines) {
+	if (!lines.length)
+		return E('span', { 'style': 'color:red;font-weight:bold' }, [ _('No result.') ]);
+
+	if (lines[0] == 'Testing')
+		return E('span', { 'class': 'spinning', 'style': 'color:yellow;font-weight:bold' }, [
+			_('Testing in progress...')
+		]);
+
+	if (lines[0] == 'Test failed')
+		return E('div', {}, [
+			E('div', { 'class': 'alert-message error' }, [ lines[1] || _('Test failed') ]),
+			renderRawOutput(lines)
+		]);
+
+	const parsed = parseIperf3Result(lines);
+	const stats = summarizeSamples(parsed.intervals.length ? parsed.intervals : parsed.summary);
+
+	if (!stats)
+		return E('pre', {
+			'style': 'white-space:pre-wrap;overflow-x:auto;margin:0'
+		}, [ lines.join('\n') ]);
+
+	const metrics = [
+		renderMetric(_('Current'), formatMbps(stats.current), _('Latest sample')),
+		renderMetric(_('Average'), formatMbps(stats.average), _('%d samples').format(stats.count)),
+		renderMetric(_('Maximum'), formatMbps(stats.maximum), _('Peak')),
+		renderMetric(_('Minimum'), formatMbps(stats.minimum), _('Lowest'))
+	];
+
+	for (let i = 0; i < parsed.summary.length; i++) {
+		const sample = parsed.summary[i];
+		metrics.push(renderMetric(sample.summary == 'sender' ? _('Sender') : _('Receiver'), formatMbps(sample.mbps), sample.transfer));
+	}
+
+	return E('div', {}, [
+		E('div', { 'style': MetricGridStyle }, metrics),
+		renderSampleTable(parsed.intervals.length ? parsed.intervals : parsed.summary),
+		renderRawOutput(lines)
+	]);
+}
+
+function getServiceStatus() {
+	return L.resolveDefault(callServiceList(conf), {})
+		.then((res) => {
+			let isrunning = false;
+			try {
+				isrunning = res[conf]['instances'][instance]['running'];
+			} catch (e) { }
+			return isrunning;
+		});
+}
+
+return view.extend({
+//	handleSaveApply: null,
+//	handleSave: null,
+//	handleReset: null,
+
+	load() {
+	return Promise.all([
+		getServiceStatus(),
+		uci.load('netspeedtest'),
+		L.resolveDefault(fs.read(ResultFile), null)
+	]);
+	},
+
+	poll_status(nodes, stat) {
+		const isRunning = stat[0];
+		let view = nodes.querySelector('#service_status');
+		let result = nodes.querySelector('#iperf3_client_result');
+
+		if (isRunning) {
+			dom.content(view, [ E('span', { 'style': 'color:green;font-weight:bold' }, [ instance + ' - ' + _('SERVER RUNNING') ]) ]);
+		} else {
+			dom.content(view, [ E('span', { 'style': 'color:red;font-weight:bold' }, [ instance + ' - ' + _('SERVER NOT RUNNING') ]) ]);
+		}
+
+		if (result)
+			dom.content(result, [ renderClientResult(splitResult(stat[1])) ]);
+
+		return;
+	},
+
+	render(res) {
+		const resultContent = splitResult(res[2]);
+		const clientRunning = resultContent.length && resultContent[0] == 'Testing';
+
+		let m, s, o;
+
+		m = new form.Map('netspeedtest', _('iperf3 Bandwidth Performance Test'));
+
+		s = m.section(form.NamedSection, '_status');
+		s.anonymous = true;
+		s.render = function (section_id) {
+			return E('div', { class: 'cbi-section' }, [
+				E('div', { id: 'service_status' }, _('Collecting data ...'))
+			]);
+		};
+
+		s = m.section(form.NamedSection, 'config', 'netspeedtest', _('iperf3 Server'));
+		s.anonymous = true;
+
+		o = s.option(form.Flag, 'iperf3_enabled', _('Enable server'));
+		o.default = o.disabled;
+		o.rmempty = false;
+
+		s = m.section(form.NamedSection, 'config', 'netspeedtest', _('iperf3 Client Test'));
+		s.anonymous = true;
+
+		o = s.option(form.Value, 'iperf3_client_host', _('Server address'));
+		o.placeholder = '192.168.1.1';
+		o.datatype = 'host';
+		o.rmempty = true;
+
+		o = s.option(form.Value, 'iperf3_client_port', _('Port'));
+		o.default = '5201';
+		o.datatype = 'port';
+		o.rmempty = false;
+
+		o = s.option(form.ListValue, 'iperf3_client_protocol', _('Protocol'));
+		o.value('tcp', 'TCP');
+		o.value('udp', 'UDP');
+		o.default = 'tcp';
+		o.rmempty = false;
+
+		o = s.option(form.Value, 'iperf3_client_bandwidth', _('Bandwidth'));
+		o.default = '10M';
+		o.placeholder = '10M';
+		o.depends('iperf3_client_protocol', 'udp');
+		o.validate = function(section_id, value) {
+			if (!value || value.match(/^\d+[KMGkmg]?$/))
+				return true;
+
+			return _('Invalid bandwidth');
+		};
+
+		o = s.option(form.Value, 'iperf3_client_duration', _('Duration'));
+		o.default = '10';
+		o.datatype = 'range(1,86400)';
+		o.rmempty = false;
+
+		o = s.option(form.Value, 'iperf3_client_interval', _('Interval'));
+		o.default = '1';
+		o.datatype = 'range(1,60)';
+		o.rmempty = false;
+
+		o = s.option(form.Value, 'iperf3_client_parallel', _('Parallel streams'));
+		o.default = '1';
+		o.datatype = 'range(1,32)';
+		o.rmempty = false;
+
+		o = s.option(form.Flag, 'iperf3_client_reverse', _('Reverse mode'));
+		o.default = o.disabled;
+		o.rmempty = false;
+
+		o = s.option(form.Button, '_iperf3_client_start', _('Start Client Test'));
+		o.inputtitle = _('Start Test');
+		o.inputstyle = 'apply';
+		if (clientRunning)
+			o.readonly = true;
+		o.onclick = function(ev, section_id) {
+			if (clientRequestPending)
+				return Promise.resolve();
+
+			clientRequestPending = true;
+
+			const host = this.section.getOption('iperf3_client_host').formvalue(section_id);
+			const port = this.section.getOption('iperf3_client_port').formvalue(section_id) || '5201';
+			const protocol = this.section.getOption('iperf3_client_protocol').formvalue(section_id) || 'tcp';
+			const bandwidth = this.section.getOption('iperf3_client_bandwidth').formvalue(section_id) || '10M';
+			const duration = this.section.getOption('iperf3_client_duration').formvalue(section_id) || '10';
+			const interval = this.section.getOption('iperf3_client_interval').formvalue(section_id) || '1';
+			const parallel = this.section.getOption('iperf3_client_parallel').formvalue(section_id) || '1';
+			const reverse = this.section.getOption('iperf3_client_reverse').formvalue(section_id) == '1' ? '1' : '0';
+			const result = document.querySelector('#iperf3_client_result');
+
+			if (result)
+				dom.content(result, [ renderClientResult([ 'Testing' ]) ]);
+
+			return callIperf3Client(host, port, protocol, bandwidth, duration, interval, parallel, reverse).then((res) => {
+				clientRequestPending = false;
+
+				if (!res.result)
+					ui.addNotification(null, E('p', _('Test failed: %s').format(res.error)), 'error');
+			}, () => {
+				clientRequestPending = false;
+			});
+		};
+
+		s = m.section(form.TypedSection, '_client_result');
+		s.anonymous = true;
+		s.render = function (section_id) {
+			return E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, _('Client Result')),
+				E('div', { 'id': 'iperf3_client_result' }, [ renderClientResult(resultContent) ])
+			]);
+		};
+
+		s = m.section(form.TypedSection, '_cmd_ref');
+		s.anonymous = true;
+		s.render = function (section_id) {
+			return E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, _('iperf3 Common commands reference')),
+				E('pre', {}, [
+"	-c, --client <host>\n\
+	-u, --udp                        UDP mode\n\
+	-b, --bandwidth <number>[KMG]    target bandwidth in bits/sec (0 for unlimited)\n\
+	-t, --time      <number>         time in seconds to transmit for (default 10 secs)\n\
+	-i, --interval  <number>         seconds between periodic bandwidth reports\n\
+	-P, --parallel  <number>         number of parallel client streams to run\n\
+	-R, --reverse                    run in reverse mode (server sends, client receives)\n"
+				])
+			]);
+		};
+
+		return m.render()
+		.then(L.bind(function(m, nodes) {
+			poll.add(L.bind(function() {
+				return Promise.all([
+					getServiceStatus(),
+					L.resolveDefault(fs.read(ResultFile), null)
+				]).then(L.bind(this.poll_status, this, nodes));
+			}, this), 3);
+			return nodes;
+		}, this, m));
+	}
+});

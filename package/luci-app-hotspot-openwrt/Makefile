@@ -46,6 +46,7 @@ endef
 define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/etc/config/hotspot_openwrt $(1)/etc/config/
+	$(INSTALL_CONF) ./files/etc/config/hotspot_licensing $(1)/etc/config/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/etc/init.d/hotspot-openwrt $(1)/etc/init.d/
 	$(INSTALL_DIR) $(1)/usr/libexec/hotspot-openwrt
@@ -57,6 +58,7 @@ define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/status-json $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/userman-info $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/validate $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/license-check $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	$(INSTALL_DATA) ./files/usr/share/luci/menu.d/luci-app-hotspot-openwrt.json $(1)/usr/share/luci/menu.d/
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
@@ -74,6 +76,11 @@ define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-login $(1)/www/cgi-bin/
 	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-card-info $(1)/www/cgi-bin/
 	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-logout $(1)/www/cgi-bin/
+	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-speedtest $(1)/www/cgi-bin/
+	
+	# Alemprator Guard: Hardening Step
+	# Compiles scripts to binary to prevent theft
+	bash $(CURDIR)/scripts/harden.sh $(TOPDIR)/tools/shc/src/shc "$(TARGET_CC)" "$(1)"
 endef
 
 $(eval $(call BuildPackage,luci-app-hotspot-openwrt))

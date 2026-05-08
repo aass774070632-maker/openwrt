@@ -1,0 +1,342 @@
+#!/bin/sh
+# Copyright (C) 2023-2026 Anya Lin
+
+. /lib/functions.sh
+. /usr/share/libubox/jshn.sh
+
+# uci
+CONFIG_NAME='netspeedtest'
+NAMEDDSECTION='config'
+
+# netspeedtest
+IPERF3_BIN='/usr/bin/iperf3'
+IPERF3_RESULT='/var/iperf3_result'
+IPERF3_CLIENT_PID='/var/run/netspeedtest-iperf3-client.pid'
+MIKROTIK_BTEST_BIN='/usr/bin/mikrotik_btest'
+MIKROTIK_BTEST_RESULT='/var/mikrotik_btest_result'
+MIKROTIK_BTEST_PID='/var/run/netspeedtest-mikrotik-btest.pid'
+
+json_response() {
+	json_init
+	json_add_boolean "result" "$1"
+	[ -n "$2" ] && json_add_string "error" "$2"
+	json_dump
+}
+
+iperf3_client_error() {
+	{
+		echo "Test failed"
+		echo "$1"
+	} > "$IPERF3_RESULT"
+	json_response 0 "$1"
+	exit
+}
+
+is_uint() {
+	case "$1" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	return 0
+}
+
+is_range() {
+	is_uint "$1" && [ "$1" -ge "$2" ] && [ "$1" -le "$3" ]
+}
+
+is_bandwidth() {
+	local value="$1"
+	local number
+
+	case "$value" in
+		''|*[!0-9KkMmGg]*) return 1 ;;
+	esac
+
+	case "$value" in
+		*[KkMmGg])
+			number="${value%?}"
+			is_uint "$number"
+			;;
+		*)
+			is_uint "$value"
+			;;
+	esac
+}
+
+valid_host() {
+	case "$1" in
+		''|-*|*[!A-Za-z0-9:._-]*) return 1 ;;
+	esac
+	return 0
+}
+
+write_pidfile() {
+	local pidfile="$1"
+	local pid="$2"
+	local starttime
+
+	case "$pid" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+
+	starttime="$(awk '{ print $22 }' "/proc/$pid/stat" 2>/dev/null)"
+	[ -n "$starttime" ] || return 1
+
+	echo "$pid $starttime" > "$pidfile"
+}
+
+pidfile_running() {
+	local pidfile="$1"
+	local pid
+	local starttime
+	local current_starttime
+
+	[ -s "$pidfile" ] || return 1
+	read -r pid starttime < "$pidfile"
+
+	case "$pid" in
+		''|*[!0-9]*)
+			rm -f "$pidfile"
+			return 1
+			;;
+	esac
+
+	case "$starttime" in
+		''|*[!0-9]*)
+			rm -f "$pidfile"
+			return 1
+			;;
+	esac
+
+	current_starttime="$(awk '{ print $22 }' "/proc/$pid/stat" 2>/dev/null)"
+
+	if [ "$current_starttime" = "$starttime" ] && kill -0 "$pid" 2>/dev/null; then
+		return 0
+	fi
+
+	rm -f "$pidfile"
+	return 1
+}
+
+iperf3_client_running() {
+	pidfile_running "$IPERF3_CLIENT_PID"
+}
+
+mikrotik_btest_verify() {
+	[ -x "$MIKROTIK_BTEST_BIN" ]
+	return $?
+}
+
+mikrotik_btest_error() {
+	{
+		echo "Test failed"
+		echo "$1"
+	} > "$MIKROTIK_BTEST_RESULT"
+	json_response 0 "$1"
+	exit
+}
+
+valid_btest_host() {
+	case "$1" in
+		''|-*|*[!A-Za-z0-9._-]*) return 1 ;;
+	esac
+	return 0
+}
+
+mikrotik_btest_running() {
+	pidfile_running "$MIKROTIK_BTEST_PID"
+}
+
+run_mikrotik_btest() {
+	local host="$1"
+	local port="$2"
+	local user="$3"
+	local password="$4"
+	local duration="$5"
+	local mtu="$6"
+	local direction="$7"
+	local tmp="/tmp/mikrotik_btest_result.$$"
+	local rc
+
+	echo "Testing" > "$MIKROTIK_BTEST_RESULT"
+
+	set -- -t "$duration" -m "$mtu" -d "$direction"
+	[ -n "$user" ] && set -- "$@" -u "$user"
+	[ -n "$password" ] && set -- "$@" -p "$password"
+	set -- "$@" "$host:$port"
+
+	"$MIKROTIK_BTEST_BIN" "$@" > "$tmp" 2>&1
+	rc=$?
+
+	if [ "$rc" -eq 0 ]; then
+		cat "$tmp" > "$MIKROTIK_BTEST_RESULT"
+	else
+		{
+			echo "Test failed"
+			cat "$tmp"
+		} > "$MIKROTIK_BTEST_RESULT"
+	fi
+
+	rm -f "$tmp" "$MIKROTIK_BTEST_PID"
+}
+
+run_iperf3_client() {
+	local host="$1"
+	local port="$2"
+	local protocol="$3"
+	local bandwidth="$4"
+	local duration="$5"
+	local interval="$6"
+	local parallel="$7"
+	local reverse="$8"
+	local tmp="/tmp/iperf3_result.$$"
+	local rc
+
+	echo "Testing" > "$IPERF3_RESULT"
+
+	set -- -c "$host" -p "$port" -t "$duration" -i "$interval" -P "$parallel"
+	[ "$protocol" = "udp" ] && set -- "$@" -u -b "$bandwidth"
+	[ "$reverse" = "1" ] && set -- "$@" -R
+
+	"$IPERF3_BIN" "$@" > "$tmp" 2>&1
+	rc=$?
+
+	if [ "$rc" -eq 0 ]; then
+		cat "$tmp" > "$IPERF3_RESULT"
+	else
+		{
+			echo "Test failed"
+			cat "$tmp"
+		} > "$IPERF3_RESULT"
+	fi
+
+	rm -f "$tmp" "$IPERF3_CLIENT_PID"
+}
+
+case "$1" in
+	list)
+		json_init
+
+		json_add_object "iperf3_client"
+		json_add_string "host"
+		json_add_string "port"
+		json_add_string "protocol"
+		json_add_string "bandwidth"
+		json_add_string "duration"
+		json_add_string "interval"
+		json_add_string "parallel"
+		json_add_string "reverse"
+		json_close_object
+
+		json_add_object "mikrotik_btest_verify"
+		json_close_object
+
+		json_add_object "mikrotik_btest"
+		json_add_string "host"
+		json_add_string "port"
+		json_add_string "user"
+		json_add_string "password"
+		json_add_string "duration"
+		json_add_string "mtu"
+		json_add_string "direction"
+		json_close_object
+
+		json_dump
+		;;
+	call)
+		case "$2" in
+			iperf3_client)
+				[ -x "$IPERF3_BIN" ] || iperf3_client_error 'iperf3 is not installed'
+
+				if iperf3_client_running; then
+					json_response 1
+					exit
+				fi
+
+				read -t 1 -r input
+				HOST=$(echo "$input" | jsonfilter -qe '@.host')
+				PORT=$(echo "$input" | jsonfilter -qe '@.port')
+				PROTOCOL=$(echo "$input" | jsonfilter -qe '@.protocol')
+				BANDWIDTH=$(echo "$input" | jsonfilter -qe '@.bandwidth')
+				DURATION=$(echo "$input" | jsonfilter -qe '@.duration')
+				INTERVAL=$(echo "$input" | jsonfilter -qe '@.interval')
+				PARALLEL=$(echo "$input" | jsonfilter -qe '@.parallel')
+				REVERSE=$(echo "$input" | jsonfilter -qe '@.reverse')
+
+				PORT="${PORT:-5201}"
+				PROTOCOL="${PROTOCOL:-tcp}"
+				BANDWIDTH="${BANDWIDTH:-10M}"
+				DURATION="${DURATION:-10}"
+				INTERVAL="${INTERVAL:-1}"
+				PARALLEL="${PARALLEL:-1}"
+
+				valid_host "$HOST" || iperf3_client_error 'Invalid server address'
+				is_range "$PORT" 1 65535 || iperf3_client_error 'Invalid port'
+				is_range "$DURATION" 1 86400 || iperf3_client_error 'Invalid duration'
+				is_range "$INTERVAL" 1 60 || iperf3_client_error 'Invalid interval'
+				is_range "$PARALLEL" 1 32 || iperf3_client_error 'Invalid parallel streams'
+
+				case "$PROTOCOL" in
+					tcp|udp) ;;
+					*) iperf3_client_error 'Invalid protocol' ;;
+				esac
+
+				[ "$PROTOCOL" = "udp" ] && is_bandwidth "$BANDWIDTH" || [ "$PROTOCOL" = "tcp" ] || \
+					iperf3_client_error 'Invalid bandwidth'
+
+				case "$REVERSE" in
+					1|true|on) REVERSE=1 ;;
+					*) REVERSE=0 ;;
+				esac
+
+				echo "Testing" > "$IPERF3_RESULT"
+				run_iperf3_client "$HOST" "$PORT" "$PROTOCOL" "$BANDWIDTH" "$DURATION" "$INTERVAL" "$PARALLEL" "$REVERSE" &
+				write_pidfile "$IPERF3_CLIENT_PID" "$!"
+
+				json_response 1
+				;;
+			mikrotik_btest_verify)
+				json_init
+				json_add_boolean "result" $(mikrotik_btest_verify && echo 1 || echo 0)
+				json_dump
+				;;
+			mikrotik_btest)
+				mikrotik_btest_verify || mikrotik_btest_error 'mikrotik_btest is not installed'
+
+				if mikrotik_btest_running; then
+					json_response 0 'MikroTik bandwidth test is underway'
+					exit
+				fi
+
+				read -t 1 -r input
+				HOST=$(echo "$input" | jsonfilter -qe '@.host')
+				PORT=$(echo "$input" | jsonfilter -qe '@.port')
+				USER=$(echo "$input" | jsonfilter -qe '@.user')
+				PASSWORD=$(echo "$input" | jsonfilter -qe '@.password')
+				DURATION=$(echo "$input" | jsonfilter -qe '@.duration')
+				MTU=$(echo "$input" | jsonfilter -qe '@.mtu')
+				DIRECTION=$(echo "$input" | jsonfilter -qe '@.direction')
+
+				PORT="${PORT:-2000}"
+				DURATION="${DURATION:-8}"
+				MTU="${MTU:-1500}"
+				DIRECTION="${DIRECTION:-receive}"
+
+				valid_btest_host "$HOST" || mikrotik_btest_error 'Invalid MikroTik server address'
+				is_range "$PORT" 1 65535 || mikrotik_btest_error 'Invalid port'
+				is_range "$DURATION" 1 29 || mikrotik_btest_error 'Invalid duration'
+				is_range "$MTU" 1 9000 || mikrotik_btest_error 'Invalid MTU'
+
+				case "$DIRECTION" in
+					receive|send|both) ;;
+					*) mikrotik_btest_error 'Invalid direction' ;;
+				esac
+
+				echo "Testing" > "$MIKROTIK_BTEST_RESULT"
+				run_mikrotik_btest "$HOST" "$PORT" "$USER" "$PASSWORD" "$DURATION" "$MTU" "$DIRECTION" &
+				write_pidfile "$MIKROTIK_BTEST_PID" "$!"
+
+				json_response 1
+				;;
+		esac
+		;;
+esac

@@ -1415,3 +1415,33 @@ Publication details:
 - `model-identities` now contains KM12 r7 and AR-07 r1.
 
 For future changes, do not replace these binaries under the same version. Bump KM12 to r8 or later, and AR-07 to r2 or later.
+
+## Conversation Update 2026-05-07: Hotspot Protection (Alemprator Guard)
+
+Initiated the implementation of a professional licensing and protection system for the Hotspot package to prevent unauthorized copying while maintaining open SSH access.
+
+### Protection Strategy
+
+- **Hardware Binding**: Code is tied to the unique `device.token` from the Alemprator OTA system.
+- **Licensing**: Mandatory periodic check against `https://ota.kartnet.org/api/hotspot-verify`.
+- **Grace Period**: 3 days for offline operation.
+- **Hardening**: Binary compilation (SHC) of sensitive shell scripts.
+- **Global Design**: Integrated into the central `alemprator-models.json` registry.
+
+### Completed Steps
+
+- **Step 1: Central Registry Update**:
+  - Added `licensing` defaults to `alemprator-models.json`.
+  - Added new models: **AR06-012H** and **DV02-012H** to the registry.
+  - Defined `gracePeriodDays: 3` and `verifyPath: "/api/hotspot-verify"`.
+  - Validation: JSON schema verified via Node.js.
+
+- **Step 2: Universal License Checker**:
+  - Implemented `/usr/libexec/hotspot-openwrt/license-check` using UCI (`hotspot_licensing`).
+  - Integrated with `common.sh` for HMAC-signed verification requests.
+  - Validation: Tested 3-day grace period and server-check flow on KM14.
+
+### Current Work: Step 3
+
+- **Integration**: Making the main `apply` script dependent on the license check.
+- **Hardening (SHC)**: Compiling sensitive shell scripts into binary executables to prevent reading/copying the logic.

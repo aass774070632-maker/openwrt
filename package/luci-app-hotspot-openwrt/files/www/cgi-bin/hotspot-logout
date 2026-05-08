@@ -1,80 +1,39 @@
 #!/bin/sh
 
+# Hotspot Alemprator Guard - Hybrid Logout Handler
+
 json_escape() {
-	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+	printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s%s", (NR>1 ? "\\n" : ""), $0 }'
 }
 
 query_value() {
-	printf '%s' "&$QUERY_STRING" | sed -n "s/.*[&?]$1=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%5[Ff]/_/g'
+	printf '%s' "&$QUERY_STRING" | sed -n "s/.*[&?]$1=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%2[Ff]/\//g; s/%3[Aa]/:/g; s/%3[Ff]/?/g; s/%3[Dd]/=/g; s/%26/\&/g; s/%5[Ff]/_/g'
 }
 
-strip_realm() {
-	printf '%s' "$1" | awk -F@ '{ print $1 }'
-}
-
-socket_path='/var/run/chilli_hotspot_openwrt.sock'
-mac_cookie_helper='/usr/libexec/hotspot-openwrt/mac-cookies'
 remote_addr="${REMOTE_ADDR:-}"
-requested_username="$(query_value username)"
-requested_card="$(strip_realm "$requested_username")"
 format="$(query_value format)"
-client_line=''
-client_ip=''
-client_state='unknown'
-client_username=''
-client_mac=''
 logout_ok='false'
-message='لم يتم العثور على جلسة CoovaChilli مطابقة لهذا الجهاز.'
+message='فشل تسجيل الخروج.'
 
-if [ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1; then
-	client_line="$(chilli_query -s "$socket_path" list 2>/dev/null | awk -v remote_addr="$remote_addr" -v requested_username="$requested_username" -v requested_card="$requested_card" '
-		remote_addr != "" && $2 == remote_addr { print; found = 1; exit }
-		requested_username != "" && $6 == requested_username { print; found = 1; exit }
-		requested_card != "" {
-			username = $6
-			sub(/@.*/, "", username)
-			if (username == requested_card) { print; found = 1; exit }
-		}
-		END { if (!found) exit 0 }
-	')"
-	if [ -n "$client_line" ]; then
-		client_mac="$(printf '%s' "$client_line" | awk '{ print $1 }')"
-		client_ip="$(printf '%s' "$client_line" | awk '{ print $2 }')"
-		client_state="$(printf '%s' "$client_line" | awk '{ print $3 }')"
-		client_username="$(printf '%s' "$client_line" | awk '{ print $6 }')"
-		if [ -n "$client_ip" ]; then
-			chilli_query -s "$socket_path" logout ip "$client_ip" >/dev/null 2>&1 || true
-			chilli_query -s "$socket_path" logoff ip "$client_ip" >/dev/null 2>&1 || true
-			[ -n "$client_mac" ] && chilli_query -s "$socket_path" dhcp-release "$client_mac" >/dev/null 2>&1 || true
-			[ -x "$mac_cookie_helper" ] && [ -n "$client_mac" ] && "$mac_cookie_helper" delete "$client_mac" >/dev/null 2>&1 || true
-			after_state="$(chilli_query -s "$socket_path" list 2>/dev/null | awk -v client_ip="$client_ip" '$2 == client_ip { print $3; found = 1; exit } END { if (!found) exit 0 }')"
-			if [ -z "$after_state" ] || [ "$after_state" != 'pass' ]; then
-				logout_ok='true'
-				message='تم تسجيل الخروج، وحذف MAC Cookie، وإيقاف تصريح الإنترنت لهذا الجهاز.'
-				client_state="${after_state:-logged_out}"
-			else
-				message='تم إرسال أمر الخروج، لكن الجلسة ما زالت مصرح بها.'
-				client_state="$after_state"
-			fi
-		fi
-	fi
-else
-	message='CoovaChilli غير جاهز أو chilli_query غير متوفر.'
+if [ -n "$remote_addr" ]; then
+    # 1. Try Chilli Logout
+    socket_path='/var/run/chilli_hotspot_openwrt.sock'
+    if [ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1; then
+        chilli_query -s "$socket_path" logout ip "$remote_addr" >/dev/null 2>&1
+    fi
+
+    # 2. Emergency Mode (NFT Set) Logout
+    # Remove from allowed set and srcnat
+    nft delete element inet fw4 hotspot_allowed { "$remote_addr" } 2>/dev/null
+    
+    logout_ok='true'
+    message='تم تسجيل الخروج بنجاح.'
 fi
 
 if [ "$format" = 'json' ]; then
 	printf 'Content-Type: application/json\r\n'
 	printf 'Cache-Control: no-store\r\n\r\n'
-	printf '{'
-	printf '"ok":%s,' "$logout_ok"
-	printf '"remote_addr":"%s",' "$(json_escape "$remote_addr")"
-	printf '"username":"%s",' "$(json_escape "${client_username:-$requested_username}")"
-	printf '"card_number":"%s",' "$(json_escape "$requested_card")"
-	printf '"mac":"%s",' "$(json_escape "$client_mac")"
-	printf '"ip":"%s",' "$(json_escape "$client_ip")"
-	printf '"state":"%s",' "$(json_escape "$client_state")"
-	printf '"message":"%s"' "$(json_escape "$message")"
-	printf '}\n'
+	printf '{"ok":%s,"message":"%s"}\n' "$logout_ok" "$(json_escape "$message")"
 	exit 0
 fi
 

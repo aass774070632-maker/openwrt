@@ -23,6 +23,8 @@ client_username=''
 session_id=''
 input_octets=''
 output_octets=''
+max_up=''
+max_down=''
 authenticated='false'
 source='browser'
 user_manager='{"enabled":false,"ok":false,"source":"not_requested","message":"لم يتم طلب معلومات MikroTik User Manager."}'
@@ -42,6 +44,10 @@ if [ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1; then
 		client_username="$(printf '%s' "$client_line" | awk '{ print $6 }')"
 		input_octets="$(printf '%s' "$client_line" | awk '{ print $9 }' | awk -F/ '{ print $1 }')"
 		output_octets="$(printf '%s' "$client_line" | awk '{ print $10 }' | awk -F/ '{ print $1 }')"
+		max_up="$(printf '%s' "$client_line" | awk '{ print $13 }' | sed 's/.*%//; s/\///; s/[^0-9]//g')"
+		max_down="$(printf '%s' "$client_line" | awk '{ print $14 }' | sed 's/.*%//; s/\///; s/[^0-9]//g')"
+		[ -n "$max_up" ] || max_up='0'
+		[ -n "$max_down" ] || max_down='0'
 		[ "$client_username" = '-' ] && client_username=''
 		[ -z "$requested_card" ] && requested_card="$(strip_realm "$client_username")"
 		[ "$client_state" = 'pass' ] && authenticated='true'
@@ -72,6 +78,8 @@ printf '"state":"%s",' "$(json_escape "$client_state")"
 printf '"session_id":"%s",' "$(json_escape "$session_id")"
 printf '"input_octets":"%s",' "$(json_escape "$input_octets")"
 printf '"output_octets":"%s",' "$(json_escape "$output_octets")"
+printf '"max_up":"%s",' "$(json_escape "$max_up")"
+printf '"max_down":"%s",' "$(json_escape "$max_down")"
 printf '"authenticated":%s,' "$authenticated"
 printf '"mikrotik_user_manager":"routeros_rest_optional",'
 printf '"user_manager":%s,' "$user_manager"

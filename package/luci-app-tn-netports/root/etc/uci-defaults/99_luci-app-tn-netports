@@ -1,0 +1,110 @@
+#!/bin/sh
+
+. /lib/functions.sh
+
+add_port() {
+	local ifname="$1"
+	local type="$2"
+	local sid
+
+	[ -n "$ifname" ] || return
+	[ "$ifname" = "lo" ] && return
+
+	for existing in $(uci -q show luci_netports | sed -n "s/^luci_netports\.\([^=]*\)\.ifname='$ifname'$/\1/p"); do
+		[ -n "$existing" ] && return
+	done
+
+	sid=$(uci add luci_netports port)
+	uci set luci_netports.${sid}.ifname="$ifname"
+	[ -n "$type" ] && uci set luci_netports.${sid}.type="$type"
+}
+
+add_wifi_ports() {
+	local ifname
+
+	for ifname in $(ubus call network.wireless status 2>/dev/null | jsonfilter -q -e '@.*.interfaces[*].ifname'); do
+		add_port "$ifname" wifi
+	done
+}
+
+add_bridge_ports() {
+	local section="$1"
+	local type ports port
+
+	config_get type "$section" type
+	[ "$type" = "bridge" ] || return
+
+	config_get ports "$section" ports
+	for port in $ports; do
+		add_port "$port"
+	done
+}
+
+add_interface_devices() {
+	local section="$1"
+	local devices ifname
+
+	config_get devices "$section" device
+	for ifname in $devices; do
+		[ -d "/sys/class/net/$ifname/bridge" ] && continue
+		add_port "$ifname"
+	done
+
+	config_get devices "$section" ifname
+	for ifname in $devices; do
+		[ -d "/sys/class/net/$ifname/bridge" ] && continue
+		add_port "$ifname"
+	done
+}
+
+add_sysfs_fallback_ports() {
+	local path ifname
+
+	for path in /sys/class/net/*; do
+		[ -e "$path/ifindex" ] || continue
+		ifname="${path##*/}"
+
+		case "$ifname" in
+			eth[0-9]*|en[a-z][0-9]*[a-z][0-9]*|sw[0-9]*p[0-9]*|lan|lan[0-9]*|wan|wan[0-9]*)
+				add_port "$ifname"
+			;;
+		esac
+	done
+}
+
+visible_port_count() {
+	local count section
+
+	count=$(uci -q show luci_netports | grep "luci_netports.@port\[.*\]=port" | wc -l)
+
+	for section in $(uci -q show luci_netports | sed -n "s/^luci_netports\.\([^=]*\)\.ifname='lo'$/\1/p"); do
+		[ "$(uci -q get luci_netports.${section}.disable)" = "1" ] && count=$((count - 1))
+	done
+
+	echo "$count"
+}
+
+count=$(visible_port_count)
+
+if [ "$count" -eq 0 ]; then
+	config_load network
+	config_foreach add_bridge_ports device
+	config_foreach add_interface_devices interface
+
+	for ifname in $(jsonfilter -q -i /etc/board.json -e '@.network[*].device'); do
+		add_port "$ifname"
+	done
+
+	for ifname in $(jsonfilter -q -i /etc/board.json -e '@.network[*].ports[*]'); do
+		add_port "$ifname"
+	done
+
+	[ "$(visible_port_count)" -eq 0 ] && add_sysfs_fallback_ports
+
+	uci commit luci_netports
+fi
+
+add_wifi_ports
+uci commit luci_netports
+
+exit 0
