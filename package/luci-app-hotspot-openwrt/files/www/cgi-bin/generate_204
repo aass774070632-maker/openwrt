@@ -1,0 +1,6 @@
+#!/bin/sh
+# Hotspot Alemprator Guard - Captive Portal Redirector
+printf 'Status: 302 Found\r\n'
+printf 'Location: http://b.net/hotspot/login.html\r\n'
+printf 'Cache-Control: no-store\r\n\r\n'
+exit 0

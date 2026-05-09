@@ -56,6 +56,12 @@ fetch_rest() {
 
 	if [ "$scheme" = 'https' ] && [ "$insecure_ssl" = '1' ]; then
 		uclient-fetch -q -T "$timeout" --no-check-certificate --user="$username" --password="$password" -O "$output" "$url" >/dev/null 2>&1
+		# Automatic Fallback for all models: If HTTPS fails, retry with HTTP on port 80
+		if [ $? -ne 0 ]; then
+			url_http="http://$host:80/rest/$path"
+			[ -n "$query" ] && url_http="$url_http?$query"
+			uclient-fetch -q -T "$timeout" --user="$username" --password="$password" -O "$output" "$url_http" >/dev/null 2>&1
+		fi
 	else
 		uclient-fetch -q -T "$timeout" --user="$username" --password="$password" -O "$output" "$url" >/dev/null 2>&1
 	fi

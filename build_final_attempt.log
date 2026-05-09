@@ -1,0 +1,46 @@
+
+make[2]: Entering directory '/home/baalwy/openwrt/scripts/config'
+make[2]: 'conf' is up to date.
+make[2]: Leaving directory '/home/baalwy/openwrt/scripts/config'
+time: target/linux/prereq#0.19#0.02#0.21
+make[1]: Entering directory '/home/baalwy/openwrt'
+make[2]: Entering directory '/home/baalwy/openwrt/target/linux'
+make[3]: Entering directory '/home/baalwy/openwrt/target/linux/qualcommax'
+rm -f /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/localversion
+/home/baalwy/openwrt/scripts/kconfig.pl  + + /home/baalwy/openwrt/target/linux/generic/config-6.6 /home/baalwy/openwrt/target/linux/qualcommax/config-6.6 /home/baalwy/openwrt/target/linux/qualcommax/ipq60xx/config-default > /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.target
+awk '/^(#[[:space:]]+)?CONFIG_KERNEL/{sub("CONFIG_KERNEL_","CONFIG_");print}' /home/baalwy/openwrt/.config >> /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.target
+echo "# CONFIG_KALLSYMS_EXTRA_PASS is not set" >> /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.target
+echo "# CONFIG_KALLSYMS_ALL is not set" >> /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.target
+echo "CONFIG_KALLSYMS_UNCOMPRESSED=y" >> /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.target
+/home/baalwy/openwrt/scripts/package-metadata.pl kconfig /home/baalwy/openwrt/tmp/.packageinfo /home/baalwy/openwrt/.config 6.6 > /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.override
+/home/baalwy/openwrt/scripts/kconfig.pl 'm+' '+' /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.target /dev/null /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.override > /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.set
+mv /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.set /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.old
+grep -v INITRAMFS /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.old > /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.set
+echo 'CONFIG_INITRAMFS_SOURCE=""' >> /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.set
+echo '# CONFIG_INITRAMFS_FORCE is not set' >> /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.set
+echo "# CONFIG_INITRAMFS_PRESERVE_MTIME is not set" >> /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.set
+rm -rf /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/modules
+cmp -s /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.set /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.prev || { cp /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.set /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config; cp /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.set /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.prev; }
+export MAKEFLAGS= ; [ -d /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/user_headers ] || make -C /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110 KCFLAGS="-fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl=target-aarch64_cortex-a53_musl -fno-caller-saves " HOSTCFLAGS="-O2 -I/home/baalwy/openwrt/staging_dir/host/include  -Wall -Wmissing-prototypes -Wstrict-prototypes" CROSS_COMPILE="aarch64-openwrt-linux-musl-" ARCH="arm64" KBUILD_HAVE_NLS=no KBUILD_BUILD_USER="" KBUILD_BUILD_HOST="" KBUILD_BUILD_TIMESTAMP="Sun Oct 19 16:37:45 2025" KBUILD_BUILD_VERSION="0" KBUILD_HOSTLDFLAGS="-L/home/baalwy/openwrt/staging_dir/host/lib" CONFIG_SHELL="bash" V=''  cmd_syscalls=  CC="aarch64-openwrt-linux-musl-gcc" KERNELRELEASE=6.6.110  INSTALL_HDR_PATH=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/user_headers headers_install
+grep '=[ym]' /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.config.set | LC_ALL=C sort | /home/baalwy/openwrt/staging_dir/host/bin/mkhash md5 > /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.vermagic
+touch /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110/.configured
+rm -f /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/root-qualcommax/init
+make -C /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110 KCFLAGS="-fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl=target-aarch64_cortex-a53_musl -fno-caller-saves " HOSTCFLAGS="-O2 -I/home/baalwy/openwrt/staging_dir/host/include  -Wall -Wmissing-prototypes -Wstrict-prototypes" CROSS_COMPILE="aarch64-openwrt-linux-musl-" ARCH="arm64" KBUILD_HAVE_NLS=no KBUILD_BUILD_USER="" KBUILD_BUILD_HOST="" KBUILD_BUILD_TIMESTAMP="Sun Oct 19 16:37:45 2025" KBUILD_BUILD_VERSION="0" KBUILD_HOSTLDFLAGS="-L/home/baalwy/openwrt/staging_dir/host/lib" CONFIG_SHELL="bash" V=''  cmd_syscalls=  CC="aarch64-openwrt-linux-musl-gcc" KERNELRELEASE=6.6.110  Image
+make[4]: Entering directory '/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/linux-qualcommax_ipq60xx/linux-6.6.110'
+  SYNC    include/config/auto.conf.cmd
+  GEN     usr/initramfs_data.cpio
+  COPY    usr/initramfs_inc_data
+  AS      usr/initramfs_data.o
+  AR      usr/built-in.a
+  CC      lib/decompress.o
+  AR      lib/lib.a
+  AR      built-in.a
+  AR      vmlinux.a
+  LD      vmlinux.o
+  OBJCOPY modules.builtin.modinfo
+  GEN     modules.builtin
+  MODPOST vmlinux.symvers
+  LD      .tmp_vmlinux.kallsyms1
+  NM      .tmp_vmlinux.kallsyms1.syms
+  KSYMS   .tmp_vmlinux.kallsyms1.S
+  AS      .tmp_vmlinux.kallsyms1.o

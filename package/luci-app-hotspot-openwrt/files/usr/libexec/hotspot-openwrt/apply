@@ -286,7 +286,6 @@ configure_firewall_nft_compat() {
 
 	mkdir -p /etc/nftables.d || return 1
 	cat > "$config_file" <<-EOF
-	table inet fw4 {
 		chain hotspot_openwrt_shaper {
 		        type filter hook forward priority -150; policy accept;
 		}
@@ -308,7 +307,6 @@ configure_firewall_nft_compat() {
 	chain hotspot_openwrt_srcnat {
 	        type nat hook postrouting priority 99; policy accept;
 	        $snat_rule
-	}
 	}
 	EOF
 	chmod 0644 "$config_file" 2>/dev/null || true

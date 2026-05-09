@@ -14,7 +14,15 @@
   "sharedPackages": [
     "alemprator-firstboot",
     "luci-app-setup",
-    "luci-app-alemprator-ota"
+    "luci-app-alemprator-ota",
+    "luci-app-hotspot-openwrt",
+    "luci-app-tn-netports",
+    "luci-app-netspeedtest",
+    "luci-app-bandix-plus",
+    "luci-app-temp-status",
+    "luci-app-cpu-perf",
+    "luci-app-cpu-status",
+    "luci-app-log-viewer"
   ],
   "models": {
     "km12": {
@@ -27,7 +35,9 @@
         "displayName": "KM12-007H",
         "artifactKind": "sysupgrade",
         "notes": "Ramips MT7621 KM12 production model.",
-        "aliases": ["KM12-007H"]
+        "aliases": [
+          "KM12-007H"
+        ]
       },
       "openwrt": {
         "target": "ramips",
@@ -62,7 +72,9 @@
         "displayName": "KM14-102H",
         "artifactKind": "sysupgrade",
         "notes": "Ramips MT7621 KM14 production model.",
-        "aliases": ["KM14-102H"]
+        "aliases": [
+          "KM14-102H"
+        ]
       },
       "openwrt": {
         "target": "ramips",
@@ -97,7 +109,9 @@
         "displayName": "AR-07-102H",
         "artifactKind": "sysupgrade",
         "notes": "Qualcommax AP profile backed by board kt,ar07-102h.",
-        "aliases": ["AR07-102H"]
+        "aliases": [
+          "AR07-102H"
+        ]
       },
       "openwrt": {
         "target": "qualcommax",
@@ -108,8 +122,8 @@
         "imagePath": "bin/targets/qualcommax/ipq60xx/openwrt-qualcommax-ipq60xx-kt_ar07-102h-squashfs-sysupgrade.bin"
       },
       "firmware": {
-        "version": "24.10.4-ar07-r1",
-        "versionCode": "24.10.4-ar07-r1"
+        "version": "24.10.4-r13-Fixed",
+        "versionCode": "24.10.4-r13-Fixed"
       },
       "firstboot": {
         "lanIp": "192.168.1.20",
@@ -132,7 +146,9 @@
         "displayName": "AR-06-012H",
         "artifactKind": "sysupgrade",
         "notes": "Qualcommax AP profile backed by board kt,ar06-012h.",
-        "aliases": ["AR06-012H"]
+        "aliases": [
+          "AR06-012H"
+        ]
       },
       "openwrt": {
         "target": "qualcommax",
@@ -143,8 +159,8 @@
         "imagePath": "bin/targets/qualcommax/ipq60xx/openwrt-qualcommax-ipq60xx-kt_ar06-012h-squashfs-sysupgrade.bin"
       },
       "firmware": {
-        "version": "24.10.4-ar06-r1",
-        "versionCode": "24.10.4-ar06-r1"
+        "version": "24.10.4-r13-Fixed",
+        "versionCode": "24.10.4-r13-Fixed"
       },
       "firstboot": {
         "lanIp": "192.168.1.20",
@@ -155,6 +171,13 @@
         "publicBaseUrlDefault": "https://ota.kartnet.org",
         "artifactNameTemplate": "openwrt-qualcommax-ipq60xx-{imageSlug}-squashfs-sysupgrade-{version}.bin",
         "changelog": "AR06 Alemprator r1 release: includes Alemprator Guard protection."
+      },
+      "testRelease": {
+        "artifactRelativePath": "public/fw/openwrt-qualcommax-ipq60xx-kt_ar06-012h-squashfs-sysupgrade.bin",
+        "artifactPublicPath": "/fw/openwrt-qualcommax-ipq60xx-kt_ar06-012h-squashfs-sysupgrade.bin",
+        "publicBaseUrlDefault": "https://ota.kartnet.org",
+        "changelog": "Initial AR06 Production Release with Guard.",
+        "channel": "stable"
       }
     },
     "dv02": {
@@ -167,19 +190,21 @@
         "displayName": "DV-02-012H",
         "artifactKind": "sysupgrade",
         "notes": "Qualcommax AP profile backed by board kt,dv02-012h.",
-        "aliases": ["DV02-012H"]
+        "aliases": [
+          "DV02-012H"
+        ]
       },
       "openwrt": {
         "target": "qualcommax",
         "subtarget": "ipq60xx",
         "profile": "DEVICE_kt_dv02-012h",
         "imageSlug": "kt_dv02-012h",
-        "configFile": "DV-02-012H-07-05-2026.config",
+        "configFile": "DV-02-012H-04-05-2026.config",
         "imagePath": "bin/targets/qualcommax/ipq60xx/openwrt-qualcommax-ipq60xx-kt_dv02-012h-squashfs-sysupgrade.bin"
       },
       "firmware": {
-        "version": "24.10.4-dv02-r1",
-        "versionCode": "24.10.4-dv02-r1"
+        "version": "24.10.4-r13-Fixed",
+        "versionCode": "24.10.4-r13-Fixed"
       },
       "firstboot": {
         "lanIp": "192.168.1.20",
@@ -190,6 +215,57 @@
         "publicBaseUrlDefault": "https://ota.kartnet.org",
         "artifactNameTemplate": "openwrt-qualcommax-ipq60xx-{imageSlug}-squashfs-sysupgrade-{version}.bin",
         "changelog": "DV02 Alemprator r1 release: includes Alemprator Guard protection."
+      },
+      "testRelease": {
+        "artifactRelativePath": "public/fw/openwrt-qualcommax-ipq60xx-kt_dv02-012h-squashfs-sysupgrade.bin",
+        "artifactPublicPath": "/fw/openwrt-qualcommax-ipq60xx-kt_dv02-012h-squashfs-sysupgrade.bin",
+        "publicBaseUrlDefault": "https://ota.kartnet.org",
+        "changelog": "Initial DV02 Production Release with Guard.",
+        "channel": "stable"
+      }
+    },
+    "gapd7500": {
+      "id": "gapd7500",
+      "boardName": "lg,gapd-7500",
+      "dashboard": {
+        "modelKey": "LG-GAPD-7500",
+        "boardIdentifier": "lg,gapd-7500",
+        "slug": "lg-gapd-7500",
+        "displayName": "LG-GAPD-7500",
+        "artifactKind": "sysupgrade",
+        "notes": "Qualcommax AP profile backed by board lg,gapd-7500.",
+        "aliases": [
+          "LG-GAPD-7500"
+        ]
+      },
+      "openwrt": {
+        "target": "qualcommax",
+        "subtarget": "ipq60xx",
+        "profile": "DEVICE_lg_gapd-7500",
+        "imageSlug": "lg_gapd-7500",
+        "configFile": "LG-GAPD-7500-08-05-2026.config",
+        "imagePath": "bin/targets/qualcommax/ipq60xx/openwrt-qualcommax-ipq60xx-lg_gapd-7500-squashfs-sysupgrade.bin"
+      },
+      "firmware": {
+        "version": "24.10.4-r13-Fixed",
+        "versionCode": "24.10.4-r13-Fixed"
+      },
+      "firstboot": {
+        "lanIp": "192.168.1.20",
+        "ssidPrefix": "ALemprator-KT-LG-GAPD-7500"
+      },
+      "release": {
+        "channel": "stable",
+        "publicBaseUrlDefault": "https://ota.kartnet.org",
+        "artifactNameTemplate": "openwrt-qualcommax-ipq60xx-{imageSlug}-squashfs-sysupgrade-{version}.bin",
+        "changelog": "LG-GAPD-7500 Alemprator r1 release: includes Alemprator Guard protection."
+      },
+      "testRelease": {
+        "artifactRelativePath": "public/fw/openwrt-qualcommax-ipq60xx-lg_gapd-7500-squashfs-sysupgrade.bin",
+        "artifactPublicPath": "/fw/openwrt-qualcommax-ipq60xx-lg_gapd-7500-squashfs-sysupgrade.bin",
+        "publicBaseUrlDefault": "https://ota.kartnet.org",
+        "changelog": "Initial GAPD-7500 Production Release with Guard.",
+        "channel": "stable"
       }
     }
   }

@@ -488,6 +488,8 @@ function filterReleases() {
   return state.releases.filter((release) => String(release.firmware_model?.id ?? '') === String(state.releaseFilterModelId));
 }
 
+
+
 function tableMarkup(headers, rows) {
   if (rows.length === 0) {
     return '<div class="empty-state">لا توجد سجلات بعد.</div>';
@@ -798,10 +800,10 @@ function renderCampaigns() {
         <td>${escapeHtml(campaign.rollout_percent)}%</td>
         <td>${stateMarkup}</td>
         <td>${renderPills(campaign.rules, (rule) => {
-          const ruleLabel = getRuleDefinition(rule.rule_type).label;
-          const suffix = rule.group?.name ?? rule.tag?.name ?? rule.value_string ?? rule.operator;
-          return `${ruleLabel}: ${suffix}`;
-        })}</td>
+      const ruleLabel = getRuleDefinition(rule.rule_type).label;
+      const suffix = rule.group?.name ?? rule.tag?.name ?? rule.value_string ?? rule.operator;
+      return `${ruleLabel}: ${suffix}`;
+    })}</td>
         <td>
           <div class="table-actions">
             ${actionButtons.join('')}
@@ -913,6 +915,7 @@ function renderAll() {
   renderCampaigns();
   renderCampaignDevices();
   renderAuditLogs();
+  renderAccessControl();
   refreshSelectors();
 }
 
@@ -1401,6 +1404,7 @@ elements.campaignsTable.addEventListener('click', async (event) => {
     setMessage(parseErrorMessage(error), 'warning');
   }
 });
+
 
 resetCampaignForm();
 

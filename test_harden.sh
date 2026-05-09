@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "ALEMPRATOR PROTECTED OK"

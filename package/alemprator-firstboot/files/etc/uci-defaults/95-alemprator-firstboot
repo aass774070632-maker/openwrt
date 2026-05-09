@@ -19,6 +19,22 @@ case "$board_name" in
 		DEFAULT_SSID="ALemprator-KT-KM14-102H"
 		OTHER_DEFAULT_SSID="ALemprator-KT-KM12-007H"
 		;;
+	kt,dv02-012h)
+		DEFAULT_SSID="ALemprator-KT-DV02-012H"
+		OTHER_DEFAULT_SSID="ALemprator-KT-AR07-102H"
+		;;
+	kt,ar07-102h)
+		DEFAULT_SSID="ALemprator-KT-AR07-102H"
+		OTHER_DEFAULT_SSID="ALemprator-KT-DV02-012H"
+		;;
+	kt,ar06-012h)
+		DEFAULT_SSID="ALemprator-KT-AR06-012H"
+		OTHER_DEFAULT_SSID="ALemprator-KT-AR07-102H"
+		;;
+	lg,gapd-7500)
+		DEFAULT_SSID="ALemprator-KT-LG-GAPD-7500"
+		OTHER_DEFAULT_SSID="ALemprator-KT-DV02-012H"
+		;;
 	kt,km12-007h|'')
 		;;
 esac

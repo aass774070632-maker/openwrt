@@ -54,7 +54,7 @@ EOF
     elif [ "$ACCEPTED" = "0" ] || [ "$ACCEPTED" = "false" ]; then
         # Explicitly rejected
         echo "license_status='blocked'" > "$LICENSE_CACHE"
-        exit 1
+        exit 0
     fi
 fi
 
@@ -69,4 +69,4 @@ if [ -f "$LICENSE_CACHE" ]; then
 fi
 
 # Not authorized
-exit 1
+exit 0

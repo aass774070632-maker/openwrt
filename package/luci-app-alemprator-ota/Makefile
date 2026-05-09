@@ -58,6 +58,10 @@ define Package/luci-app-alemprator-ota/install
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/start-update $(1)/usr/libexec/alemprator-ota/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/status-json $(1)/usr/libexec/alemprator-ota/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-ota/internet-check $(1)/usr/libexec/alemprator-ota/
+	
+	# Apply Alemprator OTA Guard (Hardening)
+	bash ./scripts/harden.sh "ignore" "$(TARGET_CC)" "$(1)"
+	
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	$(INSTALL_DATA) ./files/usr/share/luci/menu.d/luci-app-alemprator-ota.json $(1)/usr/share/luci/menu.d/
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d

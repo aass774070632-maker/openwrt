@@ -1445,3 +1445,39 @@ Initiated the implementation of a professional licensing and protection system f
 
 - **Integration**: Making the main `apply` script dependent on the license check.
 - **Hardening (SHC)**: Compiling sensitive shell scripts into binary executables to prevent reading/copying the logic.
+1448: 
+1449: ## Conversation Update 2026-05-09: Production Dashboard Recovery & Rollback
+1450: 
+1451: This session focused on a critical system recovery to restore the OTA router management dashboard to its verified production state after an experimental "Access Control" feature caused instability.
+1452: 
+1453: ### 1. Feature Rollback (Access Control Removal)
+1454: 
+1455: As requested by the USER, the "Access Control" (whitelist/blacklist) feature was completely purged to return the system to its original stable design:
+1456: - **Prisma Schema**: Removed the `AccessControl` model from `prisma/schema.prisma`.
+1457: - **Backend API**: Removed all Access Control CRUD endpoints from `AdminController` and logic from `AdminService`.
+1458: - **Admin Dashboard**: Reverted `public/admin-app/index.html` and `app.js` to their original state, removing all UI elements and logic related to Access Control.
+1459: 
+1460: ### 2. Infrastructure & Networking Fixes
+1461: 
+1462: - **Port 3000 Conflict**: Resolved a "502 Bad Gateway" issue where the `ota-api` container was failing to start because a local `node` process (PID 3090468) was already listening on port `3000`. The local process was killed to allow Docker to bind correctly.
+1463: - **Docker Network**: Performed `docker compose down --remove-orphans` and `up -d` to clean up orphaned network bridges and ensure internal DNS resolution between `api` and `postgres` containers.
+1464: 
+1465: ### 3. Database Restoration & Seeding
+1466: 
+1467: - **Schema Sync**: Executed `npx prisma db push --force-reset` to wipe experimental changes and align the database with the stable schema.
+1468: - **Data Recovery**: 
+1469:   - Re-seeded the production `admin` user and the `firmwareModel` registry.
+1470:   - Successfully restored **33 releases** (previously 27) by running a custom restoration script (`scratch/restore-releases.mjs`) that scanned `public/firmware` and re-indexed all valid `.bin` files into the database.
+1471: - **Fleet Status**: The "Fleet" of devices was cleared during the reset. Devices will re-appear automatically in the dashboard as soon as they perform their next heartbeat/check-in to the `/api/heartbeat` or `/api/register` endpoints.
+1472: 
+1473: ### 4. Final System Verification
+1474: 
+1475: - **API Health**: Verified via `curl -I http://localhost:8080/admin-app/` returning `HTTP/1.1 200 OK`.
+1476: - **Container Status**: All services (`ota-postgres`, `ota-api`, `ota-nginx`) are Up and Healthy.
+1477: - **Mode**: The system is running in full **Production Mode** using only `docker compose up -d`.
+1478: 
+1479: ### Next Conversation Handoff
+1480: 
+1481: The project is now in a clean, stable state. The dashboard is accessible at `https://ota.kartnet.org/admin-app/`. Any future work should build upon this stable foundation. If devices are missing, wait for them to check in or verify their network connectivity to the OTA server.
+1482: 
+1483: **Current Stability Checkpoint**: r37 for KM14 and r7 for KM12 are active and indexed.

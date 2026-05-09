@@ -98,6 +98,10 @@ endif
 # Add device specific packages (here below to allow device type set from subtarget)
 DEFAULT_PACKAGES += $(DEFAULT_PACKAGES.$(DEVICE_TYPE))
 
+# Alemprator Guard: Inject Shared Packages dynamically from alemprator-models.json
+ALEMPRATOR_SHARED_PKGS := $(shell $(TOPDIR)/scripts/get_shared_packages.py)
+DEFAULT_PACKAGES += $(ALEMPRATOR_SHARED_PKGS)
+
 ##@
 # @brief Filter out packages, prepended with `-`.
 #

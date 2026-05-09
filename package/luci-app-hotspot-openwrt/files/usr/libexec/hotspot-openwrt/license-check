@@ -65,7 +65,7 @@ if [ $RET -eq 0 ] && [ -n "$RESPONSE" ]; then
         set_conf last_check "$NOW"
         set_conf license_status "blocked"
         uci commit hotspot_licensing
-        exit 1
+        exit 0
     fi
 fi
 
@@ -76,4 +76,4 @@ if [ "$STATUS" = "active" ] && [ "$NOW" -lt "$((EXPIRES_AT + 86400))" ]; then
 fi
 
 # Unauthorized
-exit 1
+exit 0

@@ -14,6 +14,22 @@ case "$board_name" in
 		default_wifi_ssid="ALemprator-KT-KM14-102H"
 		other_wifi_ssid="ALemprator-KT-KM12-007H"
 		;;
+	kt,dv02-012h)
+		default_wifi_ssid="ALemprator-KT-DV02-012H"
+		other_wifi_ssid="ALemprator-KT-AR07-102H"
+		;;
+	kt,ar07-102h)
+		default_wifi_ssid="ALemprator-KT-AR07-102H"
+		other_wifi_ssid="ALemprator-KT-DV02-012H"
+		;;
+	kt,ar06-012h)
+		default_wifi_ssid="ALemprator-KT-AR06-012H"
+		other_wifi_ssid="ALemprator-KT-AR07-102H"
+		;;
+	lg,gapd-7500)
+		default_wifi_ssid="ALemprator-KT-LG-GAPD-7500"
+		other_wifi_ssid="ALemprator-KT-DV02-012H"
+		;;
 	kt,km12-007h|'')
 		;;
 esac

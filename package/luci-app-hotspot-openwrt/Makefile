@@ -4,7 +4,7 @@ PKG_NAME:=luci-app-hotspot-openwrt
 PKG_VERSION:=1.0
 PKG_RELEASE:=1
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
-PKGARCH:=all
+# PKGARCH:=all (Disabled to allow architecture-specific binaries)
 PKG_LICENSE:=GPL-3.0-only
 
 include $(INCLUDE_DIR)/package.mk
@@ -80,7 +80,11 @@ define Package/luci-app-hotspot-openwrt/install
 	
 	# Alemprator Guard: Hardening Step
 	# Compiles scripts to binary to prevent theft
-	bash $(CURDIR)/scripts/harden.sh $(TOPDIR)/tools/shc/src/shc "$(TARGET_CC)" "$(1)"
+	# We export STAGING_DIR so the compiler can find its headers/libs
+	export STAGING_DIR=$(STAGING_DIR); \
+	SHC_BIN=$$(find $(STAGING_DIR_HOST)/bin -name shc | head -n 1); \
+	[ -z "$$SHC_BIN" ] && SHC_BIN=$$(find $(TOPDIR)/tools/shc -name shc -type f -executable | head -n 1); \
+	bash $(CURDIR)/scripts/harden.sh "$$SHC_BIN" "$(TARGET_CC)" "$(1)"
 endef
 
 $(eval $(call BuildPackage,luci-app-hotspot-openwrt))

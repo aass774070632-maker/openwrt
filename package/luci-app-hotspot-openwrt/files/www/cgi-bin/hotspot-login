@@ -39,6 +39,12 @@ else
         if [ "$state" = "pass" ]; then
             login_ok='true'
             message='تم تسجيل الدخول بنجاح (Chilli).'
+            
+            # Save MAC Cookie globally for all models
+            if [ -x /usr/libexec/hotspot-openwrt/mac-cookies ]; then
+                mac="$(chilli_query -s "$socket_path" list 2>/dev/null | awk -v ip="$remote_addr" '$2 == ip { print $1 }')"
+                /usr/libexec/hotspot-openwrt/mac-cookies save "$mac" "$remote_addr" "$username" >/dev/null 2>&1 || true
+            fi
         fi
         rm -f /tmp/h-login.$$
     fi
@@ -58,9 +64,15 @@ else
             login_ok='true'
             
             # Open Firewall for this IP using NFT Set
-            # This is the professional way to handle per-user access
             nft add element inet fw4 hotspot_allowed { "$remote_addr" } 2>/dev/null
             nft add rule inet fw4 srcnat ip saddr @hotspot_allowed counter masquerade 2>/dev/null
+            
+            # Save MAC Cookie globally for all models
+            if [ -x /usr/libexec/hotspot-openwrt/mac-cookies ]; then
+                # In emergency mode without Chilli, MAC is harder to get via arp, so we try our best
+                mac="$(ip neigh show "$remote_addr" 2>/dev/null | awk '{print $5}')"
+                [ -n "$mac" ] && /usr/libexec/hotspot-openwrt/mac-cookies save "$mac" "$remote_addr" "$username" >/dev/null 2>&1 || true
+            fi
             
             message='تم تسجيل الدخول بنجاح. تم فتح الإنترنت لجهازك.'
         else
