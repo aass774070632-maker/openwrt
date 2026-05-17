@@ -10,7 +10,7 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=strace
 PKG_VERSION:=6.12
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://strace.io/files/$(PKG_VERSION)
@@ -71,6 +71,7 @@ endef
 CONFIGURE_ARGS += \
 	--with-libdw=$(if $(CONFIG_STRACE_LIBDW),yes,no) \
 	--with-libunwind=$(if $(CONFIG_STRACE_LIBUNWIND),yes,no) \
+	--enable-bundled=yes \
 	--enable-mpers=no \
 	--without-libselinux
 
