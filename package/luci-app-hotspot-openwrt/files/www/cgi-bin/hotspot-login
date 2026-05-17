@@ -11,6 +11,21 @@ query_value() {
 	printf '%s' "&$QUERY_STRING" | sed -n "s/.*[&?]$1=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%2[Ff]/\//g; s/%3[Aa]/:/g; s/%3[Ff]/?/g; s/%3[Dd]/=/g; s/%26/\&/g; s/%5[Ff]/_/g'
 }
 
+urlencode() {
+    printf '%s' "$1" | awk '
+        BEGIN { for (i = 0; i < 256; i++) hex[sprintf("%c", i)] = sprintf("%%%02X", i) }
+        {
+            out = ""
+            for (i = 1; i <= length($0); i++) {
+                c = substr($0, i, 1)
+                if (c ~ /[A-Za-z0-9_.~-]/) out = out c
+                else if (c == " ") out = out "%20"
+                else out = out hex[c]
+            }
+            printf "%s", out
+        }'
+}
+
 # --- Settings ---
 socket_path='/var/run/chilli_hotspot_openwrt.sock'
 remote_addr="${REMOTE_ADDR:-}"
@@ -22,8 +37,12 @@ message='فشل تسجيل الدخول.'
 
 # MikroTik Config from UCI
 mt_host="$(uci -q get hotspot_openwrt.main.radius_server)"
+mt_scheme="$(uci -q get hotspot_openwrt.main.userman_rest_scheme || echo http)"
+mt_port="$(uci -q get hotspot_openwrt.main.userman_rest_port || echo 80)"
 mt_user="$(uci -q get hotspot_openwrt.main.userman_rest_username)"
 mt_pass="$(uci -q get hotspot_openwrt.main.userman_rest_password)"
+mt_user_field="$(uci -q get hotspot_openwrt.main.userman_rest_user_field || echo name)"
+mt_insecure_ssl="$(uci -q get hotspot_openwrt.main.userman_rest_insecure_ssl || echo 1)"
 
 # --- Main Logic ---
 
@@ -51,21 +70,34 @@ else
 
     # 2. Emergency Mode (Direct MikroTik Auth)
     if [ "$login_ok" = "false" ]; then
-        # Check card with MikroTik API
-        # Construct Basic Auth
-        AUTH_B64=$(printf "%s:%s" "$mt_user" "$mt_pass" | openssl base64 | tr -d '\n')
-        
-        # Check if user exists and is active in User Manager
-        # We use uclient-fetch since curl is missing
-        RESP=$(uclient-fetch -q -O - --header "Authorization: Basic $AUTH_B64" "http://$mt_host/rest/user-manager/user?name=$username" 2>/dev/null)
-        
-        if echo "$RESP" | grep -q "\"name\":\"$username\""; then
+        # Check card with MikroTik REST API without external base64/openssl dependency.
+        if [ -n "$mt_host" ] && [ -n "$mt_user" ] && [ -n "$mt_pass" ] && command -v uclient-fetch >/dev/null 2>&1; then
+            encoded_username="$(urlencode "$username")"
+            query_field="$mt_user_field"
+            [ -n "$query_field" ] || query_field='name'
+            api_url="$mt_scheme://$mt_host:$mt_port/rest/user-manager/user?$query_field=$encoded_username"
+            if [ "$mt_scheme" = 'https' ] && [ "$mt_insecure_ssl" = '1' ]; then
+                RESP="$(uclient-fetch -q --no-check-certificate --user="$mt_user" --password="$mt_pass" -O - "$api_url" 2>/dev/null)"
+            else
+                RESP="$(uclient-fetch -q --user="$mt_user" --password="$mt_pass" -O - "$api_url" 2>/dev/null)"
+            fi
+            # Fallback to username field when custom lookup field returns no record.
+            if [ -z "$RESP" ] || [ "$RESP" = '[]' ]; then
+                api_url="$mt_scheme://$mt_host:$mt_port/rest/user-manager/user?username=$encoded_username"
+                if [ "$mt_scheme" = 'https' ] && [ "$mt_insecure_ssl" = '1' ]; then
+                    RESP="$(uclient-fetch -q --no-check-certificate --user="$mt_user" --password="$mt_pass" -O - "$api_url" 2>/dev/null)"
+                else
+                    RESP="$(uclient-fetch -q --user="$mt_user" --password="$mt_pass" -O - "$api_url" 2>/dev/null)"
+                fi
+            fi
+        fi
+
+        if [ -n "$RESP" ] && { echo "$RESP" | jsonfilter -e '@[0].name' -e '@[0].username' -e '@.name' -e '@.username' 2>/dev/null | grep -q . || echo "$RESP" | grep -q "\"name\":\"$username\""; }; then
             # Success! Auth accepted by MikroTik
             login_ok='true'
             
             # Open Firewall for this IP using NFT Set
             nft add element inet fw4 hotspot_allowed { "$remote_addr" } 2>/dev/null
-            nft add rule inet fw4 srcnat ip saddr @hotspot_allowed counter masquerade 2>/dev/null
             
             # Save MAC Cookie globally for all models
             if [ -x /usr/libexec/hotspot-openwrt/mac-cookies ]; then
@@ -76,7 +108,7 @@ else
             
             message='تم تسجيل الدخول بنجاح. تم فتح الإنترنت لجهازك.'
         else
-            message="رقم الكرت غير صحيح أو منتهي الصلاحية في MikroTik User Manager."
+            message="رقم الكرت غير صحيح أو تعذر التحقق من MikroTik User Manager."
         fi
     fi
 fi

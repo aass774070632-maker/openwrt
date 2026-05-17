@@ -139,10 +139,7 @@ huasifei,ws1208v2)
 keenetic,kn-3010)
 	ucidef_set_led_netdev "internet" "internet" "green:internet" "wan"
 	;;
-kt,km15-103h)
-	ucidef_set_led_netdev "wlan2g" "WiFi 2.4GHz" "green:wlan" "phy0-ap0" "link tx rx"
-	ucidef_set_led_netdev "wlan5g" "WiFi 5GHz" "green:wlan" "phy1-ap0" "link tx rx"
-	;;
+kt,km15-103h|\
 kt,km12-007h)
 	ucidef_set_led_netdev "wlan2g" "WiFi 2.4GHz" "green:wlan" "phy0-ap0" "link tx rx"
 	ucidef_set_led_netdev "wlan5g" "WiFi 5GHz" "green:wlan" "phy1-ap0" "link tx rx"

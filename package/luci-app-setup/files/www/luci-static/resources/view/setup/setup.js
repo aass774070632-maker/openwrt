@@ -42,13 +42,16 @@ var callSetPassword = rpc.declare({
 var SETUP_STYLE_ID = 'alemprator-setup-styles';
 var WATCHCAT_SID = 'alemprator_periodic_reboot';
 var STEP_KEYS = [ 'lan', 'mode', 'vlan', 'advanced' ];
-var WIZARD_BUILD_TAG = 'r93';
+var WIZARD_BUILD_TAG = 'r95';
 var WIZARD_ROUTE = '/cgi-bin/luci/admin/applications/alemprator';
 var DEFAULT_ADMIN_ROUTE = '/cgi-bin/luci/admin/status/overview';
 var VIDEO_EXPLAIN_URL = 'https://www.facebook.com/people/%D8%AC%D9%84%D8%A7%D9%84-%D8%A7%D8%AD%D9%85%D8%AF-%D8%A7%D9%84%D9%82%D8%AD%D9%85/100010720113363/';
 var FIRSTBOOT_DEFAULT_NETWORK = 'alemprator_setup';
 var FIRSTBOOT_DEFAULT_WIRELESS = 'alemprator_firstboot';
 var SAFE_RESTORE_BACKUP_PATH = '/tmp/backup.tar.gz';
+var HOTSPOT_APPLY_CMD = '/usr/libexec/hotspot-openwrt/apply';
+var HOTSPOT_QUICK_IFACE_PRIMARY = 'wizard_hotspot_quick_primary';
+var HOTSPOT_QUICK_IFACE_SECONDARY = 'wizard_hotspot_quick_secondary';
 
 function notify(message) {
 	ui.addNotification(null, E('p', message));
@@ -605,6 +608,109 @@ function normalizeMode(value) {
 
 function modeNeedsDeferredApply(value) {
 	return false;
+}
+
+function normalizeInterfaceName(value, fallback) {
+	var normalized = String(value || '').trim();
+
+	if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(normalized))
+		normalized = '';
+
+	if (!normalized)
+		normalized = fallback || 'hotspot';
+
+	return normalized;
+}
+
+function deriveHotspotQuickSecondaryInterface(primaryInterface) {
+	var primary = normalizeInterfaceName(primaryInterface, 'hotspot');
+	var candidate = primary + '2';
+
+	if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(candidate))
+		candidate = 'hotspot2';
+
+	if (candidate == primary)
+		candidate = primary + '_2';
+
+	return normalizeInterfaceName(candidate, 'hotspot2');
+}
+
+function normalizeHotspotPolicy(value, fallback) {
+	var normalized = String(value || '').trim();
+
+	if (!normalized)
+		return fallback || 'standard';
+
+	return normalized;
+}
+
+function ipv4ToInt(value) {
+	var parts;
+
+	if (!isIPv4(value))
+		return null;
+
+	parts = String(value).split('.').map(function(part) {
+		return parseInt(part, 10) || 0;
+	});
+
+	return (((parts[0] << 24) >>> 0) + ((parts[1] << 16) >>> 0) + ((parts[2] << 8) >>> 0) + (parts[3] >>> 0)) >>> 0;
+}
+
+function sameIpv4Subnet24(a, b) {
+	var left = String(a || '').split('.');
+	var right = String(b || '').split('.');
+
+	if (!isIPv4(a) || !isIPv4(b) || left.length != 4 || right.length != 4)
+		return false;
+
+	return left[0] == right[0] && left[1] == right[1] && left[2] == right[2];
+}
+
+function validateHotspotQuickProfile(state, index) {
+	var suffix = String(index || 1);
+	var ssid = String(state['hotspotQuickSsid' + suffix] || '').trim();
+	var gateway = String(state['hotspotQuickGateway' + suffix] || '').trim();
+	var poolStart = String(state['hotspotQuickPoolStart' + suffix] || '').trim();
+	var poolEnd = String(state['hotspotQuickPoolEnd' + suffix] || '').trim();
+	var startInt;
+	var endInt;
+
+	if (!ssid)
+		return _('أدخل اسم شبكة الهوتسبوت رقم ') + suffix + _('.');
+
+	if (!isIPv4(gateway))
+		return _('أدخل عنوان بوابة IPv4 صحيح للشبكة رقم ') + suffix + _('.');
+
+	if (!isIPv4(poolStart) || !isIPv4(poolEnd))
+		return _('أدخل مدى عناوين صحيح للشبكة رقم ') + suffix + _('.');
+
+	if (!sameIpv4Subnet24(gateway, poolStart) || !sameIpv4Subnet24(gateway, poolEnd))
+		return _('يجب أن يكون مدى العناوين ضمن نفس الشبكة /24 للشبكة رقم ') + suffix + _('.');
+
+	startInt = ipv4ToInt(poolStart);
+	endInt = ipv4ToInt(poolEnd);
+
+	if (startInt == null || endInt == null || startInt > endInt)
+		return _('نهاية المدى يجب أن تكون أكبر أو مساوية للبداية للشبكة رقم ') + suffix + _('.');
+
+	return '';
+}
+
+function summarizeHotspotQuick(state) {
+	if (!state || !state.hotspotQuickEnabled)
+		return _('معطل');
+
+	return String(state.hotspotQuickSsid1 || 'Hotspot-1') + ' (' + String(state.hotspotQuickGateway1 || '192.168.10.1') + ') | ' +
+		String(state.hotspotQuickSsid2 || 'Hotspot-2') + ' (' + String(state.hotspotQuickGateway2 || '192.168.20.1') + ')';
+}
+
+function enforceHotspotNoVlan(state) {
+	if (!state || !state.hotspotQuickEnabled)
+		return;
+
+	state.isVlan = false;
+	state.vlanId = '10';
 }
 
 function deriveVlanGateway(baseIp, vlanId) {
@@ -2052,7 +2158,8 @@ function disableFirstbootProvisioning() {
 	uci.remove('wireless', wirelessSection);
 	uci.remove('firewall', firewallSection);
 	uci.set('network', 'lan', 'proto', 'static');
-	uci.unset('dhcp', 'lan', 'ignore');
+	uci.set('dhcp', 'lan', 'ignore', '1');
+	uci.set('dhcp', 'lan', 'dynamicdhcp', '0');
 	uci.set('alemprator_firstboot', 'main', 'enabled', '0');
 	uci.set('alemprator_firstboot', 'main', 'configured_once', '1');
 	uci.set('alemprator_firstboot', 'main', 'auto_cleanup_armed', '0');
@@ -2070,6 +2177,8 @@ return view.extend({
 			L.resolveDefault(uci.load('alemprator_firstboot'), null),
 			L.resolveDefault(uci.load('alemprator_ota'), null),
 			uci.load('setup'),
+			L.resolveDefault(uci.load('hotspot_openwrt'), null),
+			L.resolveDefault(uci.load('chilli'), null),
 			L.resolveDefault(uci.load('watchcat'), null),
 			uci.load('network'),
 			uci.load('wireless'),
@@ -2328,6 +2437,45 @@ return view.extend({
 		if (this.refs.otaWindowEnd)
 			this.refs.otaWindowEnd.value = String(this.state.otaWindowEnd == null ? 6 : this.state.otaWindowEnd);
 
+		if (this.refs.hotspotQuickEnabled)
+			this.refs.hotspotQuickEnabled.checked = !!this.state.hotspotQuickEnabled;
+
+		if (this.refs.hotspotQuickWanInterface)
+			this.refs.hotspotQuickWanInterface.value = this.state.hotspotQuickWanInterface || 'lan';
+
+		if (this.refs.hotspotQuickSubscriberInterface)
+			this.refs.hotspotQuickSubscriberInterface.value = this.state.hotspotQuickSubscriberInterface || 'hotspot';
+
+		if (this.refs.hotspotQuickSsid1)
+			this.refs.hotspotQuickSsid1.value = this.state.hotspotQuickSsid1 || 'Hotspot-1';
+
+		if (this.refs.hotspotQuickGateway1)
+			this.refs.hotspotQuickGateway1.value = this.state.hotspotQuickGateway1 || '192.168.10.1';
+
+		if (this.refs.hotspotQuickPoolStart1)
+			this.refs.hotspotQuickPoolStart1.value = this.state.hotspotQuickPoolStart1 || '192.168.10.10';
+
+		if (this.refs.hotspotQuickPoolEnd1)
+			this.refs.hotspotQuickPoolEnd1.value = this.state.hotspotQuickPoolEnd1 || '192.168.10.199';
+
+		if (this.refs.hotspotQuickPolicy1)
+			this.refs.hotspotQuickPolicy1.value = this.state.hotspotQuickPolicy1 || 'standard';
+
+		if (this.refs.hotspotQuickSsid2)
+			this.refs.hotspotQuickSsid2.value = this.state.hotspotQuickSsid2 || 'Hotspot-2';
+
+		if (this.refs.hotspotQuickGateway2)
+			this.refs.hotspotQuickGateway2.value = this.state.hotspotQuickGateway2 || '192.168.20.1';
+
+		if (this.refs.hotspotQuickPoolStart2)
+			this.refs.hotspotQuickPoolStart2.value = this.state.hotspotQuickPoolStart2 || '192.168.20.10';
+
+		if (this.refs.hotspotQuickPoolEnd2)
+			this.refs.hotspotQuickPoolEnd2.value = this.state.hotspotQuickPoolEnd2 || '192.168.20.199';
+
+		if (this.refs.hotspotQuickPolicy2)
+			this.refs.hotspotQuickPolicy2.value = this.state.hotspotQuickPolicy2 || 'premium';
+
 		if (this.refs.adminPassword)
 			this.refs.adminPassword.value = '';
 
@@ -2337,7 +2485,7 @@ return view.extend({
 
 	reloadStateFromDevice: function() {
 		var self = this;
-		var configs = [ 'alemprator_firstboot', 'alemprator_ota', 'setup', 'watchcat', 'network', 'wireless' ];
+		var configs = [ 'alemprator_firstboot', 'alemprator_ota', 'setup', 'hotspot_openwrt', 'chilli', 'watchcat', 'network', 'wireless' ];
 
 		if (!window.confirm(_('سيتم استبدال القيم الحالية داخل المعالج بإعدادات الجهاز الفعلية. هل تريد المتابعة؟')))
 			return Promise.resolve();
@@ -2358,6 +2506,8 @@ return view.extend({
 			L.resolveDefault(uci.load('alemprator_firstboot'), null),
 			L.resolveDefault(uci.load('alemprator_ota'), null),
 			uci.load('setup'),
+			L.resolveDefault(uci.load('hotspot_openwrt'), null),
+			L.resolveDefault(uci.load('chilli'), null),
 			L.resolveDefault(uci.load('watchcat'), null),
 			uci.load('network'),
 			uci.load('wireless')
@@ -2444,6 +2594,19 @@ return view.extend({
 		var inferredWidth5g = inferWifiWidthFromHtmode('5g', htmode5g);
 		var hasPrimaryApIface = !!(apIface2g || apIface5g);
 		var hasVlanApIface = !!(findSecondaryApIfaceSection(radios, '2g') || findSecondaryApIfaceSection(radios, '5g'));
+		var hotspotQuickEnabled = uci.get('setup', 'default', 'hotspot_quick_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'quick_setup_enabled') == '1';
+		var hotspotQuickWanInterface = normalizeInterfaceName(uci.get('setup', 'default', 'hotspot_quick_wan_interface') || uci.get('hotspot_openwrt', 'main', 'wan_interface') || 'lan', 'lan');
+		var hotspotQuickSubscriberInterface = normalizeInterfaceName(uci.get('setup', 'default', 'hotspot_quick_subscriber_interface') || uci.get('hotspot_openwrt', 'main', 'subscriber_interface') || 'hotspot', 'hotspot');
+		var hotspotQuickSsid1 = String(uci.get('setup', 'default', 'hotspot_quick_ssid_1') || uci.get('hotspot_openwrt', 'main', 'quick_ssid_primary') || 'Hotspot-1').trim();
+		var hotspotQuickGateway1 = String(uci.get('setup', 'default', 'hotspot_quick_gateway_1') || uci.get('hotspot_openwrt', 'main', 'quick_gateway_primary') || uci.get('hotspot_openwrt', 'main', 'hotspot_ip') || '192.168.10.1').trim();
+		var hotspotQuickPoolStart1 = String(uci.get('setup', 'default', 'hotspot_quick_pool_start_1') || uci.get('hotspot_openwrt', 'main', 'quick_pool_start_primary') || uci.get('hotspot_openwrt', 'main', 'pool_start') || '192.168.10.10').trim();
+		var hotspotQuickPoolEnd1 = String(uci.get('setup', 'default', 'hotspot_quick_pool_end_1') || uci.get('hotspot_openwrt', 'main', 'quick_pool_end_primary') || uci.get('hotspot_openwrt', 'main', 'pool_end') || '192.168.10.199').trim();
+		var hotspotQuickPolicy1 = normalizeHotspotPolicy(uci.get('setup', 'default', 'hotspot_quick_policy_1') || uci.get('hotspot_openwrt', 'main', 'quick_policy_primary'), 'standard');
+		var hotspotQuickSsid2 = String(uci.get('setup', 'default', 'hotspot_quick_ssid_2') || uci.get('hotspot_openwrt', 'main', 'quick_ssid_secondary') || 'Hotspot-2').trim();
+		var hotspotQuickGateway2 = String(uci.get('setup', 'default', 'hotspot_quick_gateway_2') || uci.get('hotspot_openwrt', 'main', 'quick_gateway_secondary') || '192.168.20.1').trim();
+		var hotspotQuickPoolStart2 = String(uci.get('setup', 'default', 'hotspot_quick_pool_start_2') || uci.get('hotspot_openwrt', 'main', 'quick_pool_start_secondary') || '192.168.20.10').trim();
+		var hotspotQuickPoolEnd2 = String(uci.get('setup', 'default', 'hotspot_quick_pool_end_2') || uci.get('hotspot_openwrt', 'main', 'quick_pool_end_secondary') || '192.168.20.199').trim();
+		var hotspotQuickPolicy2 = normalizeHotspotPolicy(uci.get('setup', 'default', 'hotspot_quick_policy_2') || uci.get('hotspot_openwrt', 'main', 'quick_policy_secondary'), 'premium');
 
 		if (apIface2g)
 			baseSsid = stripWifiSsidIpSuffix(apIface2g.ssid || '', wifiSsidIpSuffixState);
@@ -2499,7 +2662,7 @@ return view.extend({
 		return {
 			lanIpaddr: lanIpaddr,
 			lanNetmask: lanRuntime.netmask || uci.get('network', 'lan', 'netmask') || (firstbootEnabled ? firstbootLanNetmask : '') || uci.get('setup', 'default', 'lan_netmask') || '255.255.255.0',
-			mode: mode,
+			mode: hotspotQuickEnabled ? 'ap' : mode,
 			wifiSsid: baseSsid,
 			wifiSsid5gMode: ssid5gMode,
 			wifiSsid5g: ssid5gValue,
@@ -2513,7 +2676,20 @@ return view.extend({
 			meshId: meshIface ? (meshIface.mesh_id || '') : (uci.get('setup', 'default', 'mesh_id') || ''),
 			meshKey: meshIface ? (meshIface.key || '') : (uci.get('setup', 'default', 'mesh_key') || ''),
 			meshBand: inferMeshBand(radio2g, radio5g, meshIface),
-			isVlan: isVlanEnabled,
+			hotspotQuickEnabled: hotspotQuickEnabled,
+			hotspotQuickWanInterface: hotspotQuickWanInterface,
+			hotspotQuickSubscriberInterface: hotspotQuickSubscriberInterface,
+			hotspotQuickSsid1: hotspotQuickSsid1,
+			hotspotQuickGateway1: hotspotQuickGateway1,
+			hotspotQuickPoolStart1: hotspotQuickPoolStart1,
+			hotspotQuickPoolEnd1: hotspotQuickPoolEnd1,
+			hotspotQuickPolicy1: hotspotQuickPolicy1,
+			hotspotQuickSsid2: hotspotQuickSsid2,
+			hotspotQuickGateway2: hotspotQuickGateway2,
+			hotspotQuickPoolStart2: hotspotQuickPoolStart2,
+			hotspotQuickPoolEnd2: hotspotQuickPoolEnd2,
+			hotspotQuickPolicy2: hotspotQuickPolicy2,
+			isVlan: hotspotQuickEnabled ? false : isVlanEnabled,
 			vlanId: inferVlanId(),
 			channel2g: (radio2g && uci.get('wireless', radio2g['.name'], 'channel')) || uci.get('setup', 'default', 'channel_2g') || 'auto',
 			channel5g: (radio5g && uci.get('wireless', radio5g['.name'], 'channel')) || uci.get('setup', 'default', 'channel_5g') || 'auto',
@@ -2575,8 +2751,22 @@ return view.extend({
 		this.state.rebootHours = this.refs.rebootHours ? this.refs.rebootHours.value.trim() : '24';
 		this.state.otaWindowStart = this.refs.otaWindowStart ? normalizeHour(this.refs.otaWindowStart.value, 2) : this.state.otaWindowStart;
 		this.state.otaWindowEnd = this.refs.otaWindowEnd ? normalizeHour(this.refs.otaWindowEnd.value, 6) : this.state.otaWindowEnd;
+		this.state.hotspotQuickEnabled = this.refs.hotspotQuickEnabled ? this.refs.hotspotQuickEnabled.checked : !!this.state.hotspotQuickEnabled;
+		this.state.hotspotQuickWanInterface = this.refs.hotspotQuickWanInterface ? normalizeInterfaceName(this.refs.hotspotQuickWanInterface.value, 'lan') : normalizeInterfaceName(this.state.hotspotQuickWanInterface, 'lan');
+		this.state.hotspotQuickSubscriberInterface = this.refs.hotspotQuickSubscriberInterface ? normalizeInterfaceName(this.refs.hotspotQuickSubscriberInterface.value, 'hotspot') : normalizeInterfaceName(this.state.hotspotQuickSubscriberInterface, 'hotspot');
+		this.state.hotspotQuickSsid1 = this.refs.hotspotQuickSsid1 ? this.refs.hotspotQuickSsid1.value.trim() : (this.state.hotspotQuickSsid1 || 'Hotspot-1');
+		this.state.hotspotQuickGateway1 = this.refs.hotspotQuickGateway1 ? this.refs.hotspotQuickGateway1.value.trim() : (this.state.hotspotQuickGateway1 || '192.168.10.1');
+		this.state.hotspotQuickPoolStart1 = this.refs.hotspotQuickPoolStart1 ? this.refs.hotspotQuickPoolStart1.value.trim() : (this.state.hotspotQuickPoolStart1 || '192.168.10.10');
+		this.state.hotspotQuickPoolEnd1 = this.refs.hotspotQuickPoolEnd1 ? this.refs.hotspotQuickPoolEnd1.value.trim() : (this.state.hotspotQuickPoolEnd1 || '192.168.10.199');
+		this.state.hotspotQuickPolicy1 = normalizeHotspotPolicy(this.refs.hotspotQuickPolicy1 ? this.refs.hotspotQuickPolicy1.value : this.state.hotspotQuickPolicy1, 'standard');
+		this.state.hotspotQuickSsid2 = this.refs.hotspotQuickSsid2 ? this.refs.hotspotQuickSsid2.value.trim() : (this.state.hotspotQuickSsid2 || 'Hotspot-2');
+		this.state.hotspotQuickGateway2 = this.refs.hotspotQuickGateway2 ? this.refs.hotspotQuickGateway2.value.trim() : (this.state.hotspotQuickGateway2 || '192.168.20.1');
+		this.state.hotspotQuickPoolStart2 = this.refs.hotspotQuickPoolStart2 ? this.refs.hotspotQuickPoolStart2.value.trim() : (this.state.hotspotQuickPoolStart2 || '192.168.20.10');
+		this.state.hotspotQuickPoolEnd2 = this.refs.hotspotQuickPoolEnd2 ? this.refs.hotspotQuickPoolEnd2.value.trim() : (this.state.hotspotQuickPoolEnd2 || '192.168.20.199');
+		this.state.hotspotQuickPolicy2 = normalizeHotspotPolicy(this.refs.hotspotQuickPolicy2 ? this.refs.hotspotQuickPolicy2.value : this.state.hotspotQuickPolicy2, 'premium');
 		this.state.adminPassword = this.refs.adminPassword ? this.refs.adminPassword.value : '';
 		this.state.adminPasswordConfirm = this.refs.adminPasswordConfirm ? this.refs.adminPasswordConfirm.value : '';
+		enforceHotspotNoVlan(this.state);
 	},
 
 	describeModePlan: function() {
@@ -2673,9 +2863,13 @@ return view.extend({
 
 		this.collectState();
 		this.syncRadioModeWidthUi();
+		enforceHotspotNoVlan(this.state);
 		vlanBinding = describeSecondaryVlanBinding(this.state.vlanId);
 		meshBandIs5g = (this.state.meshBand == '5g');
 		meshChannel = meshBandIs5g ? this.state.channel5g : this.state.channel2g;
+
+		if (this.refs.isVlan)
+			this.refs.isVlan.checked = !!this.state.isVlan;
 
 		for (i = 0; i < this.stepPanels.length; i++) {
 			this.stepPanels[i].style.display = (i == this.stepIndex) ? '' : 'none';
@@ -2696,6 +2890,9 @@ return view.extend({
 		setElementVisible(this.refs.saveButton, this.stepIndex === lastStep);
 		setElementVisible(this.refs.uplinkSettingsWrapper, this.state.mode == 'sta_wds');
 		setElementVisible(this.refs.meshSettingsWrapper, this.state.mode == 'mesh');
+		setElementVisible(this.refs.hotspotQuickDetailsWrapper, !!this.state.hotspotQuickEnabled);
+		if (this.refs.mode)
+			this.refs.mode.disabled = !!this.state.hotspotQuickEnabled;
 		setElementVisible(this.refs.vlanIdWrapper, this.refs.isVlan.checked);
 		if (this.refs.vlanSsid2gRow)
 			setElementVisible(this.refs.vlanSsid2gRow, this.refs.isVlan.checked);
@@ -2704,6 +2901,21 @@ return view.extend({
 		if (this.refs.vlanSsidIpSuffixRow)
 			setElementVisible(this.refs.vlanSsidIpSuffixRow, true);
 		setElementVisible(this.refs.vlanPreviewWrapper, this.refs.isVlan.checked);
+		if (this.refs.hotspotVlanLockNotice)
+			setElementVisible(this.refs.hotspotVlanLockNotice, !!this.state.hotspotQuickEnabled);
+
+		if (this.refs.isVlan)
+			this.refs.isVlan.disabled = !!this.state.hotspotQuickEnabled;
+		if (this.refs.vlanId)
+			this.refs.vlanId.disabled = !!this.state.hotspotQuickEnabled;
+		if (this.refs.wifiSsidVlan2g)
+			this.refs.wifiSsidVlan2g.disabled = !!this.state.hotspotQuickEnabled;
+		if (this.refs.wifiSsidVlan5g)
+			this.refs.wifiSsidVlan5g.disabled = !!this.state.hotspotQuickEnabled;
+		if (this.refs.wifiSsidVlanIpSuffix)
+			this.refs.wifiSsidVlanIpSuffix.disabled = !!this.state.hotspotQuickEnabled;
+		if (this.refs.wifiSsidIpSuffixPrimary)
+			this.refs.wifiSsidIpSuffixPrimary.disabled = !!this.state.hotspotQuickEnabled;
 		setElementVisible(this.refs.resetHoldWrapper, !this.refs.resetDisabled.checked);
 		setElementVisible(this.refs.rebootHoursWrapper, this.refs.rebootEnabled.checked);
 		var apVlanOnlyMode = (this.state.mode == 'ap' && this.state.isVlan);
@@ -2724,7 +2936,9 @@ return view.extend({
 		if (this.refs.heroCurrentMode)
 			this.refs.heroCurrentMode.textContent = modeTitle(this.state.mode);
 		if (this.refs.heroCurrentSecondary)
-			this.refs.heroCurrentSecondary.textContent = describeHeroSecondarySummary(this.state, this.radios || []);
+			this.refs.heroCurrentSecondary.textContent = this.state.hotspotQuickEnabled
+				? _('هوتسبوت سريع: شبكتان')
+				: describeHeroSecondarySummary(this.state, this.radios || []);
 		if (this.refs.heroSetupSummary)
 			this.refs.heroSetupSummary.textContent = describeFirstbootSummary(this.state);
 		if (this.refs.wifiNameHelp)
@@ -2807,6 +3021,7 @@ return view.extend({
 		setTextContent(this.refs.buttonPoliciesCardSummary, summarizeButtonPolicies(this.state));
 		setTextContent(this.refs.rebootCardSummary, summarizeRebootPolicy(this.state));
 		setTextContent(this.refs.passwordCardSummary, summarizePasswordCard(this.state));
+		setTextContent(this.refs.hotspotQuickCardSummary, summarizeHotspotQuick(this.state));
 	},
 
 	validateStep: function(index) {
@@ -2830,17 +3045,27 @@ return view.extend({
 				return false;
 			}
 
+			if (this.state.hotspotQuickEnabled && this.state.mode != 'ap') {
+				notify(_('وضع الهوتسبوت السريع يعمل فقط مع نقطة الوصول AP.'));
+				return false;
+			}
+
+			if (this.state.hotspotQuickEnabled && this.state.isVlan) {
+				notify(_('لا يمكن تفعيل VLAN مع الهوتسبوت السريع.'));
+				return false;
+			}
+
 			var uplinkRadio = getRadioByBand(this.radios || [], this.state.uplinkBand);
 			var meshRadio = getRadioByBand(this.radios || [], this.state.meshBand);
 			var hasLocal5g = (getRemainingLocalBands(this.radios || [], this.state).indexOf('5g') != -1);
 			var apVlanOnlyMode = (this.state.mode == 'ap' && this.state.isVlan);
 
-			if (!apVlanOnlyMode && !this.state.wifiSsid) {
+			if (!this.state.hotspotQuickEnabled && !apVlanOnlyMode && !this.state.wifiSsid) {
 				notify(_('أدخل اسم الشبكة اللاسلكية الأساسي.'));
 				return false;
 			}
 
-			if (!apVlanOnlyMode && hasLocal5g && this.state.wifiSsid5gMode == 'custom' && !this.state.wifiSsid5g) {
+			if (!this.state.hotspotQuickEnabled && !apVlanOnlyMode && hasLocal5g && this.state.wifiSsid5gMode == 'custom' && !this.state.wifiSsid5g) {
 				notify(_('أدخل اسما مخصصا لشبكة 5GHz أو اختر التسمية التلقائية.'));
 				return false;
 			}
@@ -2959,6 +3184,60 @@ return view.extend({
 		}
 
 		if (STEP_KEYS[index] == 'advanced') {
+			if (this.state.hotspotQuickEnabled) {
+				var blockedSubscriberIfaces = [ 'lan', 'wan', 'wan6', 'loopback', 'wizardvlan' ];
+				var quickSubscriber = normalizeInterfaceName(this.state.hotspotQuickSubscriberInterface, 'hotspot');
+				var quickSubscriberSecondary = deriveHotspotQuickSecondaryInterface(quickSubscriber);
+				var quickWan = normalizeInterfaceName(this.state.hotspotQuickWanInterface, 'lan');
+
+				if (this.state.mode != 'ap') {
+					notify(_('الهوتسبوت السريع يتطلب وضع نقطة الوصول AP فقط.'));
+					return false;
+				}
+
+				if (blockedSubscriberIfaces.indexOf(quickSubscriber) > -1) {
+					notify(_('واجهة مشتركي الهوتسبوت غير صالحة. استخدم واجهة مستقلة مثل hotspot.'));
+					return false;
+				}
+
+				if (blockedSubscriberIfaces.indexOf(quickSubscriberSecondary) > -1) {
+					notify(_('تم اشتقاق واجهة ثانية غير صالحة. غيّر اسم واجهة المشتركين الأساسية.'));
+					return false;
+				}
+
+				if (quickSubscriber == quickWan) {
+					notify(_('لا يمكن أن تكون واجهة المشتركين هي نفس واجهة الإنترنت في الهوتسبوت السريع.'));
+					return false;
+				}
+
+				if (quickSubscriberSecondary == quickWan) {
+					notify(_('الواجهة الثانية للهوتسبوت السريع لا يمكن أن تساوي واجهة الإنترنت. غيّر اسم واجهة المشتركين الأساسية.'));
+					return false;
+				}
+
+				var quickProfileError = validateHotspotQuickProfile(this.state, 1) || validateHotspotQuickProfile(this.state, 2);
+
+				if (quickProfileError) {
+					notify(quickProfileError);
+					return false;
+				}
+
+				if (String(this.state.hotspotQuickSsid1 || '').trim() == String(this.state.hotspotQuickSsid2 || '').trim()) {
+					notify(_('يجب أن يكون اسم الشبكة الأولى مختلفًا عن الثانية في الهوتسبوت السريع.'));
+					return false;
+				}
+
+				if (String(this.state.hotspotQuickGateway1 || '').trim() == String(this.state.hotspotQuickGateway2 || '').trim()) {
+					notify(_('يجب أن يكون عنوان الخروج مختلفًا بين الشبكتين في الهوتسبوت السريع.'));
+					return false;
+				}
+
+				if (this.state.isVlan) {
+					notify(_('الهوتسبوت السريع يرفض VLAN تلقائيًا. عطّل VLAN للمتابعة.'));
+					return false;
+				}
+			}
+
 			if (this.state.rebootEnabled && !/^[1-9][0-9]*$/.test(this.state.rebootHours)) {
 				notify(_('أدخل مدة إعادة التشغيل الدوري بعدد ساعات صحيح أكبر من صفر.'));
 				return false;
@@ -3018,6 +3297,78 @@ return view.extend({
 
 		applyRadioHtmode(radio2g, '2g', state);
 		applyRadioHtmode(radio5g, '5g', state);
+
+		if (state.hotspotQuickEnabled) {
+			var hotspotNetworkPrimary = normalizeInterfaceName(state.hotspotQuickSubscriberInterface, 'hotspot');
+			var hotspotNetworkSecondary = deriveHotspotQuickSecondaryInterface(hotspotNetworkPrimary);
+			var primaryRadio = radio2g || radio5g;
+			var secondaryRadio = radio5g || radio2g || primaryRadio;
+			var hotspotPolicyPrimary = getLocalApPolicy({ mode: 'ap', isVlan: false }, hotspotNetworkPrimary);
+			var hotspotPolicySecondary = getLocalApPolicy({ mode: 'ap', isVlan: false }, hotspotNetworkSecondary);
+
+			uci.remove('wireless', 'wizard_uplink');
+			uci.remove('wireless', 'wizard_uplink_ap');
+			uci.remove('wireless', 'wizard_mesh');
+
+			if (secondaryIface2g)
+				uci.remove('wireless', secondaryIface2g);
+			if (secondaryIface5g)
+				uci.remove('wireless', secondaryIface5g);
+
+			if (primaryRadio) {
+				ensureNamedWifiIface(HOTSPOT_QUICK_IFACE_PRIMARY);
+				configureApIface(
+					HOTSPOT_QUICK_IFACE_PRIMARY,
+					wifiDeviceName(primaryRadio),
+					hotspotNetworkPrimary,
+					String(state.hotspotQuickSsid1 || 'Hotspot-1').trim(),
+					state.wifiKey,
+					hotspotPolicyPrimary
+				);
+			}
+
+			if (secondaryRadio) {
+				ensureNamedWifiIface(HOTSPOT_QUICK_IFACE_SECONDARY);
+				configureApIface(
+					HOTSPOT_QUICK_IFACE_SECONDARY,
+					wifiDeviceName(secondaryRadio),
+					hotspotNetworkSecondary,
+					String(state.hotspotQuickSsid2 || 'Hotspot-2').trim(),
+					state.wifiKey,
+					hotspotPolicySecondary
+				);
+			}
+
+			uci.sections('wireless', 'wifi-iface').forEach(function(section) {
+				var sid = section['.name'];
+				var sectionNetworks = normalizeList(section.network);
+
+				if (sid == HOTSPOT_QUICK_IFACE_PRIMARY || sid == HOTSPOT_QUICK_IFACE_SECONDARY)
+					return;
+
+				if (section.mode != null && section.mode != 'ap')
+					return;
+
+				if (sectionNetworks.indexOf('wizardvlan') > -1) {
+					uci.remove('wireless', sid);
+					return;
+				}
+
+				if (sectionNetworks.indexOf('lan') > -1)
+					uci.set('wireless', sid, 'disabled', '1');
+			});
+
+			if (radio2g)
+				uci.set('wireless', radio2g['.name'], 'channel', state.channel2g || 'auto');
+
+			if (radio5g)
+				uci.set('wireless', radio5g['.name'], 'channel', state.channel5g || 'auto');
+
+			return;
+		}
+
+		uci.remove('wireless', HOTSPOT_QUICK_IFACE_PRIMARY);
+		uci.remove('wireless', HOTSPOT_QUICK_IFACE_SECONDARY);
 
 		if (requestedMode == 'sta_wds') {
 			uplinkRadio = getRadioByBand(radios, state.uplinkBand);
@@ -3245,6 +3596,9 @@ return view.extend({
 	applyVlanSettings: function(state) {
 		var firewallLanZone = findFirewallZone('lan');
 
+		if (state.hotspotQuickEnabled)
+			state.isVlan = false;
+
 		uci.set('network', 'lan', 'ageing_time', '10');
 		ensureBridgeAgingTime('br-lan', 10);
 
@@ -3367,6 +3721,10 @@ return view.extend({
 			return;
 
 		this.collectState();
+		enforceHotspotNoVlan(this.state);
+
+		if (this.state.hotspotQuickEnabled)
+			this.state.mode = 'ap';
 
 		this.refs.saveButton.disabled = true;
 		this.refs.saveButton.textContent = _('جارٍ التطبيق...');
@@ -3374,6 +3732,11 @@ return view.extend({
 		this.normalizeAnonymousWifiIfaces().then(function(migrated) {
 			migratedAnonymousWifi = !!migrated;
 			self.radios = uci.sections('wireless', 'wifi-device');
+			self.state.hotspotQuickWanInterface = normalizeInterfaceName(self.state.hotspotQuickWanInterface, 'lan');
+			self.state.hotspotQuickSubscriberInterface = normalizeInterfaceName(self.state.hotspotQuickSubscriberInterface, 'hotspot');
+			self.state.hotspotQuickSubscriberInterface2 = deriveHotspotQuickSecondaryInterface(self.state.hotspotQuickSubscriberInterface);
+			self.state.hotspotQuickPolicy1 = normalizeHotspotPolicy(self.state.hotspotQuickPolicy1, 'standard');
+			self.state.hotspotQuickPolicy2 = normalizeHotspotPolicy(self.state.hotspotQuickPolicy2, 'premium');
 
 			ensureNamedSection('setup', 'default', 'setup');
 
@@ -3395,6 +3758,20 @@ return view.extend({
 			uci.set('setup', 'default', 'mesh_id', self.state.meshId);
 			uci.set('setup', 'default', 'mesh_key', self.state.meshKey);
 			uci.set('setup', 'default', 'mesh_band', self.state.meshBand);
+			uci.set('setup', 'default', 'hotspot_quick_enabled', self.state.hotspotQuickEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_wan_interface', self.state.hotspotQuickWanInterface);
+			uci.set('setup', 'default', 'hotspot_quick_subscriber_interface', self.state.hotspotQuickSubscriberInterface);
+			uci.set('setup', 'default', 'hotspot_quick_subscriber_interface_2', self.state.hotspotQuickSubscriberInterface2 || 'hotspot2');
+			uci.set('setup', 'default', 'hotspot_quick_ssid_1', self.state.hotspotQuickSsid1 || 'Hotspot-1');
+			uci.set('setup', 'default', 'hotspot_quick_gateway_1', self.state.hotspotQuickGateway1 || '192.168.10.1');
+			uci.set('setup', 'default', 'hotspot_quick_pool_start_1', self.state.hotspotQuickPoolStart1 || '192.168.10.10');
+			uci.set('setup', 'default', 'hotspot_quick_pool_end_1', self.state.hotspotQuickPoolEnd1 || '192.168.10.199');
+			uci.set('setup', 'default', 'hotspot_quick_policy_1', self.state.hotspotQuickPolicy1);
+			uci.set('setup', 'default', 'hotspot_quick_ssid_2', self.state.hotspotQuickSsid2 || 'Hotspot-2');
+			uci.set('setup', 'default', 'hotspot_quick_gateway_2', self.state.hotspotQuickGateway2 || '192.168.20.1');
+			uci.set('setup', 'default', 'hotspot_quick_pool_start_2', self.state.hotspotQuickPoolStart2 || '192.168.20.10');
+			uci.set('setup', 'default', 'hotspot_quick_pool_end_2', self.state.hotspotQuickPoolEnd2 || '192.168.20.199');
+			uci.set('setup', 'default', 'hotspot_quick_policy_2', self.state.hotspotQuickPolicy2);
 			uci.set('setup', 'default', 'is_vlan', self.state.isVlan ? '1' : '0');
 			uci.set('setup', 'default', 'vlan_id', self.state.vlanId || '10');
 			uci.set('setup', 'default', 'channel_2g', self.state.channel2g || 'auto');
@@ -3424,6 +3801,73 @@ return view.extend({
 				uci.unset('network', 'lan', 'gateway');
 
 			disableFirstbootProvisioning();
+
+			if (self.state.hotspotQuickEnabled) {
+				var quickSubscriber = self.state.hotspotQuickSubscriberInterface;
+				var quickDeviceSection = quickSubscriber + '_dev';
+				var quickDeviceName = (quickSubscriber == 'hotspot') ? 'br-hotspot' : ('br-' + quickSubscriber);
+				var quickSubscriberSecondary = self.state.hotspotQuickSubscriberInterface2 || deriveHotspotQuickSecondaryInterface(quickSubscriber);
+				var quickDeviceSectionSecondary = quickSubscriberSecondary + '_dev';
+				var quickDeviceNameSecondary = (quickSubscriberSecondary == 'hotspot') ? 'br-hotspot' : ('br-' + quickSubscriberSecondary);
+
+				ensureNamedSection('network', quickDeviceSection, 'device');
+				uci.set('network', quickDeviceSection, 'name', quickDeviceName);
+				uci.set('network', quickDeviceSection, 'type', 'bridge');
+				uci.set('network', quickDeviceSection, 'bridge_empty', '1');
+				uci.set('network', quickDeviceSection, 'ipv6', '0');
+
+				ensureNamedSection('network', quickDeviceSectionSecondary, 'device');
+				uci.set('network', quickDeviceSectionSecondary, 'name', quickDeviceNameSecondary);
+				uci.set('network', quickDeviceSectionSecondary, 'type', 'bridge');
+				uci.set('network', quickDeviceSectionSecondary, 'bridge_empty', '1');
+				uci.set('network', quickDeviceSectionSecondary, 'ipv6', '0');
+
+				ensureNamedSection('network', quickSubscriber, 'interface');
+				uci.set('network', quickSubscriber, 'proto', 'none');
+				uci.set('network', quickSubscriber, 'device', quickDeviceName);
+				uci.unset('network', quickSubscriber, 'ipaddr');
+				uci.unset('network', quickSubscriber, 'netmask');
+				uci.unset('network', quickSubscriber, 'gateway');
+
+				ensureNamedSection('network', quickSubscriberSecondary, 'interface');
+				uci.set('network', quickSubscriberSecondary, 'proto', 'none');
+				uci.set('network', quickSubscriberSecondary, 'device', quickDeviceNameSecondary);
+				uci.unset('network', quickSubscriberSecondary, 'ipaddr');
+				uci.unset('network', quickSubscriberSecondary, 'netmask');
+				uci.unset('network', quickSubscriberSecondary, 'gateway');
+
+				ensureNamedSection('hotspot_openwrt', 'main', 'hotspot');
+				uci.set('hotspot_openwrt', 'main', 'enabled', '1');
+				uci.set('hotspot_openwrt', 'main', 'wan_interface', self.state.hotspotQuickWanInterface);
+				uci.set('hotspot_openwrt', 'main', 'subscriber_interface', self.state.hotspotQuickSubscriberInterface);
+				uci.set('hotspot_openwrt', 'main', 'wifi_iface', '');
+				uci.set('hotspot_openwrt', 'main', 'hotspot_ip', self.state.hotspotQuickGateway1 || '192.168.10.1');
+				uci.set('hotspot_openwrt', 'main', 'hotspot_cidr', '24');
+				uci.set('hotspot_openwrt', 'main', 'pool_start', self.state.hotspotQuickPoolStart1 || '192.168.10.10');
+				uci.set('hotspot_openwrt', 'main', 'pool_end', self.state.hotspotQuickPoolEnd1 || '192.168.10.199');
+				uci.set('hotspot_openwrt', 'main', 'network_name', self.state.hotspotQuickSsid1 || 'Hotspot-1');
+				uci.set('hotspot_openwrt', 'main', 'quick_setup_enabled', '1');
+				uci.set('hotspot_openwrt', 'main', 'quick_no_vlan', '1');
+				uci.set('hotspot_openwrt', 'main', 'quick_wan_interface', self.state.hotspotQuickWanInterface);
+				uci.set('hotspot_openwrt', 'main', 'quick_subscriber_interface', self.state.hotspotQuickSubscriberInterface);
+				uci.set('hotspot_openwrt', 'main', 'quick_subscriber_interface_secondary', quickSubscriberSecondary);
+				uci.set('hotspot_openwrt', 'main', 'quick_runtime_dual_enabled', '1');
+				uci.set('hotspot_openwrt', 'main', 'quick_ssid_primary', self.state.hotspotQuickSsid1 || 'Hotspot-1');
+				uci.set('hotspot_openwrt', 'main', 'quick_gateway_primary', self.state.hotspotQuickGateway1 || '192.168.10.1');
+				uci.set('hotspot_openwrt', 'main', 'quick_pool_start_primary', self.state.hotspotQuickPoolStart1 || '192.168.10.10');
+				uci.set('hotspot_openwrt', 'main', 'quick_pool_end_primary', self.state.hotspotQuickPoolEnd1 || '192.168.10.199');
+				uci.set('hotspot_openwrt', 'main', 'quick_policy_primary', self.state.hotspotQuickPolicy1);
+				uci.set('hotspot_openwrt', 'main', 'quick_ssid_secondary', self.state.hotspotQuickSsid2 || 'Hotspot-2');
+				uci.set('hotspot_openwrt', 'main', 'quick_gateway_secondary', self.state.hotspotQuickGateway2 || '192.168.20.1');
+				uci.set('hotspot_openwrt', 'main', 'quick_pool_start_secondary', self.state.hotspotQuickPoolStart2 || '192.168.20.10');
+				uci.set('hotspot_openwrt', 'main', 'quick_pool_end_secondary', self.state.hotspotQuickPoolEnd2 || '192.168.20.199');
+				uci.set('hotspot_openwrt', 'main', 'quick_policy_secondary', self.state.hotspotQuickPolicy2);
+			}
+			else if (uci.get('hotspot_openwrt', 'main')) {
+				uci.set('hotspot_openwrt', 'main', 'quick_setup_enabled', '0');
+				uci.set('hotspot_openwrt', 'main', 'quick_runtime_dual_enabled', '0');
+			}
+
 			self.applyVlanSettings(self.state);
 			self.applyWifiSettings(self.state, self.radios);
 			self.applyPeriodicRebootSettings(self.state);
@@ -3433,23 +3877,32 @@ return view.extend({
 			return ui.changes.apply();
 		}).then(function() {
 			var changedIp = self.state.lanIpaddr != oldLanIpaddr;
+			var hotspotApplyPromise = self.state.hotspotQuickEnabled
+				? L.resolveDefault(fs.exec_direct(HOTSPOT_APPLY_CMD, [], 'json'), null)
+				: Promise.resolve(null);
 
-			if (!self.state.adminPassword) {
-				return {
-					changedIp: changedIp,
-					passwordChanged: null
-				};
-			}
+			return hotspotApplyPromise.then(function(hotspotApplyResult) {
+				if (!self.state.adminPassword) {
+					return {
+						changedIp: changedIp,
+						passwordChanged: null,
+						hotspotApplyResult: hotspotApplyResult
+					};
+				}
 
-			return L.resolveDefault(callSetPassword('root', self.state.adminPassword), false).then(function(success) {
-				return {
-					changedIp: changedIp,
-					passwordChanged: !!success
-				};
+				return L.resolveDefault(callSetPassword('root', self.state.adminPassword), false).then(function(success) {
+					return {
+						changedIp: changedIp,
+						passwordChanged: !!success,
+						hotspotApplyResult: hotspotApplyResult
+					};
+				});
 			});
 		}).then(function(result) {
-			var modeMessage = describeAppliedModeResult(self.state, self.radios || []);
-			var secondaryNetworkMessage = describeAppliedSecondaryNetworkResult(self.state, self.radios || []);
+			var modeMessage = self.state.hotspotQuickEnabled
+				? _('تم تفعيل مسار الهوتسبوت السريع على وضع نقطة الوصول.')
+				: describeAppliedModeResult(self.state, self.radios || []);
+			var secondaryNetworkMessage = self.state.hotspotQuickEnabled ? null : describeAppliedSecondaryNetworkResult(self.state, self.radios || []);
 			var reconnectMessage = describeReconnectHint(self.state, self.radios || [], oldSsid);
 
 			self.refs.saveButton.disabled = false;
@@ -3466,6 +3919,15 @@ return view.extend({
 				notify(_('تم تغيير كلمة مرور الجهاز بنجاح.'));
 			else if (result.passwordChanged === false)
 				notify(_('تم تطبيق الإعدادات، لكن تعذر تغيير كلمة مرور الجهاز.'));
+
+			if (self.state.hotspotQuickEnabled) {
+				if (result.hotspotApplyResult && result.hotspotApplyResult.ok === true)
+					notify(_('تم تطبيق الهوتسبوت السريع بنجاح.'));
+				else if (result.hotspotApplyResult && result.hotspotApplyResult.ok === false)
+					notify(_('تم حفظ إعدادات الهوتسبوت السريع لكن الخدمة أعادت رسالة خطأ: ') + String(result.hotspotApplyResult.message || _('غير معروفة')));
+				else
+					notify(_('تم حفظ إعدادات الهوتسبوت السريع. تأكد من حالة الخدمة من صفحة الهوتسبوت.'));
+			}
 
 			if (modeMessage)
 				notify(modeMessage);
@@ -3541,6 +4003,7 @@ return view.extend({
 		this.refs.buttonPoliciesCardSummary = E('span');
 		this.refs.rebootCardSummary = E('span');
 		this.refs.passwordCardSummary = E('span');
+		this.refs.hotspotQuickCardSummary = E('span');
 
 		wizardIntro = E('div', { 'class': 'alemprator-card alemprator-card--hero' }, [
 			E('div', { 'class': 'alemprator-hero__grid' }, [
@@ -3663,6 +4126,20 @@ return view.extend({
 		this.refs.rebootEnabled = E('input', { 'type': 'checkbox' });
 		this.refs.rebootEnabled.checked = this.state.rebootEnabled;
 		this.refs.rebootHours = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'step': '1', 'value': this.state.rebootHours, 'style': 'max-width:140px;' });
+		this.refs.hotspotQuickEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickEnabled.checked = !!this.state.hotspotQuickEnabled;
+		this.refs.hotspotQuickWanInterface = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickWanInterface || 'lan', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickSubscriberInterface = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickSubscriberInterface || 'hotspot', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickSsid1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickSsid1 || 'Hotspot-1', 'style': 'max-width:280px;' });
+		this.refs.hotspotQuickGateway1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickGateway1 || '192.168.10.1', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPoolStart1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolStart1 || '192.168.10.10', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPoolEnd1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolEnd1 || '192.168.10.199', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPolicy1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPolicy1 || 'standard', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickSsid2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickSsid2 || 'Hotspot-2', 'style': 'max-width:280px;' });
+		this.refs.hotspotQuickGateway2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickGateway2 || '192.168.20.1', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPoolStart2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolStart2 || '192.168.20.10', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPoolEnd2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolEnd2 || '192.168.20.199', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPolicy2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPolicy2 || 'premium', 'style': 'max-width:220px;' });
 		this.refs.adminPassword = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'autocomplete': 'new-password', 'style': 'max-width:280px;' });
 		this.refs.adminPasswordConfirm = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'autocomplete': 'new-password', 'style': 'max-width:280px;' });
 		this.refs.otaWindowStart = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' });
@@ -3829,6 +4306,38 @@ return view.extend({
 				E('span', _('النسخ الاحتياطي والحماية قبل الحفظ.'))
 			]),
 			E('div', { 'class': 'alemprator-card-grid' }, [
+				renderWizardCard(
+					_('Hotspot Quick (بدون VLAN)'),
+					_('إنشاء شبكتين هوتسبوت بسرعة. عند التفعيل يتم تعطيل VLAN تلقائيًا.'),
+					[
+						renderCardLiveSummary(this.refs.hotspotQuickCardSummary),
+						E('div', { 'class': 'cbi-value' }, [
+							E('label', { 'class': 'cbi-value-title' }, _('تفعيل الهوتسبوت السريع')),
+							E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickEnabled ])
+						]),
+						(this.refs.hotspotQuickDetailsWrapper = E('div', { 'style': 'display:none;' }, [
+							E('div', { 'class': 'cbi-value' }, [
+								E('label', { 'class': 'cbi-value-title' }, _('واجهة الإنترنت (WAN Interface)')),
+								E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickWanInterface ])
+							]),
+							E('div', { 'class': 'cbi-value' }, [
+								E('label', { 'class': 'cbi-value-title' }, _('واجهة مشتركي الهوتسبوت')),
+								E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSubscriberInterface ])
+							]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSsid1 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('IP الخروج للشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickGateway1 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('بداية Pool للشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolStart1 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('نهاية Pool للشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolEnd1 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Policy للشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPolicy1 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSsid2 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('IP الخروج للشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickGateway2 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('بداية Pool للشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolStart2 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('نهاية Pool للشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolEnd2 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Policy للشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPolicy2 ]) ]),
+							(this.refs.hotspotVlanLockNotice = renderNoticeBox('warning', _('تنبيه'), [ E('span', _('عند تفعيل الهوتسبوت السريع يتم تعطيل VLAN تلقائيًا ومنع حفظه.')) ]))
+						]))
+					]
+				),
 				renderWizardCard(
 					_('النسخ الاحتياطي'),
 					_('نزّل نسخة احتياطية أو استرجعها بأمان.'),
@@ -4122,11 +4631,83 @@ return view.extend({
 			self.updateStepUi();
 		});
 
+		this.refs.hotspotQuickEnabled.addEventListener('change', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickWanInterface.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickSubscriberInterface.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickSsid1.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickGateway1.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickPoolStart1.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickPoolEnd1.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickPolicy1.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickSsid2.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickGateway2.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickPoolStart2.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickPoolEnd2.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
+		this.refs.hotspotQuickPolicy2.addEventListener('input', function() {
+			self.updateStepUi();
+		});
+
 		actions.appendChild(this.refs.reloadButton);
 		actions.appendChild(this.refs.backButton);
 		actions.appendChild(this.refs.nextButton);
 		actions.appendChild(this.refs.saveButton);
 		wizardContainer.appendChild(actions);
+
+		wizardContainer.appendChild(E('div', {
+			'class': 'alemprator-copyright-footer',
+			'style': 'text-align:center; padding:24px 16px 12px; margin-top:32px; border-top:1px solid rgba(0,0,0,0.08); color:#6c757d; font-size:12px; line-height:1.8; direction:rtl;'
+		}, [
+			E('div', {}, [
+				E('span', { 'style': 'font-size:13px;' }, '© جميع الحقوق محفوظة | '),
+				E('strong', { 'style': 'color:#415a77;' }, 'تطوير وتنفيذ: م. جلال أحمد القحم – م. محمد باعلوي')
+			]),
+			E('div', { 'style': 'margin-top:4px;' }, [
+				E('span', { 'style': 'color:#52606d;' }, 'شركة الإمبراطور للسوفتويرات | حلول برمجية وأنظمة وتطبيقات حسب الطلب')
+			]),
+			E('div', { 'style': 'margin-top:4px;' }, [
+				E('span', {}, '📱 '),
+				E('a', { 'href': 'tel:+967774070632', 'style': 'color:#1b4965; text-decoration:none;' }, '774070632'),
+				E('span', {}, ' | '),
+				E('a', { 'href': 'tel:+967777440819', 'style': 'color:#1b4965; text-decoration:none;' }, '777440819')
+			])
+		]));
+
 		panel.appendChild(wizardContainer);
 
 		this.updateStepUi();

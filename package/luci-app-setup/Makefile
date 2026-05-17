@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-setup
 PKG_VERSION:=1.0
-PKG_RELEASE:=94
+PKG_RELEASE:=95
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKGARCH:=all
 PKG_LICENSE:=GPL-3.0-only
@@ -127,6 +127,8 @@ define Package/luci-app-setup/install
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/setup.js $(1)/www/luci-static/resources/view/setup/setup_r93.js
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/landing.js $(1)/www/luci-static/resources/view/setup/
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/landing.js $(1)/www/luci-static/resources/view/setup/landing_r2.js
+	$(INSTALL_DIR) $(1)/www
+	$(INSTALL_DATA) ./files/www/captive-portal.html $(1)/www/captive-portal.html
 	$(INSTALL_DIR) $(1)/usr/libexec/alemprator-setup
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-setup/reset-disabled $(1)/usr/libexec/alemprator-setup/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-setup/wps-disabled $(1)/usr/libexec/alemprator-setup/

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req } from '@nestjs/common';
 import { HeartbeatDto } from './dto/heartbeat.dto';
+import { HotspotVerifyDto } from './dto/hotspot-verify.dto';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 import { UpdateQueryDto } from './dto/update-query.dto';
 import { OtaService } from './ota.service';
@@ -28,6 +29,14 @@ export class OtaController {
   @HttpCode(HttpStatus.OK)
   heartbeat(@Body() body: HeartbeatDto, @Req() request: OtaRequestLike) {
     return this.otaService.heartbeat(body, this.extractMeta(request));
+  }
+
+  @Post('hotspot-verify')
+  @HttpCode(HttpStatus.OK)
+  hotspotVerify(@Body() body: HotspotVerifyDto, @Req() request: OtaRequestLike) {
+    const guardSig = this.pickHeader(request.headers, 'x-guard-sig');
+    const meta = { ...this.extractMeta(request), signature: guardSig };
+    return this.otaService.hotspotVerify(body, meta);
   }
 
   private extractMeta(request: OtaRequestLike) {

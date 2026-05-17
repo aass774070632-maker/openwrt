@@ -226,6 +226,39 @@ boot() {
 	sync_firstboot_flags
 }
 
+setup_captive_portal() {
+	# IP شبكة الإعداد المؤقتة
+	local setup_ip
+	setup_ip="$(uci -q get network.${network_section}.ipaddr 2>/dev/null || echo '192.168.8.1')"
+
+	# DNS: أعد جميع الاستعلامات لـ IP الراوتر (يُفعّل Captive Portal)
+	uci -q set dhcp.alemprator_captive=dnsmasq_option 2>/dev/null || true
+	uci -q batch <<EOF >/dev/null 2>&1
+		set dhcp.@dnsmasq[0].address='/#/${setup_ip}'
+		commit dhcp
+EOF
+	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+
+	# nftables: أعد HTTP (80) من العملاء للراوتر
+	nft add chain inet fw4 alemprator_captive 2>/dev/null || true
+	nft flush chain inet fw4 alemprator_captive 2>/dev/null || true
+	nft add rule inet fw4 dstnat \
+		iifname "br-alemprator_setup" \
+		ip daddr != "${setup_ip}" \
+		tcp dport 80 \
+		dnat to "${setup_ip}:80" 2>/dev/null || true
+
+	logger -t alemprator-firstboot "Captive portal activated on ${setup_ip}"
+}
+
+remove_captive_portal() {
+	# إزالة قاعدة DNS الخاصة بالـ Captive Portal
+	uci -q delete dhcp.@dnsmasq[0].address 2>/dev/null || true
+	uci -q commit dhcp 2>/dev/null || true
+	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+	logger -t alemprator-firstboot "Captive portal removed"
+}
+
 start_service() {
 	load_firstboot_config
 
@@ -238,6 +271,7 @@ start_service() {
 
 	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ]; then
 		ensure_baseline_file >/dev/null 2>&1 || true
+		setup_captive_portal
 	fi
 
 	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ]; then
@@ -246,6 +280,7 @@ start_service() {
 		procd_close_instance
 	fi
 }
+
 
 reload_service() {
 	load_firstboot_config

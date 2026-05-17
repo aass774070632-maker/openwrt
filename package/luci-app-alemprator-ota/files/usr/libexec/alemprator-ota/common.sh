@@ -27,7 +27,8 @@ RETRY_BASE="900"
 RETRY_MAX="21600"
 TOKEN_SALT=""
 HMAC_SECRET=""
-CONNECT_TIMEOUT="20"
+CONNECT_TIMEOUT="8"
+DOWNLOAD_TIMEOUT="300"
 UPGRADE_EXPECTED_SECONDS="180"
 MODEL_FILE="/etc/model"
 MODEL_IDENTITY_FILE="/etc/alemprator/model-identities"
@@ -122,7 +123,7 @@ load_config() {
 	config_get RETRY_MAX "$SECTION" retry_max "21600"
 	config_get TOKEN_SALT "$SECTION" token_salt "CHANGE_ME_UNIQUE_PER_BRAND"
 	config_get HMAC_SECRET "$SECTION" hmac_secret ""
-	config_get CONNECT_TIMEOUT "$SECTION" connect_timeout "20"
+	config_get CONNECT_TIMEOUT "$SECTION" connect_timeout "8"
 	config_get MODEL_FILE "$SECTION" model_file "/etc/model"
 	config_get MODEL_IDENTITY_FILE "$SECTION" model_identity_file "/etc/alemprator/model-identities"
 	config_get TOKEN_FILE "$SECTION" token_file "/etc/alemprator/device.token"
@@ -538,7 +539,7 @@ post_json() {
 	local url payload
 	url="$1"
 	payload="$2"
-	uclient-fetch -q -T "$CONNECT_TIMEOUT" --header 'Content-Type: application/json' --post-data "$payload" -O - "$url"
+	uclient-fetch -q --no-check-certificate -T "$CONNECT_TIMEOUT" --header 'Content-Type: application/json' --post-data "$payload" -O - "$url"
 }
 
 hmac_sha256() {
@@ -570,7 +571,7 @@ signed_fetch_url() {
 		return 1
 	}
 
-	uclient-fetch -q -T "$CONNECT_TIMEOUT" --header "X-OTA-TS: $ts" --header "X-OTA-Signature: $sig" -O - "$url"
+	uclient-fetch -q --no-check-certificate -T "$CONNECT_TIMEOUT" --header "X-OTA-TS: $ts" --header "X-OTA-Signature: $sig" -O - "$url"
 }
 
 signed_post_json() {
@@ -591,13 +592,13 @@ signed_post_json() {
 		return 1
 	}
 
-	uclient-fetch -q -T "$CONNECT_TIMEOUT" --header 'Content-Type: application/json' --header "X-OTA-TS: $ts" --header "X-OTA-Signature: $sig" --post-data "$payload" -O - "$url"
+	uclient-fetch -q --no-check-certificate -T "$CONNECT_TIMEOUT" --header 'Content-Type: application/json' --header "X-OTA-TS: $ts" --header "X-OTA-Signature: $sig" --post-data "$payload" -O - "$url"
 }
 
 fetch_url() {
 	local url
 	url="$1"
-	uclient-fetch -q -T "$CONNECT_TIMEOUT" -O - "$url"
+	uclient-fetch -q --no-check-certificate -T "$CONNECT_TIMEOUT" -O - "$url"
 }
 
 register_device() {

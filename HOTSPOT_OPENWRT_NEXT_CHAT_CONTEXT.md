@@ -443,4 +443,453 @@ chmod 0755 /usr/libexec/hotspot-openwrt/userman-info /www/cgi-bin/hotspot-card-i
 
 ## Conversation Log Source
 
+## Session Delta (2026-05-16)
+
+This section records exactly what was changed during the latest session and what was approved for next execution.
+
+### A) Changes already applied in this session (code-level)
+
+Hotspot package hardening and runtime-alignment edits were applied in the workspace:
+
+- `package/luci-app-hotspot-openwrt/Makefile`
+   - Added missing runtime dependencies (`uclient-fetch`, `jsonfilter`).
+   - Installed missing runtime files (uci-defaults firewall bootstrap, `generate_204`, kick-client helper, firewall include script).
+- `package/luci-app-hotspot-openwrt/files/www/cgi-bin/hotspot-login`
+   - Reworked fallback login path to use `uclient-fetch` + `jsonfilter`.
+   - Removed risky per-login NAT insertion behavior.
+- `package/luci-app-hotspot-openwrt/files/etc/uci-defaults/99_hotspot-openwrt-firewall`
+   - Rewritten to idempotent include/domain-redirect behavior.
+   - Added captive redirect behavior through `/cgi-bin/generate_204`.
+- `package/luci-app-hotspot-openwrt/files/etc/hotspot-openwrt/firewall.sh`
+   - Replaced hardcoded hotspot subnet assumptions with dynamic subnet derivation from UCI.
+- `package/luci-app-hotspot-openwrt/files/www/cgi-bin/generate_204`
+   - Redirect target is now computed from hotspot UCI fields, no external hardcoded domain.
+- `package/luci-app-hotspot-openwrt/files/usr/libexec/hotspot-openwrt/license-check`
+   - Guard-binary-missing path now falls back to validation helper instead of hard lockout.
+- `package/luci-app-hotspot-openwrt/files/etc/config/hotspot_openwrt`
+   - Added practical defaults used by UI/runtime (branding/login/speed profile defaults).
+- `package/luci-app-hotspot-openwrt/files/usr/libexec/hotspot-openwrt/apply`
+   - Tightened local variable scope in orchestration path.
+- `package/luci-app-hotspot-openwrt/files/www/cgi-bin/hotspot-speedtest`
+   - Improved client lookup matching (exact IP match logic).
+- `package/luci-app-hotspot-openwrt/files/www/index.html`
+   - Removed external hardcoded redirect and aligned with local portal path.
+
+### B) Architecture decision approved in this session
+
+For quick setup integration:
+
+1. Add hotspot quick option inside the setup wizard flow.
+2. Enforce strict policy: **Hotspot and VLAN can never be enabled together**.
+3. When hotspot quick mode is enabled, VLAN fields must be hidden/disabled, validation must block any VLAN attempt, and apply pipeline must skip VLAN creation.
+
+### C) Final execution spec approved for next implementation (not yet coded)
+
+The user-approved target is:
+
+- Hotspot quick mode creates **two hotspot networks** automatically.
+- Each network has:
+   - Independent SSID.
+   - Independent gateway/exit IP for that hotspot network.
+   - Independent subscriber pool.
+   - Independent policy profile mapping.
+- Remaining steps are automated (interface wiring, DHCP/firewall/chilli alignment, apply + status check).
+- VLAN remains fully disabled in hotspot quick mode.
+
+### D) Planned implementation files (next coding phase)
+
+- `package/luci-app-setup/files/www/luci-static/resources/view/setup/setup.js`
+   - Add hotspot quick state fields, UI card, no-VLAN guards, and ordered apply flow.
+- `package/luci-app-setup/files/usr/share/rpcd/acl.d/luci-app-setup.json`
+   - Extend ACL to required hotspot/chilli read-write + apply/status exec scope.
+- `package/luci-app-setup/files/etc/config/setup`
+   - Add persistent `hotspot_quick_*` keys for dual-network setup.
+- `package/luci-app-hotspot-openwrt/files/etc/config/hotspot_openwrt`
+   - Add/normalize dual-network fields consumed by backend apply logic.
+- `package/luci-app-hotspot-openwrt/files/usr/libexec/hotspot-openwrt/apply`
+   - Implement dual-network build path while preserving strict no-VLAN rule in hotspot quick mode.
+
+### E) Acceptance criteria for the upcoming implementation
+
+1. If `hotspot_quick_enabled=1` and any VLAN flag is on, wizard validation must fail with clear message.
+2. Applying hotspot quick mode must never create or bind `wizardvlan`.
+3. Two hotspot networks are created and mapped as configured (SSID/IP pool/policy per network).
+4. Apply completes with deterministic status output and no dependency on manual post-fix commands.
+5. Existing non-hotspot quick wizard path continues to work as before.
+
+### F) Scope discipline requested by user
+
+- No build during planning/design steps.
+- Keep context file updated each session with:
+   - What changed.
+   - What is approved next.
+   - Which files are expected to change.
+
+### G) Implemented in this session (2026-05-16, execution phase)
+
+The following implementation was completed in workspace code (no build run):
+
+1. Quick Setup now has a Hotspot Quick card in step 4 (advanced).
+2. Strict no-conflict policy is enforced end-to-end:
+   - If Hotspot Quick is enabled, VLAN is auto-disabled in state/UI.
+   - VLAN controls are disabled while Hotspot Quick is active.
+   - Validation rejects any attempt to combine Hotspot Quick with VLAN.
+3. Dual hotspot profile fields were added to setup state/config:
+   - Network 1: ssid/gateway/pool_start/pool_end/policy
+   - Network 2: ssid/gateway/pool_start/pool_end/policy
+4. Save/apply pipeline now writes Hotspot Quick values to:
+   - `/etc/config/setup` (`hotspot_quick_*`)
+   - `/etc/config/hotspot_openwrt` (`quick_*` mirror + primary runtime mapping)
+5. Setup wizard now invokes hotspot backend apply command after generic apply when Hotspot Quick is enabled.
+6. ACL of `luci-app-setup` was expanded to include required hotspot UCI scope and apply/status exec commands.
+
+Important runtime note:
+
+- Current implementation provisions two SSIDs through the quick wizard hotspot path and maps primary runtime gateway/pool directly into `hotspot_openwrt.main`.
+- Secondary profile values are persisted for orchestration/automation continuity in `quick_*` fields.
+
+### H) Files changed in this execution phase
+
+- `package/luci-app-setup/files/www/luci-static/resources/view/setup/setup.js`
+- `package/luci-app-setup/files/usr/share/rpcd/acl.d/luci-app-setup.json`
+- `package/luci-app-setup/files/etc/config/setup`
+- `package/luci-app-setup/files/etc/uci-defaults/40_luci-app-setup`
+- `package/luci-app-hotspot-openwrt/files/etc/config/hotspot_openwrt`
+
+### I) Phase 2 implemented (2026-05-16, runtime-independent dual hotspot)
+
+This phase was executed in code (no build run) to make the second hotspot profile active at runtime, not only persisted:
+
+1. Quick Setup now derives a second subscriber interface automatically from the primary one.
+   - SSID-1 binds to primary subscriber interface.
+   - SSID-2 binds to derived secondary subscriber interface.
+2. Save/apply in setup now seeds both subscriber interfaces in `network` and writes:
+   - `setup.default.hotspot_quick_subscriber_interface_2`
+   - `hotspot_openwrt.main.quick_subscriber_interface_secondary`
+   - `hotspot_openwrt.main.quick_runtime_dual_enabled`
+3. Backend apply (`hotspot-openwrt/apply`) now supports dual runtime in quick mode:
+   - Creates/updates secondary network interface + device.
+   - Creates/updates secondary DHCP section.
+   - Adds secondary interface into hotspot firewall zone.
+   - Creates second CoovaChilli instance `chilli.hotspot_openwrt_secondary` on `tun1`.
+   - Uses independent secondary gateway and pool.
+4. Policy now affects runtime per profile in quick dual mode:
+   - Primary and secondary quick policy values are mapped to per-instance bandwidth limits (`defbandwidthmaxup/down`).
+   - Primary and secondary profiles can run different limits simultaneously.
+5. Firewall nft compatibility generator now supports both primary (`tun0`) and secondary (`tun1`) forward/srcnat rules.
+6. Runtime verification now checks both instances in dual mode:
+   - primary (`tun0`, primary hotspot IP)
+   - secondary (`tun1`, secondary hotspot IP)
+7. `status-json` now exposes dual-runtime fields (secondary interface/IP, tun1 presence, secondary route status, dual mode flag).
+
+### J) Files additionally changed in phase 2
+
+- `package/luci-app-hotspot-openwrt/files/usr/libexec/hotspot-openwrt/apply`
+- `package/luci-app-hotspot-openwrt/files/usr/libexec/hotspot-openwrt/status-json`
+
+### K) Validation executed after phase 2 (2026-05-16)
+
+The following tests were run and passed:
+
+1. Syntax checks:
+   - `node --check package/luci-app-setup/files/www/luci-static/resources/view/setup/setup.js`
+   - `sh -n package/luci-app-setup/files/etc/uci-defaults/40_luci-app-setup`
+   - `sh -n package/luci-app-hotspot-openwrt/files/usr/libexec/hotspot-openwrt/apply`
+   - `sh -n package/luci-app-hotspot-openwrt/files/usr/libexec/hotspot-openwrt/status-json`
+2. JSON check:
+   - `python3 -m json.tool package/luci-app-setup/files/usr/share/rpcd/acl.d/luci-app-setup.json`
+3. Diagnostics:
+   - No editor errors on all modified files.
+4. Build checks (targeted package compile):
+   - `make package/luci-app-hotspot-openwrt/compile -j$(nproc) V=s` (PASS)
+   - `make package/luci-app-setup/compile -j$(nproc) V=s` (PASS)
+
+Generated IPK artifacts observed after compile:
+
+- `bin/packages/aarch64_cortex-a53/base/luci-app-hotspot-openwrt_1.0-r1_aarch64_cortex-a53.ipk`
+- `bin/packages/aarch64_cortex-a53/base/luci-app-setup_1.0-r95_aarch64_cortex-a53.ipk`
+- `bin/packages/mipsel_24kc/base/luci-app-hotspot-openwrt_1.0-r1_mipsel_24kc.ipk`
+- `bin/packages/mipsel_24kc/base/luci-app-setup_1.0-r95_mipsel_24kc.ipk`
+
+### L) Next operational step (post-build)
+
+Run live runtime smoke test on target router after installing updated IPKs/image:
+
+1. Apply Hotspot Quick with two profiles from setup wizard.
+2. Verify interfaces and tunnels:
+   - `ip -4 addr show tun0`
+   - `ip -4 addr show tun1`
+3. Verify services and status output:
+   - `/usr/libexec/hotspot-openwrt/status-json`
+4. Verify chilli instances:
+   - `uci show chilli | grep hotspot_openwrt`
+   - `pidof chilli`
+5. Verify routing/NAT/firewall4 compatibility:
+   - `ip route | grep -E 'tun0|tun1'`
+   - `cat /etc/nftables.d/90-hotspot-openwrt-forward-nat.nft`
+
+### M) Automation added for next step (2026-05-16)
+
+To make router-side validation deterministic, an executable smoke test helper was added to the hotspot package:
+
+- `/usr/libexec/hotspot-openwrt/phase2-smoke`
+
+It validates phase-2 runtime expectations and returns JSON + exit code:
+
+1. Quick dual mode enabled flags.
+2. Primary/secondary subscriber interfaces are distinct.
+3. Primary and secondary chilli sections exist.
+4. `tun0` and `tun1` have IPv4 addresses.
+5. Primary/secondary routes point to `tun0`/`tun1`.
+6. nft compatibility file includes rules for `tun0` and `tun1`.
+7. `status-json` reports `dual_quick_mode=true`.
+
+Run command on router:
+
+- `/usr/libexec/hotspot-openwrt/phase2-smoke`
+
+Success criteria:
+
+- Exit code `0`
+- JSON field `"ok": true`
+
+### N) Live runtime test executed (2026-05-16)
+
+Live test was executed on router `192.168.1.20` and passed:
+
+1. Reachability:
+   - `ping -c 2 192.168.1.20` (PASS)
+2. Runtime flags on router:
+   - `hotspot_openwrt.main.quick_setup_enabled=1`
+   - `hotspot_openwrt.main.quick_runtime_dual_enabled=1`
+3. Smoke validation:
+   - `/usr/libexec/hotspot-openwrt/phase2-smoke`
+   - Result: `"ok": true`
+   - Exit code: `0`
+4. Status snapshot:
+   - `/usr/libexec/hotspot-openwrt/status-json`
+   - `"chilli_running": true`
+   - `"tun0_present": true`
+   - `"tun1_present": true`
+
+Conclusion:
+
+- Phase 2 runtime path is operational on the live target router.
+
+### O) Live bugfix after runtime retest (2026-05-16)
+
+During advanced live validation, policy labels were loaded correctly (`standard` / `premium`) but both chilli instances received identical bandwidth values.
+
+Root cause:
+
+1. In `quick_policy_limits()` normalization, whitespace deletion used:
+   - `tr -d '[:space:]'`
+2. On BusyBox `tr`, this removed literal letters from policy words (e.g. `standard` -> `tndrd`, `premium` -> `rmium`), so case matching never reached policy branches.
+
+Fix applied:
+
+1. Replaced normalization with BusyBox-safe form:
+   - `tr -d ' \t\r\n'`
+2. Deployed fixed `apply` script to live router and executed apply again.
+
+Post-fix live results on `192.168.1.20`:
+
+1. `quick_policy_primary=standard`
+2. `quick_policy_secondary=premium`
+3. Primary limits:
+   - `defbandwidthmaxup=5000000`
+   - `defbandwidthmaxdown=10000000`
+4. Secondary limits:
+   - `defbandwidthmaxup=15000000`
+   - `defbandwidthmaxdown=30000000`
+5. `/usr/libexec/hotspot-openwrt/phase2-smoke`:
+   - `ok=true`
+   - exit code `0`
+
+Final status:
+
+- Runtime dual hotspot is active and policy separation is now effective in live operation.
+
+### P) Next-step executor added (2026-05-16)
+
+To execute the true next step (two-client E2E) directly from router without external client devices, a new helper was added:
+
+- `/usr/libexec/hotspot-openwrt/phase2-client-sim`
+
+Purpose:
+
+1. Creates temporary veth pairs and attaches them to `br-hotspot` and `br-hotspot2`.
+2. Requests DHCP on both simulated client interfaces.
+3. Runs HTTP probe to `http://neverssl.com` from each simulated client path.
+4. Reports JSON with:
+   - DHCP/IP status per simulated client
+   - HTTP code per simulated client
+   - chilli client counters per instance
+   - `ok` + `failed[]`
+5. Cleans up temporary interfaces (non-persistent).
+
+Run command on router:
+
+- `/usr/libexec/hotspot-openwrt/phase2-client-sim`
+
+### Q) Current blocker at execution time
+
+While starting this next step from workspace, direct SSH to previous live target became unreachable (`192.168.1.20`) and current reachable gateway (`192.168.137.1`) requires password.
+
+Impact:
+
+1. The newly added `phase2-client-sim` is ready and built, but could not be executed remotely from this workspace due access/network change.
+2. No code blocker remains for phase-2 validation logic itself.
+
+### R) Post-reboot live execution cycle (2026-05-16)
+
+After device reboot, direct reachability to `192.168.1.20` was restored from workspace and live execution resumed.
+
+Observed live outcomes:
+
+1. `/usr/libexec/hotspot-openwrt/status-json`:
+   - `chilli_running=true`
+   - `tun0_present=true`
+   - `tun1_present=true`
+   - `dual_quick_mode=true`
+2. `/usr/libexec/hotspot-openwrt/phase2-smoke`:
+   - PASS (`ok=true`, `exit code 0`)
+3. Initial `/usr/libexec/hotspot-openwrt/phase2-client-sim`:
+   - script missing on router after reboot image state, then redeployed.
+4. Runtime kernel limits discovered on target:
+   - `veth` create fails (`RTNETLINK: Not supported`)
+   - `ipvlan` unsupported too
+   - `macvlan` creation works but DHCP does not obtain lease through chilli path on both simulated clients
+5. Config drift discovered and fixed live:
+   - `hotspot_openwrt.main.quick_runtime_dual_enabled=1` existed
+   - but `wireless` lacked active secondary hotspot SSID/interface
+   - operational fix applied by creating `wireless.wizard_hotspot_quick_secondary` on `radio1` network `hotspot2` and reloading wifi
+6. `phase2-client-sim` improved in code:
+   - tries `veth` first
+   - falls back to `macvlan`
+   - reports explicit blocker reasons (`veth_unavailable`, `sim_blocked_require_real_clients`)
+7. Current live `phase2-client-sim` result:
+   - `chilli_primary_clients=0`
+   - `chilli_secondary_clients=2`
+   - fails with explicit blockers because no primary real client and no usable kernel simulation backend.
+8. Additional kernel-module attempt:
+   - local `kmod-veth` package built for target arch and installed marker appears in `opkg`
+   - module file `veth.ko` still absent because kernel config has `CONFIG_VETH` unset, so package payload is effectively empty.
+
+Operational conclusion now:
+
+1. Phase-2 runtime itself is healthy and verified (`phase2-smoke` PASS).
+2. Full internal two-client simulation on this router image remains kernel-limited unless `CONFIG_VETH` is enabled in firmware kernel build.
+3. Immediate E2E completion path is real-client validation with at least one connected client on each hotspot network.
+
+### S) Final live closure after user connected client (2026-05-16)
+
+After user confirmation that a client connected to primary SSID, final live verification was rerun.
+
+Final verification outcome:
+
+1. Runtime health:
+   - PASS
+   - `status-json`: chilli running, dual runtime active, tun interfaces present.
+   - `phase2-smoke`: `ok=true`, `exit code 0`.
+2. Dual policy divergence:
+   - PASS
+   - Primary runtime (192.168.10.0/24): `defbandwidthmaxdown=10000000`, `defbandwidthmaxup=5000000`
+   - Secondary runtime (192.168.20.0/24): `defbandwidthmaxdown=30000000`, `defbandwidthmaxup=15000000`
+3. Client presence on both networks:
+   - PASS
+   - Primary sessions count: `1`
+   - Secondary sessions count: `3`
+
+Final verdict:
+
+1. Phase-2 target requirements are now satisfied end-to-end in live environment.
+2. Overall final status: PASS.
+
+### T) Phase-3 started: persistent quick wireless self-heal (2026-05-16)
+
+Goal of this step:
+
+1. Prevent future config drift where secondary hotspot SSID disappears after reboot or operational changes.
+
+Implemented in `/usr/libexec/hotspot-openwrt/apply`:
+
+1. Added wireless self-heal helpers that run in quick dual mode.
+2. `apply` now enforces both sections on each run:
+   - `wireless.wizard_hotspot_quick_primary`
+   - `wireless.wizard_hotspot_quick_secondary`
+3. Both sections are explicitly bound to subscriber interfaces (`hotspot` / `hotspot2`) and enabled.
+4. Existing LAN AP entries are disabled in quick mode, and `wizardvlan` AP leftovers are removed.
+5. Quick SSID values are persisted back to `hotspot_openwrt.main` during apply.
+
+Live drift-recovery validation:
+
+1. Secondary section was intentionally deleted on router (`wireless.wizard_hotspot_quick_secondary`).
+2. Running `/usr/libexec/hotspot-openwrt/apply` recreated it automatically.
+3. `hotspot2` came back up and wired correctly.
+4. Final re-check: `phase2-smoke` PASS (`RC=0`) after re-apply cycle.
+
+Current state after phase-3 step-1:
+
+1. Runtime remains healthy.
+2. Quick dual wireless layout is now self-healing and no longer dependent on manual repair.
+
+### U) Phase-3 step-2: clean boot verification (2026-05-16)
+
+Objective:
+
+1. Validate behavior after reboot (without manual post-boot wireless fixes).
+
+Execution summary:
+
+1. Confirmed updated apply logic is present on router (`configure_quick_wireless` found in runtime script).
+2. Pre-reboot baseline:
+   - `phase2-smoke` PASS (`PRE_SMOKE_RC=0`).
+3. Reboot issued and SSH returned after ~35 seconds.
+4. Post-boot checks:
+   - `wireless.wizard_hotspot_quick_primary` present.
+   - `wireless.wizard_hotspot_quick_secondary` present.
+   - `network.interface.hotspot2` up.
+   - `phase2-smoke` PASS (`POST_SMOKE_RC=0`).
+5. Package state safety check:
+   - `luci-app-hotspot-openwrt` status: `install ok installed`.
+   - current smoke state remains PASS (`SMOKE_NOW_RC=0`).
+
+Conclusion:
+
+1. Phase-3 step-2 (clean reboot validation) is PASS.
+2. Dual quick wireless self-heal survives reboot lifecycle and runtime remains healthy.
+
+### V) Phase-3 step-3 kickoff: RC gate + staged OTA playbook (2026-05-16)
+
+Implementation completed in workspace:
+
+1. Added new reproducible router-side gate script:
+   - `/usr/libexec/hotspot-openwrt/phase3-rc-gate`
+2. Script validates release-candidate readiness for quick dual mode:
+   - quick dual flags
+   - quick wireless primary/secondary sections and bindings
+   - hotspot/hotspot2 interface up
+   - no VLAN notation on hotspot interfaces
+   - `phase2-smoke` pass
+   - `status-json` dual/chilli healthy
+3. Package install manifest updated to include the new script.
+4. Added operator runbook:
+   - `HOTSPOT_PHASE3_RC_AND_OTA_ROLLOUT_PLAYBOOK.md`
+   - includes RC evidence capture flow + staged OTA campaign rollout + rollback commands.
+
+Operational intent for next execution:
+
+1. Deploy updated package to target router.
+2. Run `/usr/libexec/hotspot-openwrt/phase3-rc-gate` and record artifact evidence.
+3. Start canary OTA campaign (10%) then expand by health gates.
+
+Live execution result after implementation:
+
+1. `phase3-rc-gate` was deployed to target router and executed.
+2. Output: `"ok": true`, exit code `0`.
+3. `no_vlan_primary=true` and `no_vlan_secondary=true` checks passed.
+4. RC evidence artifact generated at:
+   - `hotspot-backups/phase3-rc-evidence-20260516-102947.md`
+
 The full conversation transcript was read from VS Code Copilot transcript/log resources during the previous session and cross-checked with `HOTSPOT_DEVICE_ENV_REPORT_2026-05-04.md`. The important facts needed for continuation are consolidated in this file.

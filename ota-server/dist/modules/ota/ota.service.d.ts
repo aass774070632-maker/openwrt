@@ -1,4 +1,5 @@
 import { HeartbeatDto } from './dto/heartbeat.dto';
+import { HotspotVerifyDto } from './dto/hotspot-verify.dto';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 import { UpdateQueryDto } from './dto/update-query.dto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -53,6 +54,15 @@ export declare class OtaService {
     }>;
     heartbeat(body: HeartbeatDto, meta: OtaRequestMeta): Promise<{
         ok: boolean;
+    }>;
+    hotspotVerify(body: HotspotVerifyDto, meta: OtaRequestMeta): Promise<{
+        accepted: boolean;
+        reason: string;
+        expires_in?: undefined;
+    } | {
+        accepted: boolean;
+        expires_in: number;
+        reason?: undefined;
     }>;
     private collectDownloadUrls;
     private buildCampaignUpdateResponse;

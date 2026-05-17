@@ -1,4 +1,5 @@
 import { HeartbeatDto } from './dto/heartbeat.dto';
+import { HotspotVerifyDto } from './dto/hotspot-verify.dto';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 import { UpdateQueryDto } from './dto/update-query.dto';
 import { OtaService } from './ota.service';
@@ -51,6 +52,15 @@ export declare class OtaController {
     }>;
     heartbeat(body: HeartbeatDto, request: OtaRequestLike): Promise<{
         ok: boolean;
+    }>;
+    hotspotVerify(body: HotspotVerifyDto, request: OtaRequestLike): Promise<{
+        accepted: boolean;
+        reason: string;
+        expires_in?: undefined;
+    } | {
+        accepted: boolean;
+        expires_in: number;
+        reason?: undefined;
     }>;
     private extractMeta;
     private pickHeader;

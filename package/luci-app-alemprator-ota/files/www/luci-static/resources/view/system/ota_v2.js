@@ -1173,7 +1173,24 @@ return view.extend({
 				internetBox,
 				manualBox
 			]),
-			statusBox
+			statusBox,
+			E('div', {
+				'style': 'text-align:center; padding:24px 16px 12px; margin-top:18px; border-top:1px solid rgba(0,0,0,0.08); color:#6c757d; font-size:12px; line-height:1.8; direction:rtl;'
+			}, [
+				E('div', {}, [
+					E('span', { 'style': 'font-size:13px;' }, '© جميع الحقوق محفوظة | '),
+					E('strong', { 'style': 'color:#415a77;' }, 'تطوير وتنفيذ: م. جلال أحمد القحم – م. محمد باعلوي')
+				]),
+				E('div', { 'style': 'margin-top:4px;' }, [
+					E('span', { 'style': 'color:#52606d;' }, 'شركة الإمبراطور للسوفتويرات | حلول برمجية وأنظمة وتطبيقات حسب الطلب')
+				]),
+				E('div', { 'style': 'margin-top:4px;' }, [
+					E('span', {}, '📱 '),
+					E('a', { 'href': 'tel:+967774070632', 'style': 'color:#1b4965; text-decoration:none;' }, '774070632'),
+					E('span', {}, ' | '),
+					E('a', { 'href': 'tel:+967777440819', 'style': 'color:#1b4965; text-decoration:none;' }, '777440819')
+				])
+			])
 		]);
 	},
 

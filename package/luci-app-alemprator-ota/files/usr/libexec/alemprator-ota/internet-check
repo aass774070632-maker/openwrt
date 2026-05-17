@@ -24,15 +24,19 @@ if [ -z "$gateway" ]; then
 	status="no_default_route"
 	message="لا يوجد مسار افتراضي للإنترنت على هذا الراوتر."
 else
-	if ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 3 8.8.8.8 >/dev/null 2>&1; then
+	# اختبار routing مع timeout 5 ثواني
+	if ping -c 1 -W 5 1.1.1.1 >/dev/null 2>&1 || ping -c 1 -W 5 8.8.8.8 >/dev/null 2>&1; then
 		internet_ok=true
 		status="server_unreachable"
 		message="الإنترنت يعمل، لكن خادم التحديثات غير متاح حاليًا."
 
-		if [ -n "$server_url" ] && check_update_json >/dev/null 2>&1; then
-			server_ok=true
-			status="online"
-			message="الإنترنت وخادم التحديثات يعملان."
+		# تحقق من DNS أولاً قبل uclient-fetch لتجنب التجميد
+		if [ -n "$server_host" ] && nslookup "$server_host" >/dev/null 2>&1; then
+			if [ -n "$server_url" ] && check_update_json >/dev/null 2>&1; then
+				server_ok=true
+				status="online"
+				message="الإنترنت وخادم التحديثات يعملان."
+			fi
 		fi
 	fi
 fi

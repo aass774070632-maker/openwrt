@@ -1,0 +1,352 @@
+make[2]: Entering directory '/home/baalwy/openwrt/scripts/config'
+make[2]: 'conf' is up to date.
+make[2]: Leaving directory '/home/baalwy/openwrt/scripts/config'
+make[1]: Entering directory '/home/baalwy/openwrt'
++ mkdir -p /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl
++ cd /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl
++ mkdir -p bin lib stamp usr/include usr/lib
+make[2]: Entering directory '/home/baalwy/openwrt/feeds/luci/modules/luci-base'
+mkdir -p /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/stamp
+touch /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/.prepared
+make[2]: Entering directory '/home/baalwy/openwrt/feeds/luci/contrib/package/csstidy'
+make[2]: Entering directory '/home/baalwy/openwrt/package/utils/lua'
+make[2]: Entering directory '/home/baalwy/openwrt/package/libs/toolchain'
+make[2]: Entering directory '/home/baalwy/openwrt/package/kernel/gpio-button-hotplug'
+echo "libc" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/toolchain.default.install
+echo "libgcc" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/toolchain.default.install
+echo "libatomic" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/toolchain.default.install
+echo "libpthread" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/toolchain.default.install
+echo "librt" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/toolchain.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/libs/toolchain'
+time: package/libs/toolchain/compile#0.14#0.02#0.15
+echo "kmod-gpio-button-hotplug" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/gpio-button-hotplug.default.install
+make[2]: Entering directory '/home/baalwy/openwrt/package/utils/lua'
+make[2]: Leaving directory '/home/baalwy/openwrt/package/kernel/gpio-button-hotplug'
+time: package/kernel/gpio-button-hotplug/compile#0.16#0.01#0.17
+make[2]: Entering directory '/home/baalwy/openwrt/package/libs/libjson-c'
+make[2]: Entering directory '/home/baalwy/openwrt/package/libs/libmd'
+make[2]: Entering directory '/home/baalwy/openwrt/package/libs/libnl-tiny'
+make[2]: Entering directory '/home/baalwy/openwrt/package/firmware/linux-firmware'
+make[2]: Entering directory '/home/baalwy/openwrt/package/libs/libmnl'
+make[2]: Entering directory '/home/baalwy/openwrt/package/libs/mbedtls'
+make[2]: Leaving directory '/home/baalwy/openwrt/feeds/luci/contrib/package/csstidy'
+time: package/feeds/luci/csstidy/host-compile#0.15#0.04#0.18
+make[2]: Leaving directory '/home/baalwy/openwrt/package/utils/lua'
+time: package/utils/lua/host-compile#0.16#0.04#0.18
+echo "libnl-tiny" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/libnl-tiny.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/libs/libnl-tiny'
+time: package/libs/libnl-tiny/compile#0.13#0.03#0.15
+make[2]: Leaving directory '/home/baalwy/openwrt/package/libs/libmd'
+time: package/libs/libmd/compile#0.17#0.02#0.18
+echo "libmbedtls" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/mbedtls.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/libs/mbedtls'
+echo "liblua" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/lua.default.install
+time: package/libs/mbedtls/compile#0.20#0.03#0.20
+echo "lua" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/lua.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/utils/lua'
+time: package/utils/lua/compile#0.19#0.04#0.21
+echo "libmnl" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/libmnl.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/libs/libmnl'
+time: package/libs/libmnl/compile#0.19#0.03#0.21
+make[2]: Entering directory '/home/baalwy/openwrt/package/libs/libnftnl'
+make[2]: Nothing to be done for 'compile'.
+make[2]: Leaving directory '/home/baalwy/openwrt/package/firmware/linux-firmware'
+time: package/firmware/linux-firmware/compile#0.20#0.03#0.22
+echo "libjson-c" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/libjson-c.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/libs/libjson-c'
+time: package/libs/libjson-c/compile#0.20#0.04#0.23
+make[2]: Entering directory '/home/baalwy/openwrt/package/kernel/linux'
+make[2]: Entering directory '/home/baalwy/openwrt/package/libs/libubox'
+[ ! -d ./src/ ] || cp -fpR ./src/* /home/baalwy/openwrt/build_dir/hostpkg/luci-base
+touch /home/baalwy/openwrt/build_dir/hostpkg/luci-base/.prepareda7aeb8184b69c31add33ad415fecfdf9_6664517399ebbbc92a37c5bb081b5c53
+touch /home/baalwy/openwrt/build_dir/hostpkg/luci-base/.configured
+make -C src/ clean po2lmo jsmin
+make[3]: Entering directory '/home/baalwy/openwrt/feeds/luci/modules/luci-base/src'
+rm -f contrib/lemon lib/*.o lib/plural_formula.c lib/plural_formula.h core.so version.uc
+cc -std=gnu17 -o contrib/lemon contrib/lemon.c
+echo "libnftnl" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/libnftnl.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/libs/libnftnl'
+time: package/libs/libnftnl/compile#0.12#0.03#0.14
+echo "libubox" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/libubox.default.install
+echo "libblobmsg-json" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/libubox.default.install
+echo "jshn" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/libubox.default.install
+echo "libjson-script" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/libubox.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/libs/libubox'
+time: package/libs/libubox/compile#0.18#0.04#0.20
+make[2]: Entering directory '/home/baalwy/openwrt/package/system/uci'
+make[2]: Entering directory '/home/baalwy/openwrt/package/system/ubus'
+make[2]: Entering directory '/home/baalwy/openwrt/package/libs/ustream-ssl'
+make[2]: Entering directory '/home/baalwy/openwrt/package/utils/jsonfilter'
+echo "libuci" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/uci.default.install
+echo "libubus" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ubus.default.install
+echo "uci" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/uci.default.install
+echo "libubus-lua" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ubus.default.install
+echo "ubus" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ubus.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/system/uci'
+time: package/system/uci/compile#0.14#0.01#0.14
+echo "ubusd" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ubus.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/system/ubus'
+time: package/system/ubus/compile#0.13#0.03#0.15
+echo "libustream-mbedtls" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ustream-ssl.mbedtls.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/libs/ustream-ssl'
+time: package/libs/ustream-ssl/mbedtls/compile#0.14#0.02#0.15
+make[2]: Entering directory '/home/baalwy/openwrt/package/utils/ucode'
+make[2]: Entering directory '/home/baalwy/openwrt/package/network/utils/iwinfo'
+make[2]: Entering directory '/home/baalwy/openwrt/feeds/packages/net/cgi-io'
+echo "jsonfilter" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/jsonfilter.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/utils/jsonfilter'
+time: package/utils/jsonfilter/compile#0.14#0.02#0.16
+./contrib/lemon -q lib/plural_formula.y
+cc    -DNDEBUG -c -o lib/lmo.o lib/lmo.c
+cc    -DNDEBUG -c -o lib/plural_formula.o lib/plural_formula.c
+cc  -o po2lmo po2lmo.o lib/lmo.o lib/plural_formula.o
+make[3]: 'jsmin' is up to date.
+make[3]: Leaving directory '/home/baalwy/openwrt/feeds/luci/modules/luci-base/src'
+touch /home/baalwy/openwrt/build_dir/hostpkg/luci-base/.built
+install -d -m0755 /home/baalwy/openwrt/staging_dir/hostpkg/bin
+install -m0755 src/po2lmo /home/baalwy/openwrt/staging_dir/hostpkg/bin/po2lmo
+install -m0755 src/jsmin /home/baalwy/openwrt/staging_dir/hostpkg/bin/jsmin
+mkdir -p /home/baalwy/openwrt/staging_dir/hostpkg/stamp
+touch /home/baalwy/openwrt/build_dir/hostpkg/luci-base/.built
+touch /home/baalwy/openwrt/staging_dir/hostpkg/stamp/.luci-base_installed 
+make[2]: Leaving directory '/home/baalwy/openwrt/feeds/luci/modules/luci-base'
+time: package/feeds/luci/luci-base/host-compile#0.77#0.14#0.89
+echo "cgi-io" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/cgi-io.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/feeds/packages/net/cgi-io'
+time: package/feeds/packages/cgi-io/compile#0.11#0.03#0.12
+echo "libiwinfo" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/iwinfo.default.install
+echo "libiwinfo-data" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/iwinfo.default.install
+echo "iwinfo" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/iwinfo.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/network/utils/iwinfo'
+time: package/network/utils/iwinfo/compile#0.13#0.02#0.14
+echo "libucode" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ucode.default.install
+echo "ucode" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ucode.default.install
+echo "ucode-mod-fs" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ucode.default.install
+echo "ucode-mod-math" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ucode.default.install
+echo "ucode-mod-nl80211" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ucode.default.install
+echo "ucode-mod-rtnl" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ucode.default.install
+echo "ucode-mod-ubus" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ucode.default.install
+echo "ucode-mod-uci" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ucode.default.install
+echo "ucode-mod-uloop" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ucode.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/utils/ucode'
+time: package/utils/ucode/compile#0.20#0.03#0.21
+make[2]: Entering directory '/home/baalwy/openwrt/feeds/luci/contrib/package/lucihttp'
+make[2]: Entering directory '/home/baalwy/openwrt/package/system/rpcd'
+make[2]: Entering directory '/home/baalwy/openwrt/feeds/luci/contrib/package/ucode-mod-html'
+make[2]: Entering directory '/home/baalwy/openwrt/package/libs/uclient'
+make[2]: Entering directory '/home/baalwy/openwrt/package/network/services/uhttpd'
+echo "ucode-mod-html" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/ucode-mod-html.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/feeds/luci/contrib/package/ucode-mod-html'
+time: package/feeds/luci/ucode-mod-html/compile#0.12#0.01#0.12
+echo "liblucihttp" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/lucihttp.default.install
+echo "liblucihttp-lua" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/lucihttp.default.install
+echo "liblucihttp-ucode" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/lucihttp.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/feeds/luci/contrib/package/lucihttp'
+time: package/feeds/luci/lucihttp/compile#0.12#0.02#0.13
+echo "libuclient" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/uclient.default.install
+echo "uclient-fetch" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/uclient.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/libs/uclient'
+time: package/libs/uclient/compile#0.13#0.02#0.14
+echo "uhttpd" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/uhttpd.default.install
+echo "uhttpd-mod-ubus" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/uhttpd.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/network/services/uhttpd'
+time: package/network/services/uhttpd/compile#0.13#0.03#0.15
+echo "rpcd" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/rpcd.default.install
+echo "rpcd-mod-file" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/rpcd.default.install
+echo "rpcd-mod-iwinfo" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/rpcd.default.install
+echo "rpcd-mod-ucode" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/rpcd.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/system/rpcd'
+time: package/system/rpcd/compile#0.14#0.03#0.16
+make[2]: Entering directory '/home/baalwy/openwrt/feeds/luci/libs/rpcd-mod-luci'
+echo "rpcd-mod-luci" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/rpcd-mod-luci.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/feeds/luci/libs/rpcd-mod-luci'
+time: package/feeds/luci/rpcd-mod-luci/compile#0.10#0.02#0.12
+make[2]: Entering directory '/home/baalwy/openwrt/feeds/luci/modules/luci-base'
+touch /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.prepared_4a539c53010566c617fe7c5943527051_6664517399ebbbc92a37c5bb081b5c53_check
+for d in luasrc ucode htdocs root src; do if [ -d ./$d ]; then mkdir -p /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/$d; cp -fpR ./$d/* /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/$d/; fi; done
+cp -fpR ../../NOTICE /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base
+cp -fpR ../../LICENSE /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base
+true
+[ ! -d ./src/ ] || cp -fpR ./src/. /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base
+touch /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.prepared_4a539c53010566c617fe7c5943527051_6664517399ebbbc92a37c5bb081b5c53
+rm -f /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.configured_*
+rm -f /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/stamp/.luci-base_installed
+touch /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.configured_811dc2f0ccfbe4b68a068320f8578dbe
+rm -f /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.built
+touch /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.built_check
+CFLAGS="-Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro  -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include/fortify " CXXFLAGS="-Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro  -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include/fortify " LDFLAGS="-L/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/lib -L/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/lib -fuse-ld=bfd -znow -zrelro " FPIC="-DPIC -fPIC" LUCI_VERSION="25.292.66247~75e41cb" LUCI_GITBRANCH="LuCI openwrt-24.10 branch" make -j1 -C /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src/ AR="aarch64-openwrt-linux-musl-gcc-ar" AS="aarch64-openwrt-linux-musl-gcc -c -Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro" LD="aarch64-openwrt-linux-musl-ld.bfd" NM="aarch64-openwrt-linux-musl-gcc-nm" CC="aarch64-openwrt-linux-musl-gcc" GCC="aarch64-openwrt-linux-musl-gcc" CXX="aarch64-openwrt-linux-musl-g++" RANLIB="aarch64-openwrt-linux-musl-gcc-ranlib" STRIP=aarch64-openwrt-linux-musl-strip OBJCOPY=aarch64-openwrt-linux-musl-objcopy OBJDUMP=aarch64-openwrt-linux-musl-objdump SIZE=aarch64-openwrt-linux-musl-size CROSS="aarch64-openwrt-linux-musl-" ARCH="aarch64" clean compile;
+make[3]: Entering directory '/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src'
+rm -f contrib/lemon lib/*.o lib/plural_formula.c lib/plural_formula.h core.so version.uc
+aarch64-openwrt-linux-musl-gcc  -Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro  -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include/fortify  -DPIC -fPIC -DNDEBUG -c -o lib/luci.o lib/luci.c
+cc -std=gnu17 -o contrib/lemon contrib/lemon.c
+./contrib/lemon -q lib/plural_formula.y
+aarch64-openwrt-linux-musl-gcc  -Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro  -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include/fortify  -DPIC -fPIC -DNDEBUG -c -o lib/lmo.o lib/lmo.c
+aarch64-openwrt-linux-musl-gcc  -Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro  -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include/fortify  -DPIC -fPIC -DNDEBUG -c -o lib/plural_formula.o lib/plural_formula.c
+aarch64-openwrt-linux-musl-gcc -L/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/lib -L/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/lib -fuse-ld=bfd -znow -zrelro  -shared -lcrypt -o core.so lib/luci.o lib/lmo.o lib/plural_formula.o
+echo "export const revision = '25.292.66247~75e41cb', branch = 'LuCI openwrt-24.10 branch';" > version.uc
+make[3]: Leaving directory '/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src'
+CFLAGS="-Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro  -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include/fortify " CXXFLAGS="-Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro  -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include/fortify " LDFLAGS="-L/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/lib -L/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/lib -fuse-ld=bfd -znow -zrelro " FPIC="-DPIC -fPIC" LUCI_VERSION="25.292.66247~75e41cb" LUCI_GITBRANCH="LuCI openwrt-24.10 branch" make -C /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src/ AR="aarch64-openwrt-linux-musl-gcc-ar" AS="aarch64-openwrt-linux-musl-gcc -c -Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro" LD="aarch64-openwrt-linux-musl-ld.bfd" NM="aarch64-openwrt-linux-musl-gcc-nm" CC="aarch64-openwrt-linux-musl-gcc" GCC="aarch64-openwrt-linux-musl-gcc" CXX="aarch64-openwrt-linux-musl-g++" RANLIB="aarch64-openwrt-linux-musl-gcc-ranlib" STRIP=aarch64-openwrt-linux-musl-strip OBJCOPY=aarch64-openwrt-linux-musl-objcopy OBJDUMP=aarch64-openwrt-linux-musl-objdump SIZE=aarch64-openwrt-linux-musl-size CROSS="aarch64-openwrt-linux-musl-" ARCH="aarch64" DESTDIR="/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install"   install;
+echo "kernel" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+make[3]: Entering directory '/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src'
+mkdir -p /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/lib/ucode/luci
+echo "kmod-scsi-core" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+cp core.so /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/lib/ucode/luci/core.so
+mkdir -p /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/share/ucode/luci
+echo "kmod-crypto-aead" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+cp version.uc /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/share/ucode/luci/version.uc
+make[3]: Leaving directory '/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src'
+echo "kmod-crypto-ccm" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+touch /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.built
+echo "kmod-crypto-cmac" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+rm -rf /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base.installed /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base
+echo "kmod-crypto-crc32c" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-crypto-ctr" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+mkdir -p /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base
+echo "kmod-crypto-gcm" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-crypto-gf128" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+install -d -m0755 /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/usr/share/ucode/luci
+echo "kmod-crypto-ghash" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+cp -pR /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ucode/* /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/usr/share/ucode/luci/
+echo "kmod-crypto-hash" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-crypto-hmac" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-crypto-manager" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+find /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/usr/share/ucode/luci/ -type f -name '*.htm' | while read src; do /home/baalwy/openwrt/staging_dir/host/bin/sed -i -e 's/<%# *\([^ ]*\)PKG_VERSION *%>/\125.292.66247~75e41cb/g' -e 's/"\(<%= *\(media\|resource\) *%>[^"]*\.\(js\|css\)\)"/"\1?v=25.292.66247~75e41cb"/g' "$src"; done; find /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/usr/share/ucode/luci/ -type f -name '*.ut' | while read src; do /home/baalwy/openwrt/staging_dir/host/bin/sed -i -e 's/{# *\([^ ]*\)PKG_VERSION *#}/\125.292.66247~75e41cb/g' -e 's/"\({{ *\(media\|resource\) *}}[^"]*\.\(js\|css\)\)"/"\1?v=25.292.66247~75e41cb"/g' "$src"; done
+echo "kmod-crypto-michael-mic" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-crypto-null" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-crypto-rng" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-crypto-geniv" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-crypto-seqiv" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-crypto-sha3" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-crypto-sha512" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+install -d -m0755 /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/www
+echo "kmod-fs-exfat" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-fs-ext4" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+cp -pR /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/htdocs/* /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/www/
+echo "kmod-fs-ntfs3" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-fs-vfat" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-hwmon-core" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-leds-gpio" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+find /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/www/ -type f -name '*.js' | while read src; do if jsmin < "$src" > "$src.o"; then mv "$src.o" "$src"; fi; done
+echo "kmod-lib-crc-ccitt" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-lib-crc16" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-lib-crc32c" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-libphy" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+WARNING: kmod-phylink is not available in the kernel config - generating empty package
+echo "kmod-phylink" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-swconfig" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-switch-rtl8366-smi" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-switch-rtl8367b" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-macvlan" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-ifb" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nf-reject" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nf-reject6" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nf-ipt" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-ipt-core" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nf-conntrack" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nf-conntrack6" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nf-log" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nf-log6" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nf-nat" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nf-flow" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-ipt-ipopt" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nfnetlink" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nf-conntrack-netlink" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nft-core" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nft-nat" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nft-offload" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nft-fib" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nft-compat" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-tun" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-slhc" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-ppp" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-pppox" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-pppoe" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+find /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/www/ -type f -name '*.css' | while read src; do if csstidy "$src" --template=highest --remove_last_semicolon=true "$src.o"; then mv "$src.o" "$src"; fi; done
+echo "kmod-sched-core" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-sched-cake" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+install -d -m0755 /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/
+echo "kmod-tcp-bbr" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-qrtr" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+cp -pR /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/root/* /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/
+echo "kmod-qrtr-smd" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nls-base" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nls-cp437" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+CFLAGS="-Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro  -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include/fortify " CXXFLAGS="-Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro  -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include/fortify " LDFLAGS="-L/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/lib -L/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/lib -fuse-ld=bfd -znow -zrelro " FPIC="-DPIC -fPIC" LUCI_VERSION="25.292.66247~75e41cb" LUCI_GITBRANCH="LuCI openwrt-24.10 branch" make -C /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src/ AR="aarch64-openwrt-linux-musl-gcc-ar" AS="aarch64-openwrt-linux-musl-gcc -c -Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro" LD="aarch64-openwrt-linux-musl-ld.bfd" NM="aarch64-openwrt-linux-musl-gcc-nm" CC="aarch64-openwrt-linux-musl-gcc" GCC="aarch64-openwrt-linux-musl-gcc" CXX="aarch64-openwrt-linux-musl-g++" RANLIB="aarch64-openwrt-linux-musl-gcc-ranlib" STRIP=aarch64-openwrt-linux-musl-strip OBJCOPY=aarch64-openwrt-linux-musl-objcopy OBJDUMP=aarch64-openwrt-linux-musl-objdump SIZE=aarch64-openwrt-linux-musl-size CROSS="aarch64-openwrt-linux-musl-" ARCH="aarch64" DESTDIR="/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install"   install;
+echo "kmod-nls-iso8859-1" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-nls-utf8" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+make[3]: Entering directory '/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src'
+mkdir -p /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/lib/ucode/luci
+cp core.so /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/lib/ucode/luci/core.so
+mkdir -p /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/share/ucode/luci
+WARNING: kmod-thermal is not available in the kernel config - generating empty package
+echo "kmod-thermal" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+cp version.uc /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/share/ucode/luci/version.uc
+echo "kmod-usb-core" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+make[3]: Leaving directory '/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src'
+cp -fpR /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/* /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/
+echo "kmod-usb-dwc3" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-usb-dwc3-qcom" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+touch /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base.installed
+echo "kmod-usb-storage" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+mkdir -p /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/root-qualcommax/stamp
+echo "kmod-usb-storage-extras" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-usbip" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-usbip-client" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+SHELL= flock /home/baalwy/openwrt/tmp/.root-copy.flock -c 'cp -fpR /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/.pkgdir/luci-base/. /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/root-qualcommax/'
+echo "kmod-usbip-server" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-usb3" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+echo "kmod-usb-xhci-hcd" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/linux.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/kernel/linux'
+time: package/kernel/linux/compile#1.98#0.04#2.02
+touch /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/root-qualcommax/stamp/.luci-base_installed
+rm -rf /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base
+/home/baalwy/openwrt/scripts/ipkg-remove luci-base /home/baalwy/openwrt/bin/packages/aarch64_cortex-a53/luci/luci-base_25.292.66247~75e41cb_aarch64_cortex-a53.ipk
+removed '/home/baalwy/openwrt/bin/packages/aarch64_cortex-a53/luci/luci-base_25.292.66247~75e41cb_aarch64_cortex-a53.ipk'
+make[2]: Entering directory '/home/baalwy/openwrt/package/network/utils/iptables'
+mkdir -p /home/baalwy/openwrt/bin/targets/qualcommax/ipq60xx/packages /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo
+install -d -m0755 /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/usr/share/ucode/luci
+cp -pR /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ucode/* /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/usr/share/ucode/luci/
+find /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/usr/share/ucode/luci/ -type f -name '*.htm' | while read src; do /home/baalwy/openwrt/staging_dir/host/bin/sed -i -e 's/<%# *\([^ ]*\)PKG_VERSION *%>/\125.292.66247~75e41cb/g' -e 's/"\(<%= *\(media\|resource\) *%>[^"]*\.\(js\|css\)\)"/"\1?v=25.292.66247~75e41cb"/g' "$src"; done; find /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/usr/share/ucode/luci/ -type f -name '*.ut' | while read src; do /home/baalwy/openwrt/staging_dir/host/bin/sed -i -e 's/{# *\([^ ]*\)PKG_VERSION *#}/\125.292.66247~75e41cb/g' -e 's/"\({{ *\(media\|resource\) *}}[^"]*\.\(js\|css\)\)"/"\1?v=25.292.66247~75e41cb"/g' "$src"; done
+install -d -m0755 /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/www
+cp -pR /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/htdocs/* /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/www/
+find /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/www/ -type f -name '*.js' | while read src; do if jsmin < "$src" > "$src.o"; then mv "$src.o" "$src"; fi; done
+find /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/www/ -type f -name '*.css' | while read src; do if csstidy "$src" --template=highest --remove_last_semicolon=true "$src.o"; then mv "$src.o" "$src"; fi; done
+install -d -m0755 /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/
+cp -pR /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/root/* /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/
+CFLAGS="-Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro  -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include/fortify " CXXFLAGS="-Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro  -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include -I/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/include/fortify " LDFLAGS="-L/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/usr/lib -L/home/baalwy/openwrt/staging_dir/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl/lib -fuse-ld=bfd -znow -zrelro " FPIC="-DPIC -fPIC" LUCI_VERSION="25.292.66247~75e41cb" LUCI_GITBRANCH="LuCI openwrt-24.10 branch" make -C /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src/ AR="aarch64-openwrt-linux-musl-gcc-ar" AS="aarch64-openwrt-linux-musl-gcc -c -Os -pipe -mcpu=cortex-a53 -fno-caller-saves -fno-plt -fhonour-copts -fmacro-prefix-map=/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base=luci-base -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro" LD="aarch64-openwrt-linux-musl-ld.bfd" NM="aarch64-openwrt-linux-musl-gcc-nm" CC="aarch64-openwrt-linux-musl-gcc" GCC="aarch64-openwrt-linux-musl-gcc" CXX="aarch64-openwrt-linux-musl-g++" RANLIB="aarch64-openwrt-linux-musl-gcc-ranlib" STRIP=aarch64-openwrt-linux-musl-strip OBJCOPY=aarch64-openwrt-linux-musl-objcopy OBJDUMP=aarch64-openwrt-linux-musl-objdump SIZE=aarch64-openwrt-linux-musl-size CROSS="aarch64-openwrt-linux-musl-" ARCH="aarch64" DESTDIR="/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install"   install;
+make[3]: Entering directory '/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src'
+mkdir -p /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/lib/ucode/luci
+cp core.so /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/lib/ucode/luci/core.so
+mkdir -p /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/share/ucode/luci
+cp version.uc /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/usr/share/ucode/luci/version.uc
+make[3]: Leaving directory '/home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/src'
+cp -fpR /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-install/* /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/
+find /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base -name 'CVS' -o -name '.svn' -o -name '.#*' -o -name '*~'| xargs -r rm -rf
+echo "libxtables" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/iptables.default.install
+echo "libiptext" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/iptables.default.install
+echo "libiptext6" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/iptables.default.install
+echo "libiptext-nft" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/iptables.default.install
+echo "xtables-nft" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/iptables.default.install
+echo "iptables-nft" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/iptables.default.install
+echo "iptables-mod-ipopt" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/iptables.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/network/utils/iptables'
+time: package/network/utils/iptables/compile#0.17#0.04#0.20
+make[2]: Entering directory '/home/baalwy/openwrt/feeds/packages/net/coova-chilli'
+export CROSS="aarch64-openwrt-linux-musl-"  NO_RENAME=1 ; NM="aarch64-openwrt-linux-musl-nm" STRIP="/home/baalwy/openwrt/staging_dir/host/bin/sstrip -z" STRIP_KMOD="/home/baalwy/openwrt/scripts/strip-kmod.sh" PATCHELF="/home/baalwy/openwrt/staging_dir/host/bin/patchelf" /home/baalwy/openwrt/scripts/rstrip.sh /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base
+echo "coova-chilli" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/coova-chilli.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/feeds/packages/net/coova-chilli'
+time: package/feeds/packages/coova-chilli/compile#0.13#0.03#0.16
+rstrip.sh: /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/usr/lib/ucode/luci/core.so: shared object
+install -d -m0755 /home/baalwy/openwrt/bin/packages/aarch64_cortex-a53/luci/tmp
+mkdir -p /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/CONTROL
+(cd /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base/CONTROL; ( echo "$CONTROL"; printf "Description: "; echo "$DESCRIPTION" | sed -e 's,^[[:space:]]*, ,g'; ) > control; chmod 644 control; ( echo "#!/bin/sh"; echo "[ \"\${IPKG_NO_SCRIPT}\" = \"1\" ] && exit 0"; echo "[ -s "\${IPKG_INSTROOT}/lib/functions.sh" ] || exit 0"; echo ". \${IPKG_INSTROOT}/lib/functions.sh"; echo "default_postinst \$0 \$@"; ) > postinst; ( echo "#!/bin/sh"; echo "[ -s "\${IPKG_INSTROOT}/lib/functions.sh" ] || exit 0"; echo ". \${IPKG_INSTROOT}/lib/functions.sh"; echo "default_prerm \$0 \$@"; ) > prerm; chmod 0755 postinst prerm; echo "$V_Package_luci_base_conffiles" > conffiles;  echo "$V_Package_luci_base_postinst" > postinst-pkg; chmod 0755 postinst-pkg; )
+/home/baalwy/openwrt/staging_dir/host/bin/fakeroot /home/baalwy/openwrt/staging_dir/host/bin/bash /home/baalwy/openwrt/scripts/ipkg-build -m "" /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base /home/baalwy/openwrt/bin/packages/aarch64_cortex-a53/luci
+Packaged contents of /home/baalwy/openwrt/build_dir/target-aarch64_cortex-a53_musl/luci-base/ipkg-aarch64_cortex-a53/luci-base into /home/baalwy/openwrt/bin/packages/aarch64_cortex-a53/luci/luci-base_25.292.66247~75e41cb_aarch64_cortex-a53.ipk
+echo "luci-base" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/luci-base.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/feeds/luci/modules/luci-base'
+time: package/feeds/luci/luci-base/compile#1.46#0.31#1.72
+make[2]: Entering directory '/home/baalwy/openwrt/package/luci-app-hotspot-openwrt'
+echo "luci-app-hotspot-openwrt" >> /home/baalwy/openwrt/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/luci-app-hotspot-openwrt.default.install
+make[2]: Leaving directory '/home/baalwy/openwrt/package/luci-app-hotspot-openwrt'
+time: package/luci-app-hotspot-openwrt/compile#0.11#0.02#0.12
+make[1]: Leaving directory '/home/baalwy/openwrt'

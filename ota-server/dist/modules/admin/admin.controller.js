@@ -58,6 +58,9 @@ let AdminController = class AdminController {
     listDevices() {
         return this.adminService.listDevices();
     }
+    toggleDeviceHotspot(deviceId, request) {
+        return this.adminService.toggleDeviceHotspot(deviceId, request.admin?.id);
+    }
     listModels() {
         return this.adminService.listFirmwareModels();
     }
@@ -138,6 +141,14 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "listDevices", null);
+__decorate([
+    (0, common_1.Patch)('devices/:deviceId/hotspot'),
+    __param(0, (0, common_1.Param)('deviceId', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "toggleDeviceHotspot", null);
 __decorate([
     (0, common_1.Get)('models'),
     __metadata("design:type", Function),

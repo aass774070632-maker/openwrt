@@ -64,6 +64,37 @@ export declare class AdminService {
             color: string | null;
         }[];
     }[]>;
+    toggleDeviceHotspot(deviceId: number, adminId?: number): Promise<{
+        id: number;
+        token: string;
+        model: string;
+        board: string;
+        mac: string;
+        firmware_model: {
+            id: number;
+            slug: string;
+            display_name: string;
+            model_key: string;
+        } | null;
+        current_version: string | null;
+        status: string | null;
+        last_result: string | null;
+        last_error: string | null;
+        last_ip: string | null;
+        first_registered_at: string | null;
+        last_seen_at: string | null;
+        created_at: string;
+        updated_at: string;
+        groups: {
+            id: number;
+            name: string;
+        }[];
+        tags: {
+            id: number;
+            name: string;
+            color: string | null;
+        }[];
+    }>;
     listFirmwareModels(): Promise<{
         id: number;
         slug: string;

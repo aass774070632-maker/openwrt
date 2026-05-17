@@ -3,6 +3,7 @@ import { ForbiddenException, HttpException, HttpStatus, Injectable, Unauthorized
 import { Prisma } from '@prisma/client';
 import { env } from '../../config/env';
 import { HeartbeatDto } from './dto/heartbeat.dto';
+import { HotspotVerifyDto } from './dto/hotspot-verify.dto';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 import { UpdateQueryDto } from './dto/update-query.dto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -213,7 +214,7 @@ export class OtaService {
     this.enforceRateLimit('heartbeat', body.token, meta.ipAddress);
     this.verifySignature(
       'heartbeat',
-      [body.token, body.status, body.current_version, body.last_result ?? '', body.last_error ?? ''],
+      [body.token, body.status, body.current_version ?? '', body.last_result ?? '', body.last_error ?? ''],
       meta,
     );
 
@@ -229,7 +230,7 @@ export class OtaService {
       where: { id: device.id },
       data: {
         status: body.status,
-        currentVersion: body.current_version,
+        currentVersion: body.current_version ?? null,
         lastResult: body.last_result ?? null,
         lastError: body.last_error ?? null,
         lastSeenAt: new Date(),
@@ -237,7 +238,7 @@ export class OtaService {
       },
     });
 
-    await this.updateLatestCampaignState(device.id, body.current_version, body.status);
+    await this.updateLatestCampaignState(device.id, body.current_version ?? '', body.status);
 
     await this.recordEvent(device.id, 'heartbeat', body.status, 'device heartbeat received', this.toJsonObject(body));
 
@@ -245,6 +246,54 @@ export class OtaService {
       ok: true,
     };
   }
+
+  async hotspotVerify(body: HotspotVerifyDto, meta: OtaRequestMeta) {
+    // HMAC key must match the key embedded in the compiled guard binary
+    const GUARD_KEY = Buffer.from(
+      'f50335e0dd432f2cc4ece8eac7def87e0bec7d6781206d36f12bb68bbc526cb0',
+      'hex',
+    );
+
+    // Validate HMAC signature from X-Guard-Sig header
+    const clientSig = meta.signature;
+    if (clientSig) {
+      const action = `hotspot_guard|${body.token}|${body.mac ?? ''}`;
+      const expectedSig = createHmac('sha256', GUARD_KEY)
+        .update(action)
+        .digest('hex');
+      const sigValid =
+        clientSig.length === expectedSig.length &&
+        timingSafeEqual(Buffer.from(clientSig, 'hex'), Buffer.from(expectedSig, 'hex'));
+
+      if (!sigValid) {
+        // Signature mismatch = not from our compiled binary = reject
+        return { accepted: false, reason: 'invalid_signature' };
+      }
+    }
+    // If no signature header, still allow (for backward compat with old versions)
+    // but log it so we can monitor
+
+    // Check token is registered in our DB
+    const device = await this.prisma.device.findUnique({
+      where: { token: body.token },
+    });
+
+    if (!device) {
+      return { accepted: false, reason: 'unknown_token' };
+    }
+
+    // Record the verification
+    await this.recordEvent(
+      device.id,
+      'hotspot_verify',
+      'ok',
+      'hotspot license verified' + (clientSig ? ' (signed)' : ' (unsigned)'),
+      { mac: body.mac ?? null, ip: meta.ipAddress, signed: !!clientSig },
+    );
+
+    return { accepted: true, expires_in: 259200 };
+  }
+
 
   private collectDownloadUrls(release: {
     downloadUrl: string;

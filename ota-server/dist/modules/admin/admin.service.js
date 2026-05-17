@@ -103,16 +103,8 @@ let AdminService = class AdminService {
         const devices = await this.prisma.device.findMany({
             include: {
                 firmwareModel: true,
-                groupMemberships: {
-                    include: {
-                        group: true,
-                    },
-                },
-                tagMemberships: {
-                    include: {
-                        tag: true,
-                    },
-                },
+                groupMemberships: { include: { group: true } },
+                tagMemberships: { include: { tag: true } },
             },
             orderBy: [
                 { lastSeenAt: 'desc' },
@@ -120,6 +112,25 @@ let AdminService = class AdminService {
             ],
         });
         return devices.map((device) => this.serializeDevice(device));
+    }
+    async toggleDeviceHotspot(deviceId, adminId) {
+        const device = await this.prisma.device.findUnique({
+            where: { id: deviceId },
+        });
+        if (!device) {
+            throw new common_1.NotFoundException('Device not found');
+        }
+        const updated = await this.prisma.device.update({
+            where: { id: deviceId },
+            data: { hotspotLicensed: !device.hotspotLicensed },
+            include: {
+                firmwareModel: true,
+                groupMemberships: { include: { group: true } },
+                tagMemberships: { include: { tag: true } },
+            },
+        });
+        await this.recordAudit(adminId, updated.hotspotLicensed ? 'hotspot_authorize' : 'hotspot_revoke', 'device', String(deviceId), { previous: device.hotspotLicensed, current: updated.hotspotLicensed });
+        return this.serializeDevice(updated);
     }
     async listFirmwareModels() {
         const models = await this.prisma.firmwareModel.findMany({

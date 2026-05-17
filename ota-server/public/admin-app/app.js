@@ -877,14 +877,33 @@ function renderAuditLogs() {
 }
 
 function refreshSelectors() {
-  hydrateSelect(elements.releaseModelSelect, state.models, (model) => ({
+  // If the /admin/models endpoint failed or returned empty, derive models from
+  // the firmware_model objects embedded in releases (which always load).
+  let modelList = state.models;
+  if (modelList.length === 0 && state.releases.length > 0) {
+    const seen = new Map();
+    for (const r of state.releases) {
+      if (r.firmware_model?.id != null && !seen.has(r.firmware_model.id)) {
+        seen.set(r.firmware_model.id, r.firmware_model);
+      }
+    }
+    modelList = [...seen.values()];
+    if (modelList.length > 0) {
+      console.warn('[OTA] state.models was empty — derived', modelList.length, 'models from releases as fallback');
+    }
+  }
+
+  // Debug info — visible in browser console (F12)
+  console.log('[OTA] refreshSelectors: models=', modelList.length, 'releases=', state.releases.length);
+
+  hydrateSelect(elements.releaseModelSelect, modelList, (model) => ({
     value: model.id,
-    label: `${model.display_name} • ${model.model_key}`,
+    label: `${model.display_name ?? model.displayName} • ${model.model_key ?? model.modelKey}`,
   }));
 
-  hydrateSelect(elements.releaseFilterSelect, state.models, (model) => ({
+  hydrateSelect(elements.releaseFilterSelect, modelList, (model) => ({
     value: model.id,
-    label: `${model.display_name} • ${model.model_key}`,
+    label: `${model.display_name ?? model.displayName} • ${model.model_key ?? model.modelKey}`,
   }));
 
   hydrateSelect(elements.campaignReleaseSelect, state.releases, (release) => ({
@@ -915,7 +934,6 @@ function renderAll() {
   renderCampaigns();
   renderCampaignDevices();
   renderAuditLogs();
-  renderAccessControl();
   refreshSelectors();
 }
 
@@ -976,7 +994,9 @@ async function refreshData() {
   setMessage('جارٍ تحديث بيانات لوحة التحكم...');
 
   const campaignPath = state.showArchivedCampaigns ? '/admin/campaigns?include_archived=true' : '/admin/campaigns';
-  const [summary, devices, models, groups, tags, releases, campaigns, auditLogs] = await Promise.all([
+
+  // Use allSettled so a single failing endpoint does NOT wipe the other data
+  const results = await Promise.allSettled([
     apiFetch('/admin/dashboard'),
     apiFetch('/admin/devices'),
     apiFetch('/admin/models'),
@@ -987,14 +1007,17 @@ async function refreshData() {
     apiFetch('/admin/audit-logs?limit=50'),
   ]);
 
-  state.summary = summary;
-  state.devices = devices;
-  state.models = models;
-  state.groups = groups;
-  state.tags = tags;
-  state.releases = releases;
-  state.campaigns = campaigns;
-  state.auditLogs = auditLogs;
+  const [summary, devices, models, groups, tags, releases, campaigns, auditLogs] = results;
+
+  if (summary.status === 'fulfilled')    state.summary   = summary.value ?? state.summary;
+  if (devices.status === 'fulfilled')    state.devices   = Array.isArray(devices.value)  ? devices.value  : state.devices;
+  if (models.status  === 'fulfilled')    state.models    = Array.isArray(models.value)   ? models.value   : state.models;
+  if (groups.status  === 'fulfilled')    state.groups    = Array.isArray(groups.value)   ? groups.value   : state.groups;
+  if (tags.status    === 'fulfilled')    state.tags      = Array.isArray(tags.value)    ? tags.value    : state.tags;
+  if (releases.status === 'fulfilled')   state.releases  = Array.isArray(releases.value) ? releases.value : state.releases;
+  if (campaigns.status === 'fulfilled')  state.campaigns = Array.isArray(campaigns.value)? campaigns.value: state.campaigns;
+  if (auditLogs.status === 'fulfilled')  state.auditLogs = Array.isArray(auditLogs.value)? auditLogs.value: state.auditLogs;
+
   if (!state.campaigns.some((campaign) => campaign.id === state.selectedCampaignId)) {
     state.selectedCampaignId = null;
     state.campaignDevices = [];
@@ -1003,8 +1026,15 @@ async function refreshData() {
     resetCampaignForm();
   }
   renderAll();
-  setMessage('تمت مزامنة لوحة التحكم.');
+
+  const failures = results.filter((r) => r.status === 'rejected');
+  if (failures.length > 0) {
+    setMessage(`تمت المزامنة مع ${results.length - failures.length}/${results.length} طلبات (${failures.length} فشل).`, 'warning');
+  } else {
+    setMessage('تمت مزامنة لوحة التحكم.');
+  }
 }
+
 
 async function initializeSession() {
   if (!state.accessToken) {

@@ -66,12 +66,12 @@ backup_configs() {
 }
 
 verify_runtime() {
-	local subscriber_interface="$1" hotspot_ip="$2"
+	local subscriber_interface="$1" hotspot_ip="$2" tun_device="${3:-tun0}"
 
 	[ -c /dev/net/tun ] || { printf '%s' 'TUN device /dev/net/tun is missing'; return 1; }
-	ip link show tun0 >/dev/null 2>&1 || { printf '%s' 'CoovaChilli did not create tun0'; return 1; }
+	ip link show "$tun_device" >/dev/null 2>&1 || { printf '%s' "CoovaChilli did not create $tun_device"; return 1; }
 	pidof chilli >/dev/null 2>&1 || { printf '%s' 'CoovaChilli process is not running'; return 1; }
-	ip -4 addr show tun0 2>/dev/null | grep -q "[[:space:]]$hotspot_ip/" || { printf '%s' 'tun0 does not have the hotspot IP'; return 1; }
+	ip -4 addr show "$tun_device" 2>/dev/null | grep -q "[[:space:]]$hotspot_ip/" || { printf '%s' "$tun_device does not have the hotspot IP"; return 1; }
 
 	if [ "$subscriber_interface" != 'lan' ] && ip link show br-lan >/dev/null 2>&1; then
 		ip -4 addr show br-lan 2>/dev/null | grep -q 'inet ' || { printf '%s' 'br-lan is present but has no IPv4 management address'; return 1; }
@@ -100,6 +100,108 @@ configure_wireless() {
 	uci set wireless.$wifi_iface.network="$subscriber_interface"
 	uci set wireless.$wifi_iface.disabled='0'
 	uci commit wireless
+}
+
+first_wireless_radio() {
+	uci -q show wireless | sed -n "s/^wireless\.\([^=]*\)=wifi-device$/\1/p" | head -n 1
+}
+
+wireless_radio_by_band() {
+	local target_band="$1" section band
+
+	for section in $(uci -q show wireless | sed -n "s/^wireless\.\([^=]*\)=wifi-device$/\1/p"); do
+		band="$(uci -q get wireless.$section.band)"
+		[ "$band" = "$target_band" ] && {
+			printf '%s' "$section"
+			return 0
+		}
+	done
+
+	return 1
+}
+
+configure_quick_wireless() {
+	local primary_interface="$1" secondary_interface="$2" primary_ssid="$3" secondary_ssid="$4" wifi_key="$5"
+	local radio_2g radio_5g first_radio primary_radio secondary_radio encryption
+	local section mode networks item
+
+	primary_interface="$(normalize_interface_name "$primary_interface" 'hotspot')"
+	secondary_interface="$(normalize_interface_name "$secondary_interface" 'hotspot2')"
+	radio_2g="$(wireless_radio_by_band '2g')"
+	radio_5g="$(wireless_radio_by_band '5g')"
+	first_radio="$(first_wireless_radio)"
+
+	primary_radio="$radio_2g"
+	[ -n "$primary_radio" ] || primary_radio="$radio_5g"
+	[ -n "$primary_radio" ] || primary_radio="$first_radio"
+	[ -n "$primary_radio" ] || return 1
+
+	secondary_radio="$radio_5g"
+	[ -n "$secondary_radio" ] || secondary_radio="$radio_2g"
+	[ -n "$secondary_radio" ] || secondary_radio="$primary_radio"
+
+	[ -n "$primary_ssid" ] || primary_ssid='Hotspot-1'
+	[ -n "$secondary_ssid" ] || secondary_ssid='Hotspot-2'
+	[ -n "$wifi_key" ] || wifi_key="$(uci -q get wireless.wizard_hotspot_quick_primary.key)"
+	[ -n "$wifi_key" ] || wifi_key="$(uci -q get wireless.wizard_hotspot_quick_secondary.key)"
+	[ -n "$wifi_key" ] || wifi_key="$(uci -q get wireless.default_radio0.key)"
+	[ -n "$wifi_key" ] || wifi_key="$(uci -q get wireless.default_radio1.key)"
+
+	encryption="$(uci -q get wireless.wizard_hotspot_quick_primary.encryption)"
+	[ -n "$encryption" ] || encryption="$(uci -q get wireless.wizard_hotspot_quick_secondary.encryption)"
+	[ -n "$encryption" ] || encryption='psk2'
+
+	uci set wireless.wizard_hotspot_quick_primary=wifi-iface
+	uci set wireless.wizard_hotspot_quick_primary.device="$primary_radio"
+	uci set wireless.wizard_hotspot_quick_primary.mode='ap'
+	uci set wireless.wizard_hotspot_quick_primary.network="$primary_interface"
+	uci set wireless.wizard_hotspot_quick_primary.ssid="$primary_ssid"
+	uci set wireless.wizard_hotspot_quick_primary.disabled='0'
+	uci set wireless.wizard_hotspot_quick_primary.disassoc_low_ack='0'
+
+	uci set wireless.wizard_hotspot_quick_secondary=wifi-iface
+	uci set wireless.wizard_hotspot_quick_secondary.device="$secondary_radio"
+	uci set wireless.wizard_hotspot_quick_secondary.mode='ap'
+	uci set wireless.wizard_hotspot_quick_secondary.network="$secondary_interface"
+	uci set wireless.wizard_hotspot_quick_secondary.ssid="$secondary_ssid"
+	uci set wireless.wizard_hotspot_quick_secondary.disabled='0'
+	uci set wireless.wizard_hotspot_quick_secondary.disassoc_low_ack='0'
+
+	if [ -n "$wifi_key" ]; then
+		[ "$encryption" = 'none' ] && encryption='psk2'
+		uci set wireless.wizard_hotspot_quick_primary.encryption="$encryption"
+		uci set wireless.wizard_hotspot_quick_primary.key="$wifi_key"
+		uci set wireless.wizard_hotspot_quick_secondary.encryption="$encryption"
+		uci set wireless.wizard_hotspot_quick_secondary.key="$wifi_key"
+	else
+		uci set wireless.wizard_hotspot_quick_primary.encryption='none'
+		uci -q delete wireless.wizard_hotspot_quick_primary.key
+		uci set wireless.wizard_hotspot_quick_secondary.encryption='none'
+		uci -q delete wireless.wizard_hotspot_quick_secondary.key
+	fi
+
+	for section in $(uci -q show wireless | sed -n "s/^wireless\.\([^=]*\)=wifi-iface$/\1/p"); do
+		[ "$section" = 'wizard_hotspot_quick_primary' ] && continue
+		[ "$section" = 'wizard_hotspot_quick_secondary' ] && continue
+
+		mode="$(uci -q get wireless.$section.mode)"
+		[ -n "$mode" ] && [ "$mode" != 'ap' ] && continue
+
+		networks="$(uci -q get wireless.$section.network)"
+		for item in $networks; do
+			if [ "$item" = 'wizardvlan' ]; then
+				uci -q delete wireless.$section
+				break
+			fi
+			if [ "$item" = 'lan' ]; then
+				uci set wireless.$section.disabled='1'
+				break
+			fi
+		done
+	done
+
+	uci commit wireless
+	return 0
 }
 
 configure_chilli_local_access() {
@@ -270,45 +372,117 @@ bandwidth_to_bps() {
 	esac
 }
 
+normalize_interface_name() {
+	local value="$1" fallback="$2"
+
+	case "$value" in
+		[A-Za-z0-9_][A-Za-z0-9_.-]*) printf '%s' "$value" ;;
+		*) printf '%s' "$fallback" ;;
+	esac
+}
+
+derive_secondary_interface() {
+	local primary="$1" candidate
+
+	primary="$(normalize_interface_name "$primary" 'hotspot')"
+	candidate="${primary}2"
+
+	[ "$candidate" = "$primary" ] && candidate="${primary}_2"
+	printf '%s' "$(normalize_interface_name "$candidate" 'hotspot2')"
+}
+
+quick_policy_limits() {
+	local policy="$1" default_up="$2" default_down="$3" default_shared="$4"
+	local normalized rate_rx rate_tx bandwidth_up bandwidth_down shared_users
+
+	normalized="$(printf '%s' "$policy" | tr 'A-Z' 'a-z' | tr -d ' \t\r\n')"
+	bandwidth_up="$default_up"
+	bandwidth_down="$default_down"
+	shared_users="$default_shared"
+
+	case "$normalized" in
+		*/*)
+			rate_rx="${normalized%%/*}"
+			rate_tx="${normalized##*/}"
+			bandwidth_up="$(bandwidth_to_bps "$rate_rx")"
+			bandwidth_down="$(bandwidth_to_bps "$rate_tx")"
+			;;
+		basic|economy)
+			bandwidth_up='2000000'
+			bandwidth_down='4000000'
+			shared_users='2'
+			;;
+		standard)
+			bandwidth_up='5000000'
+			bandwidth_down='10000000'
+			shared_users='3'
+			;;
+		'')
+			bandwidth_up='5000000'
+			bandwidth_down='10000000'
+			shared_users='3'
+			;;
+		premium)
+			bandwidth_up='15000000'
+			bandwidth_down='30000000'
+			shared_users='8'
+			;;
+		vip|ultra)
+			bandwidth_up='30000000'
+			bandwidth_down='60000000'
+			shared_users='12'
+			;;
+		unlimited|none)
+			bandwidth_up='0'
+			bandwidth_down='0'
+			;;
+	esac
+
+	printf '%s;%s;%s' "$bandwidth_up" "$bandwidth_down" "$shared_users"
+}
+
 configure_firewall_nft_compat() {
-	local hotspot_net="$1" hotspot_cidr="$2" wan_interface="$3"
+	local hotspot_net="$1" hotspot_cidr="$2" wan_interface="$3" secondary_hotspot_net="$4" secondary_hotspot_cidr="$5"
 	local config_file='/etc/nftables.d/90-hotspot-openwrt-forward-nat.nft'
-	local egress_device egress_ip snat_rule
+	local egress_device egress_ip snat_rule secondary_snat_rule
 
 	egress_device="$(uci -q get network.$wan_interface.device)"
 	[ -n "$egress_device" ] || egress_device="br-$wan_interface"
 	egress_ip="$(uci -q get network.$wan_interface.ipaddr)"
 	if [ -n "$egress_ip" ]; then
 		snat_rule="ip saddr $hotspot_net/$hotspot_cidr oifname \"$egress_device\" counter snat to $egress_ip"
+		[ -n "$secondary_hotspot_net" ] && secondary_snat_rule="ip saddr $secondary_hotspot_net/$secondary_hotspot_cidr oifname \"$egress_device\" counter snat to $egress_ip"
 	else
 		snat_rule="ip saddr $hotspot_net/$hotspot_cidr oifname \"$egress_device\" counter masquerade"
+		[ -n "$secondary_hotspot_net" ] && secondary_snat_rule="ip saddr $secondary_hotspot_net/$secondary_hotspot_cidr oifname \"$egress_device\" counter masquerade"
 	fi
 
 	mkdir -p /etc/nftables.d || return 1
-	cat > "$config_file" <<-EOF
-		chain hotspot_openwrt_shaper {
-		        type filter hook forward priority -150; policy accept;
-		}
-	
-		chain hotspot_openwrt_shaper_in {
-		        type filter hook input priority -150; policy accept;
-		}
-	
-		chain hotspot_openwrt_shaper_out {
-		        type filter hook output priority -150; policy accept;
-		}
-
-	chain hotspot_openwrt_forward {
-	        type filter hook forward priority -1; policy accept;
-	        iifname "tun0" oifname "$egress_device" counter accept
-	        iifname "$egress_device" oifname "tun0" counter accept
-	}
-
-	chain hotspot_openwrt_srcnat {
-	        type nat hook postrouting priority 99; policy accept;
-	        $snat_rule
-	}
-	EOF
+	{
+		printf 'chain hotspot_openwrt_shaper {\n'
+		printf '        type filter hook forward priority -150; policy accept;\n'
+		printf '}\n\n'
+		printf 'chain hotspot_openwrt_shaper_in {\n'
+		printf '        type filter hook input priority -150; policy accept;\n'
+		printf '}\n\n'
+		printf 'chain hotspot_openwrt_shaper_out {\n'
+		printf '        type filter hook output priority -150; policy accept;\n'
+		printf '}\n\n'
+		printf 'chain hotspot_openwrt_forward {\n'
+		printf '        type filter hook forward priority -1; policy accept;\n'
+		printf '        iifname "tun0" oifname "%s" counter accept\n' "$egress_device"
+		printf '        iifname "%s" oifname "tun0" counter accept\n' "$egress_device"
+		if [ -n "$secondary_hotspot_net" ]; then
+			printf '        iifname "tun1" oifname "%s" counter accept\n' "$egress_device"
+			printf '        iifname "%s" oifname "tun1" counter accept\n' "$egress_device"
+		fi
+		printf '}\n\n'
+		printf 'chain hotspot_openwrt_srcnat {\n'
+		printf '        type nat hook postrouting priority 99; policy accept;\n'
+		printf '        %s\n' "$snat_rule"
+		[ -n "$secondary_snat_rule" ] && printf '        %s\n' "$secondary_snat_rule"
+		printf '}\n'
+	} > "$config_file" || return 1
 	chmod 0644 "$config_file" 2>/dev/null || true
 }
 
@@ -339,11 +513,23 @@ apply_config() {
 	local terms_enabled portal_path portal_storage_path captive_notify mac_cookie_enabled browser_cookie_enabled browser_cookie_days open_status_page
 	local session_timeout idle_timeout status_autorefresh shared_users rate_limit_rx_tx
 	local session_timeout_seconds idle_timeout_seconds status_autorefresh_seconds bandwidth_up bandwidth_down rate_rx rate_tx
-	local uam_page dns_list dns1 dns2 wan_zone calc_output network_addr netmask walled_garden runtime_mode
+	local uam_page dns_list dns1 dns2 wan_zone calc_output network_addr netmask walled_garden runtime_mode mac_allowed
+	local network_name support_phone logo_url notice_text login_mode available_speeds speedtest_enabled
+	local quick_setup_enabled quick_runtime_dual_enabled quick_subscriber_interface quick_subscriber_interface_secondary
+	local quick_ssid_primary quick_ssid_secondary quick_wifi_key
+	local quick_gateway_primary quick_pool_start_primary quick_pool_end_primary quick_policy_primary
+	local quick_gateway_secondary quick_pool_start_secondary quick_pool_end_secondary quick_policy_secondary
+	local dual_quick_mode old_secondary_subscriber_interface
+	local secondary_subscriber_interface secondary_device_section secondary_device_name
+	local secondary_hotspot_ip secondary_hotspot_cidr secondary_pool_start secondary_pool_end
+	local secondary_dhcp_start secondary_dhcp_end secondary_dhcp_limit
+	local secondary_calc_output secondary_network_addr secondary_netmask secondary_limits
+	local primary_limits primary_bandwidth_up primary_bandwidth_down primary_shared_users
+	local secondary_bandwidth_up secondary_bandwidth_down secondary_shared_users
 
-	subscriber_interface="$(uci -q get hotspot_openwrt.main.subscriber_interface)"
+	subscriber_interface="$(normalize_interface_name "$(uci -q get hotspot_openwrt.main.subscriber_interface)" 'hotspot')"
 	bridge_ports="$(uci -q get hotspot_openwrt.main.bridge_ports)"
-	wan_interface="$(uci -q get hotspot_openwrt.main.wan_interface)"
+	wan_interface="$(normalize_interface_name "$(uci -q get hotspot_openwrt.main.wan_interface)" 'lan')"
 	hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip)"
 	hotspot_cidr="$(uci -q get hotspot_openwrt.main.hotspot_cidr)"
 	pool_start="$(uci -q get hotspot_openwrt.main.pool_start)"
@@ -375,6 +561,21 @@ apply_config() {
 	login_mode="$(uci -q get hotspot_openwrt.main.login_mode)"
 	available_speeds="$(uci -q get hotspot_openwrt.main.available_speeds)"
 	speedtest_enabled="$(uci -q get hotspot_openwrt.main.speedtest_enabled)"
+	quick_setup_enabled="$(uci -q get hotspot_openwrt.main.quick_setup_enabled)"
+	quick_runtime_dual_enabled="$(uci -q get hotspot_openwrt.main.quick_runtime_dual_enabled)"
+	quick_subscriber_interface="$(normalize_interface_name "$(uci -q get hotspot_openwrt.main.quick_subscriber_interface)" "$subscriber_interface")"
+	quick_subscriber_interface_secondary="$(normalize_interface_name "$(uci -q get hotspot_openwrt.main.quick_subscriber_interface_secondary)" "$(derive_secondary_interface "$quick_subscriber_interface")")"
+	quick_ssid_primary="$(uci -q get hotspot_openwrt.main.quick_ssid_primary)"
+	quick_ssid_secondary="$(uci -q get hotspot_openwrt.main.quick_ssid_secondary)"
+	quick_wifi_key="$(uci -q get setup.default.wifi_key)"
+	quick_gateway_primary="$(uci -q get hotspot_openwrt.main.quick_gateway_primary)"
+	quick_pool_start_primary="$(uci -q get hotspot_openwrt.main.quick_pool_start_primary)"
+	quick_pool_end_primary="$(uci -q get hotspot_openwrt.main.quick_pool_end_primary)"
+	quick_policy_primary="$(uci -q get hotspot_openwrt.main.quick_policy_primary)"
+	quick_gateway_secondary="$(uci -q get hotspot_openwrt.main.quick_gateway_secondary)"
+	quick_pool_start_secondary="$(uci -q get hotspot_openwrt.main.quick_pool_start_secondary)"
+	quick_pool_end_secondary="$(uci -q get hotspot_openwrt.main.quick_pool_end_secondary)"
+	quick_policy_secondary="$(uci -q get hotspot_openwrt.main.quick_policy_secondary)"
 	[ -n "$portal_path" ] || portal_path='/hotspot'
 	[ -n "$portal_storage_path" ] || portal_storage_path='/www/hotspot'
 	[ -n "$browser_cookie_days" ] || browser_cookie_days='7'
@@ -391,6 +592,30 @@ apply_config() {
 	rate_tx="$(printf '%s' "$rate_limit_rx_tx" | awk -F/ '{ print $2 }')"
 	bandwidth_up="$(bandwidth_to_bps "$rate_rx")"
 	bandwidth_down="$(bandwidth_to_bps "$rate_tx")"
+	[ -n "$quick_setup_enabled" ] || quick_setup_enabled='0'
+	[ -n "$quick_runtime_dual_enabled" ] || quick_runtime_dual_enabled="$quick_setup_enabled"
+	[ -n "$quick_policy_primary" ] || quick_policy_primary='standard'
+	[ -n "$quick_policy_secondary" ] || quick_policy_secondary='premium'
+	[ -n "$quick_ssid_primary" ] || quick_ssid_primary="$network_name"
+	[ -n "$quick_ssid_primary" ] || quick_ssid_primary='Hotspot-1'
+	[ -n "$quick_ssid_secondary" ] || quick_ssid_secondary='Hotspot-2'
+
+	dual_quick_mode='0'
+	if [ "$quick_setup_enabled" = '1' ] && [ "$quick_runtime_dual_enabled" != '0' ]; then
+		dual_quick_mode='1'
+		subscriber_interface="$(normalize_interface_name "$quick_subscriber_interface" "$subscriber_interface")"
+		[ -n "$quick_gateway_primary" ] && hotspot_ip="$quick_gateway_primary"
+		[ -n "$quick_pool_start_primary" ] && pool_start="$quick_pool_start_primary"
+		[ -n "$quick_pool_end_primary" ] && pool_end="$quick_pool_end_primary"
+		secondary_subscriber_interface="$(normalize_interface_name "$quick_subscriber_interface_secondary" "$(derive_secondary_interface "$subscriber_interface")")"
+		secondary_hotspot_ip="${quick_gateway_secondary:-192.168.20.1}"
+		secondary_hotspot_cidr="${hotspot_cidr:-24}"
+		secondary_pool_start="${quick_pool_start_secondary:-192.168.20.10}"
+		secondary_pool_end="${quick_pool_end_secondary:-192.168.20.199}"
+		if [ "$secondary_subscriber_interface" = "$subscriber_interface" ]; then
+			secondary_subscriber_interface="$(derive_secondary_interface "$subscriber_interface")"
+		fi
+	fi
 	dns_list="$(uci -q get hotspot_openwrt.main.dns)"
 	dns1="$(printf '%s\n' $dns_list | sed -n '1p')"
 	dns2="$(printf '%s\n' $dns_list | sed -n '2p')"
@@ -399,6 +624,7 @@ apply_config() {
 	walled_garden="$(uci -q get hotspot_openwrt.main.walled_garden | tr ' ' ',')"
 	[ -n "$walled_garden" ] || walled_garden='neverssl.com,connectivitycheck.gstatic.com,clients3.google.com,connectivitycheck.android.com,www.gstatic.com'
 	mac_allowed="$(uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | sed "s/^.*='//;s/'$//" | awk 'tolower($1) == "bypassed" { print $2 }' | tr 'A-Z-' 'a-z:' | tr '\n' ',' | sed 's/,$//')"
+	old_secondary_subscriber_interface="$(normalize_interface_name "$(uci -q get hotspot_openwrt.main.quick_subscriber_interface_secondary)" '')"
 
 	backup_dir="$(backup_configs)" || fail_json 'backup' 'Could not create configuration backup'
 	calc_output="$(/bin/ipcalc.sh "$hotspot_ip/$hotspot_cidr" 2>/dev/null)" || fail_json 'network' 'Invalid hotspot IP/CIDR'
@@ -414,15 +640,57 @@ apply_config() {
 	[ "$(network_for "$pool_start" "$hotspot_cidr")" = "$network_addr" ] || fail_json 'dhcp' 'DHCP pool start must be inside the hotspot subnet'
 	[ "$(network_for "$pool_end" "$hotspot_cidr")" = "$network_addr" ] || fail_json 'dhcp' 'DHCP pool end must be inside the hotspot subnet'
 
+	if [ "$dual_quick_mode" = '1' ]; then
+		secondary_calc_output="$(/bin/ipcalc.sh "$secondary_hotspot_ip/$secondary_hotspot_cidr" 2>/dev/null)" || fail_json 'quick' 'Secondary hotspot IP/CIDR is invalid'
+		eval "$secondary_calc_output"
+		secondary_network_addr="$NETWORK"
+		secondary_netmask="$NETMASK"
+
+		secondary_dhcp_start="$(last_octet "$secondary_pool_start")"
+		secondary_dhcp_end="$(last_octet "$secondary_pool_end")"
+		case "$secondary_dhcp_start$secondary_dhcp_end" in *[!0-9]*|'') fail_json 'quick' 'Secondary DHCP pool must be IPv4 addresses in the secondary subnet' ;; esac
+		secondary_dhcp_limit=$((secondary_dhcp_end - secondary_dhcp_start + 1))
+		[ "$secondary_dhcp_limit" -gt 0 ] || fail_json 'quick' 'Secondary DHCP pool end must be greater than pool start'
+		[ "$(network_for "$secondary_pool_start" "$secondary_hotspot_cidr")" = "$secondary_network_addr" ] || fail_json 'quick' 'Secondary DHCP pool start must be inside the secondary subnet'
+		[ "$(network_for "$secondary_pool_end" "$secondary_hotspot_cidr")" = "$secondary_network_addr" ] || fail_json 'quick' 'Secondary DHCP pool end must be inside the secondary subnet'
+		[ "$secondary_network_addr" != "$network_addr" ] || fail_json 'quick' 'Primary and secondary hotspot networks must be different'
+	fi
+
 	device_section="${subscriber_interface}_dev"
 	device_name="br-$subscriber_interface"
 	[ "$subscriber_interface" = 'hotspot' ] && device_name='br-hotspot'
+
+	if [ "$dual_quick_mode" = '1' ]; then
+		secondary_device_section="${secondary_subscriber_interface}_dev"
+		secondary_device_name="br-$secondary_subscriber_interface"
+		[ "$secondary_subscriber_interface" = 'hotspot' ] && secondary_device_name='br-hotspot'
+	fi
+
 	wan_zone="$(zone_for_network "$wan_interface")"
 	uam_page="$portal_path/login.html"
 	[ "$terms_enabled" = '1' ] && uam_page="$portal_path/terms.html"
 	runtime_mode='chilli'
 	if [ ! -x /etc/init.d/chilli ] || ! modprobe tun >/dev/null 2>&1; then
 		runtime_mode='dnsmasq'
+	fi
+
+	primary_bandwidth_up="$bandwidth_up"
+	primary_bandwidth_down="$bandwidth_down"
+	primary_shared_users="$shared_users"
+	secondary_bandwidth_up='0'
+	secondary_bandwidth_down='0'
+	secondary_shared_users="$shared_users"
+
+	if [ "$dual_quick_mode" = '1' ]; then
+		primary_limits="$(quick_policy_limits "$quick_policy_primary" "$bandwidth_up" "$bandwidth_down" "$shared_users")"
+		primary_bandwidth_up="$(printf '%s' "$primary_limits" | cut -d';' -f1)"
+		primary_bandwidth_down="$(printf '%s' "$primary_limits" | cut -d';' -f2)"
+		primary_shared_users="$(printf '%s' "$primary_limits" | cut -d';' -f3)"
+
+		secondary_limits="$(quick_policy_limits "$quick_policy_secondary" "$bandwidth_up" "$bandwidth_down" "$shared_users")"
+		secondary_bandwidth_up="$(printf '%s' "$secondary_limits" | cut -d';' -f1)"
+		secondary_bandwidth_down="$(printf '%s' "$secondary_limits" | cut -d';' -f2)"
+		secondary_shared_users="$(printf '%s' "$secondary_limits" | cut -d';' -f3)"
 	fi
 
 	if [ "$runtime_mode" = 'dnsmasq' ]; then
@@ -457,6 +725,44 @@ apply_config() {
 	EOF
 	fi
 	set_bridge_ports "$device_section" "$bridge_ports"
+
+	if [ "$dual_quick_mode" = '1' ]; then
+		if [ "$runtime_mode" = 'dnsmasq' ]; then
+			uci -q batch <<-EOF
+				set network.$secondary_device_section=device
+				set network.$secondary_device_section.name='$secondary_device_name'
+				set network.$secondary_device_section.type='bridge'
+				set network.$secondary_device_section.bridge_empty='1'
+				set network.$secondary_device_section.ipv6='0'
+				set network.$secondary_subscriber_interface=interface
+				set network.$secondary_subscriber_interface.proto='static'
+				set network.$secondary_subscriber_interface.device='$secondary_device_name'
+				set network.$secondary_subscriber_interface.ipaddr='$secondary_hotspot_ip'
+				set network.$secondary_subscriber_interface.netmask='$secondary_netmask'
+				set network.$secondary_subscriber_interface.delegate='0'
+				delete network.$secondary_subscriber_interface.ip6assign
+			EOF
+		else
+			uci -q batch <<-EOF
+				set network.$secondary_device_section=device
+				set network.$secondary_device_section.name='$secondary_device_name'
+				set network.$secondary_device_section.type='bridge'
+				set network.$secondary_device_section.bridge_empty='1'
+				set network.$secondary_device_section.ipv6='0'
+				set network.$secondary_subscriber_interface=interface
+				set network.$secondary_subscriber_interface.proto='none'
+				set network.$secondary_subscriber_interface.device='$secondary_device_name'
+				delete network.$secondary_subscriber_interface.ipaddr
+				delete network.$secondary_subscriber_interface.netmask
+				delete network.$secondary_subscriber_interface.delegate
+				delete network.$secondary_subscriber_interface.ip6assign
+			EOF
+		fi
+		set_bridge_ports "$secondary_device_section" ''
+	elif [ -n "$old_secondary_subscriber_interface" ] && [ "$old_secondary_subscriber_interface" != "$subscriber_interface" ]; then
+		uci -q delete network.${old_secondary_subscriber_interface}_dev
+		uci -q delete network.$old_secondary_subscriber_interface
+	fi
 	uci commit network
 
 	uci -q delete dhcp.$subscriber_interface.dhcp_option
@@ -491,6 +797,43 @@ apply_config() {
 		delete dhcp.$subscriber_interface.ra_flags
 	EOF
 	fi
+
+	if [ "$dual_quick_mode" = '1' ]; then
+		uci -q delete dhcp.$secondary_subscriber_interface.dhcp_option
+		if [ "$runtime_mode" = 'dnsmasq' ]; then
+			uci -q batch <<-EOF
+				set dhcp.$secondary_subscriber_interface=dhcp
+				set dhcp.$secondary_subscriber_interface.interface='$secondary_subscriber_interface'
+				set dhcp.$secondary_subscriber_interface.ignore='0'
+				set dhcp.$secondary_subscriber_interface.start='$secondary_dhcp_start'
+				set dhcp.$secondary_subscriber_interface.limit='$secondary_dhcp_limit'
+				set dhcp.$secondary_subscriber_interface.leasetime='1h'
+				set dhcp.$secondary_subscriber_interface.dhcpv4='server'
+				set dhcp.$secondary_subscriber_interface.force='1'
+				delete dhcp.$secondary_subscriber_interface.ra
+				delete dhcp.$secondary_subscriber_interface.dhcpv6
+				delete dhcp.$secondary_subscriber_interface.ra_flags
+			EOF
+			uci add_list dhcp.$secondary_subscriber_interface.dhcp_option="3,$secondary_hotspot_ip"
+			uci add_list dhcp.$secondary_subscriber_interface.dhcp_option="6,$secondary_hotspot_ip"
+		else
+			uci -q batch <<-EOF
+				set dhcp.$secondary_subscriber_interface=dhcp
+				set dhcp.$secondary_subscriber_interface.interface='$secondary_subscriber_interface'
+				set dhcp.$secondary_subscriber_interface.ignore='1'
+				delete dhcp.$secondary_subscriber_interface.start
+				delete dhcp.$secondary_subscriber_interface.limit
+				delete dhcp.$secondary_subscriber_interface.leasetime
+				delete dhcp.$secondary_subscriber_interface.dhcpv4
+				delete dhcp.$secondary_subscriber_interface.force
+				delete dhcp.$secondary_subscriber_interface.ra
+				delete dhcp.$secondary_subscriber_interface.dhcpv6
+				delete dhcp.$secondary_subscriber_interface.ra_flags
+			EOF
+		fi
+	elif [ -n "$old_secondary_subscriber_interface" ] && [ "$old_secondary_subscriber_interface" != "$subscriber_interface" ]; then
+		uci -q delete dhcp.$old_secondary_subscriber_interface
+	fi
 	uci commit dhcp
 
 	uci -q batch <<-EOF
@@ -505,10 +848,19 @@ apply_config() {
 		set firewall.hotspot_openwrt_forward.src='hotspot'
 		set firewall.hotspot_openwrt_forward.dest='$wan_zone'
 	EOF
+	if [ "$dual_quick_mode" = '1' ]; then
+		uci add_list firewall.hotspot_openwrt_zone.network="$secondary_subscriber_interface"
+	elif [ -n "$old_secondary_subscriber_interface" ] && [ "$old_secondary_subscriber_interface" != "$subscriber_interface" ]; then
+		uci -q del_list firewall.hotspot_openwrt_zone.network="$old_secondary_subscriber_interface" || true
+	fi
 	enable_zone_masquerade "$wan_zone"
 	uci commit firewall
 
-	configure_wireless "$(uci -q get hotspot_openwrt.main.wifi_iface)" "$subscriber_interface"
+	if [ "$dual_quick_mode" = '1' ]; then
+		configure_quick_wireless "$subscriber_interface" "$secondary_subscriber_interface" "$quick_ssid_primary" "$quick_ssid_secondary" "$quick_wifi_key" || fail_json 'wireless' 'Could not enforce quick dual wireless layout'
+	else
+		configure_wireless "$(uci -q get hotspot_openwrt.main.wifi_iface)" "$subscriber_interface"
+	fi
 
 	uci -q batch <<-EOF
 		set chilli.hotspot_openwrt=chilli
@@ -516,7 +868,8 @@ apply_config() {
 		set chilli.hotspot_openwrt.tundev='tun0'
 		set chilli.hotspot_openwrt.ipup='/etc/chilli/up.sh'
 		set chilli.hotspot_openwrt.ipdown='/etc/chilli/down.sh'
-		set chilli.hotspot_openwrt.network='$subscriber_interface'
+		delete chilli.hotspot_openwrt.network
+		set chilli.hotspot_openwrt.dhcpif='$device_name'
 		set chilli.hotspot_openwrt.net='$network_addr/$hotspot_cidr'
 		set chilli.hotspot_openwrt.dynip='$network_addr/$hotspot_cidr'
 		set chilli.hotspot_openwrt.dhcpstart='$dhcp_start'
@@ -563,19 +916,97 @@ apply_config() {
 	[ "$session_timeout_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt.defsessiontimeout="$session_timeout_seconds"
 	[ "$idle_timeout_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt.defidletimeout="$idle_timeout_seconds"
 	[ "$status_autorefresh_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt.definteriminterval="$status_autorefresh_seconds"
-	[ "$bandwidth_up" -gt 0 ] && uci set chilli.hotspot_openwrt.defbandwidthmaxup="$bandwidth_up"
-	[ "$bandwidth_down" -gt 0 ] && uci set chilli.hotspot_openwrt.defbandwidthmaxdown="$bandwidth_down"
+	[ "$primary_bandwidth_up" -gt 0 ] && uci set chilli.hotspot_openwrt.defbandwidthmaxup="$primary_bandwidth_up"
+	[ "$primary_bandwidth_down" -gt 0 ] && uci set chilli.hotspot_openwrt.defbandwidthmaxdown="$primary_bandwidth_down"
+	[ "$primary_shared_users" -gt 0 ] && uci set hotspot_openwrt.main.shared_users="$primary_shared_users"
 	if [ "$captive_notify" = '1' ]; then
 		uci set chilli.hotspot_openwrt.dhcpopt="$(captive_portal_dhcpopt "$hotspot_ip" "$portal_path")"
+	fi
+
+	if [ "$dual_quick_mode" = '1' ]; then
+		uci -q batch <<-EOF
+			set chilli.hotspot_openwrt_secondary=chilli
+			set chilli.hotspot_openwrt_secondary.disabled='0'
+			set chilli.hotspot_openwrt_secondary.tundev='tun1'
+			set chilli.hotspot_openwrt_secondary.ipup='/etc/chilli/up.sh'
+			set chilli.hotspot_openwrt_secondary.ipdown='/etc/chilli/down.sh'
+			delete chilli.hotspot_openwrt_secondary.network
+			set chilli.hotspot_openwrt_secondary.dhcpif='$secondary_device_name'
+			set chilli.hotspot_openwrt_secondary.net='$secondary_network_addr/$secondary_hotspot_cidr'
+			set chilli.hotspot_openwrt_secondary.dynip='$secondary_network_addr/$secondary_hotspot_cidr'
+			set chilli.hotspot_openwrt_secondary.dhcpstart='$secondary_dhcp_start'
+			set chilli.hotspot_openwrt_secondary.dhcpend='$secondary_dhcp_end'
+			set chilli.hotspot_openwrt_secondary.uamlisten='$secondary_hotspot_ip'
+			set chilli.hotspot_openwrt_secondary.uamport='3990'
+			set chilli.hotspot_openwrt_secondary.nochallenge='1'
+			set chilli.hotspot_openwrt_secondary.uamserver='http://$secondary_hotspot_ip$uam_page'
+			set chilli.hotspot_openwrt_secondary.uamhomepage='http://$secondary_hotspot_ip$uam_page'
+			set chilli.hotspot_openwrt_secondary.radiusserver1='$radius_server'
+			set chilli.hotspot_openwrt_secondary.radiusserver2='$radius_server'
+			set chilli.hotspot_openwrt_secondary.radiussecret='$radius_secret'
+			set chilli.hotspot_openwrt_secondary.radiusauthport='$radius_auth_port'
+			set chilli.hotspot_openwrt_secondary.radiusacctport='$radius_acct_port'
+			set chilli.hotspot_openwrt_secondary.nasip='$radius_nas_ip'
+			set chilli.hotspot_openwrt_secondary.radiusnasid='$radius_nas_id-secondary'
+			set chilli.hotspot_openwrt_secondary.domain='$domain'
+			set chilli.hotspot_openwrt_secondary.dns1='$secondary_hotspot_ip'
+			set chilli.hotspot_openwrt_secondary.dns2='$secondary_hotspot_ip'
+			set chilli.hotspot_openwrt_secondary.forcedns1='$secondary_hotspot_ip'
+			set chilli.hotspot_openwrt_secondary.forcedns1port='53'
+			set chilli.hotspot_openwrt_secondary.forcedns2='$secondary_hotspot_ip'
+			set chilli.hotspot_openwrt_secondary.forcedns2port='53'
+			set chilli.hotspot_openwrt_secondary.uamanydns='1'
+			set chilli.hotspot_openwrt_secondary.uamdomainttl='5'
+			set chilli.hotspot_openwrt_secondary.uamdomain='$walled_garden'
+			set chilli.hotspot_openwrt_secondary.uamallowed='$secondary_hotspot_ip,$secondary_hotspot_ip:80,$secondary_hotspot_ip:3990,$secondary_hotspot_ip:3991,$domain,$domain:80'
+			delete chilli.hotspot_openwrt_secondary.dhcpopt
+			delete chilli.hotspot_openwrt_secondary.defsessiontimeout
+			delete chilli.hotspot_openwrt_secondary.defidletimeout
+			delete chilli.hotspot_openwrt_secondary.definteriminterval
+			delete chilli.hotspot_openwrt_secondary.defbandwidthmaxup
+			delete chilli.hotspot_openwrt_secondary.defbandwidthmaxdown
+			delete chilli.hotspot_openwrt_secondary.macauth
+			delete chilli.hotspot_openwrt_secondary.macreauth
+			delete chilli.hotspot_openwrt_secondary.macauthdeny
+			delete chilli.hotspot_openwrt_secondary.macallowed
+			delete chilli.hotspot_openwrt_secondary.macallowlocal
+		EOF
+		[ -n "$mac_allowed" ] && {
+			uci set chilli.hotspot_openwrt_secondary.macallowed="$mac_allowed"
+			uci set chilli.hotspot_openwrt_secondary.macallowlocal='1'
+		}
+		[ "$session_timeout_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt_secondary.defsessiontimeout="$session_timeout_seconds"
+		[ "$idle_timeout_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt_secondary.defidletimeout="$idle_timeout_seconds"
+		[ "$status_autorefresh_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt_secondary.definteriminterval="$status_autorefresh_seconds"
+		[ "$secondary_bandwidth_up" -gt 0 ] && uci set chilli.hotspot_openwrt_secondary.defbandwidthmaxup="$secondary_bandwidth_up"
+		[ "$secondary_bandwidth_down" -gt 0 ] && uci set chilli.hotspot_openwrt_secondary.defbandwidthmaxdown="$secondary_bandwidth_down"
+		if [ "$captive_notify" = '1' ]; then
+			uci set chilli.hotspot_openwrt_secondary.dhcpopt="$(captive_portal_dhcpopt "$secondary_hotspot_ip" "$portal_path")"
+		fi
+	else
+		uci -q delete chilli.hotspot_openwrt_secondary
 	fi
 	uci commit chilli
 	configure_portal_files "$hotspot_ip" "$portal_path" "$portal_storage_path" "$terms_enabled" "$browser_cookie_enabled" "$browser_cookie_days" "$open_status_page" "$status_autorefresh_seconds" || fail_json 'portal' 'Could not update portal page files'
 	configure_domain_landing "$hotspot_ip" "$portal_path" "$domain" || fail_json 'portal' 'Could not update hotspot domain landing page'
 	configure_chilli_local_access || fail_json 'chilli' 'Could not update /etc/chilli/config for local portal access'
 	configure_dnsmasq_compat "$hotspot_ip" "$portal_path" "$captive_notify" "$domain" || fail_json 'dnsmasq' 'Could not update dnsmasq captive portal compatibility settings'
-	configure_firewall_nft_compat "$network_addr" "$hotspot_cidr" "$wan_interface" || fail_json 'firewall' 'Could not update firewall4 hotspot compatibility rules'
+	if [ "$dual_quick_mode" = '1' ]; then
+		configure_firewall_nft_compat "$network_addr" "$hotspot_cidr" "$wan_interface" "$secondary_network_addr" "$secondary_hotspot_cidr" || fail_json 'firewall' 'Could not update firewall4 hotspot compatibility rules'
+	else
+		configure_firewall_nft_compat "$network_addr" "$hotspot_cidr" "$wan_interface" '' '' || fail_json 'firewall' 'Could not update firewall4 hotspot compatibility rules'
+	fi
 
 	uci set hotspot_openwrt.main.enabled='1'
+	if [ "$dual_quick_mode" = '1' ]; then
+		uci set hotspot_openwrt.main.quick_runtime_dual_enabled='1'
+		uci set hotspot_openwrt.main.quick_subscriber_interface="$subscriber_interface"
+		uci set hotspot_openwrt.main.quick_subscriber_interface_secondary="$secondary_subscriber_interface"
+		uci set hotspot_openwrt.main.quick_ssid_primary="$quick_ssid_primary"
+		uci set hotspot_openwrt.main.quick_ssid_secondary="$quick_ssid_secondary"
+	else
+		uci set hotspot_openwrt.main.quick_runtime_dual_enabled='0'
+	fi
 	uci commit hotspot_openwrt
 
 	modprobe tun 2>/dev/null || true
@@ -584,6 +1015,7 @@ apply_config() {
 	chmod 600 /dev/net/tun 2>/dev/null || true
 
 	/etc/init.d/network reload >/dev/null 2>&1 || /etc/init.d/network restart >/dev/null 2>&1 || true
+	[ "$dual_quick_mode" = '1' ] && wifi reload >/dev/null 2>&1 || true
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
 	/etc/init.d/firewall restart >/dev/null 2>&1 || true
 
@@ -594,7 +1026,12 @@ apply_config() {
 		printf '"message":"Hotspot network and DHCP are active. CoovaChilli/TUN is unavailable, so captive portal authentication is not running yet.",'
 		printf '"subscriber_interface":"%s",' "$(json_escape "$subscriber_interface")"
 		printf '"hotspot_ip":"%s",' "$(json_escape "$hotspot_ip")"
+		if [ "$dual_quick_mode" = '1' ]; then
+			printf '"secondary_subscriber_interface":"%s",' "$(json_escape "$secondary_subscriber_interface")"
+			printf '"secondary_hotspot_ip":"%s",' "$(json_escape "$secondary_hotspot_ip")"
+		fi
 		printf '"radius_server":"%s",' "$(json_escape "$radius_server")"
+		printf '"dual_quick_mode":%s,' "$(json_bool "$dual_quick_mode")"
 		printf '"runtime":"dnsmasq",'
 		printf '"backup_dir":"%s"' "$(json_escape "$backup_dir")"
 		printf '}\n'
@@ -606,12 +1043,22 @@ apply_config() {
 
 	runtime_error=''
 	for attempt in 1 2 3 4 5 6 7 8 9 10; do
-		if runtime_error="$(verify_runtime "$subscriber_interface" "$hotspot_ip")"; then
+		if runtime_error="$(verify_runtime "$subscriber_interface" "$hotspot_ip" 'tun0')"; then
 			runtime_error=''
 			break
 		fi
 		sleep 1
 	done
+
+	if [ -z "$runtime_error" ] && [ "$dual_quick_mode" = '1' ]; then
+		for attempt in 1 2 3 4 5 6 7 8 9 10; do
+			if runtime_error="$(verify_runtime "$secondary_subscriber_interface" "$secondary_hotspot_ip" 'tun1')"; then
+				runtime_error=''
+				break
+			fi
+			sleep 1
+		done
+	fi
 
 	if [ -n "$runtime_error" ]; then
 		/etc/init.d/chilli stop >/dev/null 2>&1 || true
@@ -629,10 +1076,15 @@ apply_config() {
 	printf '"message":"Hotspot OpenWrt applied. CoovaChilli is configured for MikroTik RADIUS over UDP only.",'
 	printf '"subscriber_interface":"%s",' "$(json_escape "$subscriber_interface")"
 	printf '"hotspot_ip":"%s",' "$(json_escape "$hotspot_ip")"
+	if [ "$dual_quick_mode" = '1' ]; then
+		printf '"secondary_subscriber_interface":"%s",' "$(json_escape "$secondary_subscriber_interface")"
+		printf '"secondary_hotspot_ip":"%s",' "$(json_escape "$secondary_hotspot_ip")"
+	fi
 	printf '"radius_server":"%s",' "$(json_escape "$radius_server")"
 	printf '"radius_transport":"udp",'
 	printf '"radius_auth_port":"%s",' "$(json_escape "$radius_auth_port")"
 	printf '"radius_acct_port":"%s",' "$(json_escape "$radius_acct_port")"
+	printf '"dual_quick_mode":%s,' "$(json_bool "$dual_quick_mode")"
 	printf '"backup_dir":"%s"' "$(json_escape "$backup_dir")"
 	printf '}\n'
 }

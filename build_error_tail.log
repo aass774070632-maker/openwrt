@@ -1,0 +1,29 @@
+make[2]: Entering directory '/home/baalwy/openwrt/scripts/config'
+make[2]: 'conf' is up to date.
+make[2]: Leaving directory '/home/baalwy/openwrt/scripts/config'
+make[1]: Entering directory '/home/baalwy/openwrt'
++ mkdir -p /home/baalwy/openwrt/staging_dir/target-mipsel_24kc_musl
++ cd /home/baalwy/openwrt/staging_dir/target-mipsel_24kc_musl
++ mkdir -p bin lib stamp usr/include usr/lib
+mkdir -p /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/stamp
+touch /home/baalwy/openwrt/staging_dir/target-mipsel_24kc_musl/.prepared
+make[2]: Entering directory '/home/baalwy/openwrt/target/linux'
+make[3]: Entering directory '/home/baalwy/openwrt/target/linux/ramips'
+rm -f /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/localversion
+/home/baalwy/openwrt/scripts/kconfig.pl  + /home/baalwy/openwrt/target/linux/generic/config-6.6 /home/baalwy/openwrt/target/linux/ramips/mt7621/config-6.6 > /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/.config.target
+awk '/^(#[[:space:]]+)?CONFIG_KERNEL/{sub("CONFIG_KERNEL_","CONFIG_");print}' /home/baalwy/openwrt/.config >> /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/.config.target
+echo "# CONFIG_KALLSYMS_EXTRA_PASS is not set" >> /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/.config.target
+echo "# CONFIG_KALLSYMS_ALL is not set" >> /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/.config.target
+echo "CONFIG_KALLSYMS_UNCOMPRESSED=y" >> /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/.config.target
+/home/baalwy/openwrt/scripts/package-metadata.pl kconfig /home/baalwy/openwrt/tmp/.packageinfo /home/baalwy/openwrt/.config 6.6 > /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/.config.override
+/home/baalwy/openwrt/scripts/kconfig.pl 'm+' '+' /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/.config.target /dev/null /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/.config.override > /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/.config.set
+bash: line 1: /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/.config.set: Permission denied
+make[3]: *** [Makefile:29: /home/baalwy/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt7621/linux-6.6.110/.configured] Error 1
+make[3]: Leaving directory '/home/baalwy/openwrt/target/linux/ramips'
+make[2]: *** [Makefile:12: compile] Error 2
+make[2]: Leaving directory '/home/baalwy/openwrt/target/linux'
+time: target/linux/compile#0.24#0.03#0.27
+    ERROR: target/linux failed to build.
+make[1]: *** [target/Makefile:32: target/linux/compile] Error 1
+make[1]: Leaving directory '/home/baalwy/openwrt'
+make: *** [/home/baalwy/openwrt/include/toplevel.mk:233: target/linux/compile] Error 2

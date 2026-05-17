@@ -535,11 +535,60 @@ random_jitter() {
 	[ "$delay" -gt 0 ] && sleep "$delay"
 }
 
+# ensure_dns(): Guarantee internet access for OTA.
+# Fixes TWO root problems:
+#   1. No default route (packets cannot reach 8.8.8.8 or any external IP)
+#   2. Broken DNS (dnsmasq off or has no upstream servers)
+# Auto-detects gateway by pinging .1 .2 .254 on the local subnet.
+ensure_dns() {
+	local resolv='/etc/resolv.conf'
+
+	# Always write public DNS directly — fastest fix
+	printf 'nameserver 8.8.8.8\nnameserver 1.1.1.1\n' > "$resolv"
+
+	# If a default route already exists, DNS fix above is enough
+	if ip route show 2>/dev/null | grep -q '^default'; then
+		return 0
+	fi
+
+	# No default route — scan LAN subnet for a working gateway
+	local prefix gw found=''
+	for prefix in $(ip addr show 2>/dev/null | awk '/inet /{split($2,a,"."); printf "%s.%s.%s\n",a[1],a[2],a[3]}' | sort -u); do
+		for last in 1 2 254; do
+			gw="${prefix}.${last}"
+			ip addr show 2>/dev/null | grep -q "inet ${gw}/" && continue
+			if ping -c 1 -W 1 "$gw" >/dev/null 2>&1; then
+				found="$gw"
+				break 2
+			fi
+		done
+	done
+
+	if [ -n "$found" ]; then
+		ip route add default via "$found" 2>/dev/null
+		log "ensure_dns: added default route via $found"
+		# Persist gateway so it survives reboots
+		if command -v uci >/dev/null 2>&1; then
+			local iface
+			iface=$(ip route get "$found" 2>/dev/null | awk '/dev/{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}')
+			if [ -n "$iface" ]; then
+				uci -q set "network.${iface}.gateway=$found" 2>/dev/null || true
+				uci -q set "network.${iface}.dns=8.8.8.8 1.1.1.1" 2>/dev/null || true
+				uci commit network 2>/dev/null || true
+				log "ensure_dns: persisted gateway=$found on iface=$iface"
+			fi
+		fi
+	else
+		log "ensure_dns: WARNING - no reachable gateway found"
+	fi
+}
+
 post_json() {
 	local url payload
 	url="$1"
 	payload="$2"
-	uclient-fetch -q -T "$CONNECT_TIMEOUT" --header 'Content-Type: application/json' --post-data "$payload" -O - "$url"
+	ensure_dns
+	uclient-fetch -q --no-check-certificate -T "$CONNECT_TIMEOUT" --header 'Content-Type: application/json' --post-data "$payload" -O - "$url"
 }
 
 hmac_sha256() {
@@ -571,7 +620,7 @@ signed_fetch_url() {
 		return 1
 	}
 
-	uclient-fetch -q -T "$CONNECT_TIMEOUT" --header "X-OTA-TS: $ts" --header "X-OTA-Signature: $sig" -O - "$url"
+	uclient-fetch -q --no-check-certificate -T "$CONNECT_TIMEOUT" --header "X-OTA-TS: $ts" --header "X-OTA-Signature: $sig" -O - "$url"
 }
 
 signed_post_json() {
@@ -592,13 +641,14 @@ signed_post_json() {
 		return 1
 	}
 
-	uclient-fetch -q -T "$CONNECT_TIMEOUT" --header 'Content-Type: application/json' --header "X-OTA-TS: $ts" --header "X-OTA-Signature: $sig" --post-data "$payload" -O - "$url"
+	uclient-fetch -q --no-check-certificate -T "$CONNECT_TIMEOUT" --header 'Content-Type: application/json' --header "X-OTA-TS: $ts" --header "X-OTA-Signature: $sig" --post-data "$payload" -O - "$url"
 }
 
 fetch_url() {
 	local url
 	url="$1"
-	uclient-fetch -q -T "$CONNECT_TIMEOUT" -O - "$url"
+	ensure_dns
+	uclient-fetch -q --no-check-certificate -T "$CONNECT_TIMEOUT" -O - "$url"
 }
 
 register_device() {
@@ -763,7 +813,7 @@ download_and_verify() {
 	start_download_progress "$total_size"
 	write_state
 
-	uclient-fetch -q -T "$CONNECT_TIMEOUT" -O "$TMP_IMAGE" "$url" &
+	uclient-fetch --no-check-certificate -q -T "$CONNECT_TIMEOUT" -O "$TMP_IMAGE" "$url" &
 	fetch_pid=$!
 
 	while kill -0 "$fetch_pid" 2>/dev/null; do

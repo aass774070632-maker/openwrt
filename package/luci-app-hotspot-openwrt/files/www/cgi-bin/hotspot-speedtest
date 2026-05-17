@@ -6,7 +6,7 @@ remote_addr="${REMOTE_ADDR:-}"
 get_limit() {
 	local col="$1"
 	local line
-	line="$(chilli_query -s "$socket_path" list 2>/dev/null | grep "$remote_addr")"
+	line="$(chilli_query -s "$socket_path" list 2>/dev/null | awk -v ip="$remote_addr" '$2 == ip { print; exit }')"
 	[ -n "$line" ] || { echo 100000000; return; }
 	local val
 	val="$(echo "$line" | awk "{ print \$$col }" | sed 's/.*%//; s/\///; s/[^0-9]//g')"

@@ -43,6 +43,7 @@ services:
     volumes:
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./public/firmware:/usr/share/nginx/html/firmware:ro
+      - ./public/admin-app:/usr/share/nginx/html/admin-app:ro
 
 volumes:
   postgres_data:

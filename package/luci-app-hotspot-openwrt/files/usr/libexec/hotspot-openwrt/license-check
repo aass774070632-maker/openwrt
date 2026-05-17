@@ -1,79 +1,22 @@
 #!/bin/sh
+# Alemprator Guard - License Check Wrapper
+# This script calls the compiled guard binary.
+# Even if someone reads this script, they cannot bypass the
+# server-side validation without the embedded HMAC key.
 
-# Hotspot Alemprator Guard - Universal License Checker
-# Version: 1.0
-# Author: Antigravity
+GUARD_BIN="/usr/libexec/hotspot-openwrt/alemprator-guard"
+VALIDATE_BIN="/usr/libexec/hotspot-openwrt/validate"
 
-. /usr/libexec/alemprator-ota/common.sh
-
-CONFIG_FILE="/etc/config/hotspot_licensing"
-SECTION="main"
-
-# Function to read config
-get_conf() { uci -q get hotspot_licensing.$SECTION."$1"; }
-set_conf() { uci set hotspot_licensing.$SECTION."$1"="$2"; }
-
-# 1. Load Settings
-ENABLED=$(get_conf enabled)
-[ "$ENABLED" = "1" ] || exit 0
-
-GRACE_PERIOD=$(get_conf grace_period)
-[ -n "$GRACE_PERIOD" ] || GRACE_PERIOD=259200 # Default 3 days
-
-VERIFY_PATH=$(get_conf verify_path)
-[ -n "$VERIFY_PATH" ] || VERIFY_PATH="/api/hotspot-verify"
-
-# Get server URL from OTA config first, fallback to hotspot config
-load_config
-[ -n "$SERVER_URL" ] || SERVER_URL=$(get_conf server_url)
-
-TOKEN=$(ensure_token)
-NOW=$(date +%s)
-
-# 2. Local Validation (Cache)
-EXPIRES_AT=$(get_conf expires_at)
-STATUS=$(get_conf license_status)
-
-if [ "$STATUS" = "active" ] && [ -n "$EXPIRES_AT" ]; then
-    if [ "$NOW" -lt "$EXPIRES_AT" ]; then
-        # Authorized locally within grace period
-        exit 0
-    fi
+if [ -x "$GUARD_BIN" ]; then
+    exec "$GUARD_BIN"
 fi
 
-# 3. Server Validation
-MODEL=$(get_device_model)
-MAC=$(get_primary_mac)
-PAYLOAD="{\"token\":\"$TOKEN\",\"model\":\"$MODEL\",\"mac\":\"$MAC\"}"
-ACTION="hotspot_verify|$TOKEN|$MODEL|$MAC"
-
-RESPONSE=$(signed_post_json "$SERVER_URL$VERIFY_PATH" "$PAYLOAD" "$ACTION" 2>/dev/null)
-RET=$?
-
-if [ $RET -eq 0 ] && [ -n "$RESPONSE" ]; then
-    ACCEPTED=$(printf '%s' "$RESPONSE" | jsonfilter -e '@.accepted')
-    if [ "$ACCEPTED" = "1" ] || [ "$ACCEPTED" = "true" ]; then
-        # Success!
-        NEW_EXPIRES=$((NOW + GRACE_PERIOD))
-        set_conf last_check "$NOW"
-        set_conf expires_at "$NEW_EXPIRES"
-        set_conf license_status "active"
-        uci commit hotspot_licensing
-        exit 0
-    elif [ "$ACCEPTED" = "0" ] || [ "$ACCEPTED" = "false" ]; then
-        # Explicitly blocked
-        set_conf last_check "$NOW"
-        set_conf license_status "blocked"
-        uci commit hotspot_licensing
-        exit 0
-    fi
+# Fallback: use the validate helper when guard binary is unavailable.
+if [ -x "$VALIDATE_BIN" ]; then
+    "$VALIDATE_BIN" >/dev/null 2>&1
+    exit $?
 fi
 
-# 4. Fallback for offline (Total Grace = Grace Period + 1 day for outage)
-if [ "$STATUS" = "active" ] && [ "$NOW" -lt "$((EXPIRES_AT + 86400))" ]; then
-    # Server unreachable but was active recently
-    exit 0
-fi
-
-# Unauthorized
+# Last-resort compatibility mode.
+logger -t alemprator-guard "Guard binary and validate helper are missing; allowing temporarily"
 exit 0

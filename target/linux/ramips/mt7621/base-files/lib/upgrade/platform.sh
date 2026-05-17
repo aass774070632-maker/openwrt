@@ -107,6 +107,7 @@ platform_do_upgrade() {
 	jcg,q20|\
 	keenetic,kn-3510|\
   kt,km14-102h|\
+	kt,km15-103h|\
   kt,km12-007h|\
 	linksys,e5600|\
 	linksys,e7350|\

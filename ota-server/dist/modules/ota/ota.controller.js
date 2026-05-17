@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OtaController = void 0;
 const common_1 = require("@nestjs/common");
 const heartbeat_dto_1 = require("./dto/heartbeat.dto");
+const hotspot_verify_dto_1 = require("./dto/hotspot-verify.dto");
 const register_device_dto_1 = require("./dto/register-device.dto");
 const update_query_dto_1 = require("./dto/update-query.dto");
 const ota_service_1 = require("./ota.service");
@@ -30,6 +31,11 @@ let OtaController = class OtaController {
     }
     heartbeat(body, request) {
         return this.otaService.heartbeat(body, this.extractMeta(request));
+    }
+    hotspotVerify(body, request) {
+        const guardSig = this.pickHeader(request.headers, 'x-guard-sig');
+        const meta = { ...this.extractMeta(request), signature: guardSig };
+        return this.otaService.hotspotVerify(body, meta);
     }
     extractMeta(request) {
         return {
@@ -73,6 +79,15 @@ __decorate([
     __metadata("design:paramtypes", [heartbeat_dto_1.HeartbeatDto, Object]),
     __metadata("design:returntype", void 0)
 ], OtaController.prototype, "heartbeat", null);
+__decorate([
+    (0, common_1.Post)('hotspot-verify'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [hotspot_verify_dto_1.HotspotVerifyDto, Object]),
+    __metadata("design:returntype", void 0)
+], OtaController.prototype, "hotspotVerify", null);
 exports.OtaController = OtaController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [ota_service_1.OtaService])
