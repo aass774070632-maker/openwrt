@@ -65,7 +65,8 @@ if [ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1; then
 		function esc(value) { gsub(/\\/, "\\\\", value); gsub(/\"/, "\\\"", value); return value }
 		function octets(value) { split(value, parts, "/"); return parts[1] + 0 }
 		function row(flag) {
-			return sprintf("{\"mac\":\"%s\",\"ip\":\"%s\",\"state\":\"%s\",\"flag\":\"%s\",\"session_id\":\"%s\",\"username\":\"%s\",\"input_octets\":%d,\"output_octets\":%d,\"url\":\"%s\"}", esc($1), esc($2), esc($3), flag, esc($4), esc($6), octets($9), octets($10), esc($15))
+			uptime_secs = ($13 + 0)
+			return sprintf("{\"mac\":\"%s\",\"ip\":\"%s\",\"state\":\"%s\",\"flag\":\"%s\",\"session_id\":\"%s\",\"username\":\"%s\",\"input_octets\":%d,\"output_octets\":%d,\"uptime_secs\":%d,\"url\":\"%s\"}", esc($1), esc($2), esc($3), flag, esc($4), esc($6), octets($9), octets($10), uptime_secs, esc($15))
 		}
 		NF >= 3 && $3 == "pass" { if (items != "") items = items ","; items = items row("A") }
 		END { printf "[%s]", items }
@@ -74,7 +75,8 @@ if [ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1; then
 		function esc(value) { gsub(/\\/, "\\\\", value); gsub(/\"/, "\\\"", value); return value }
 		function octets(value) { split(value, parts, "/"); return parts[1] + 0 }
 		function row(flag) {
-			return sprintf("{\"mac\":\"%s\",\"ip\":\"%s\",\"state\":\"%s\",\"flag\":\"%s\",\"session_id\":\"%s\",\"username\":\"%s\",\"input_octets\":%d,\"output_octets\":%d,\"url\":\"%s\"}", esc($1), esc($2), esc($3), flag, esc($4), esc($6), octets($9), octets($10), esc($15))
+			uptime_secs = ($13 + 0)
+			return sprintf("{\"mac\":\"%s\",\"ip\":\"%s\",\"state\":\"%s\",\"flag\":\"%s\",\"session_id\":\"%s\",\"username\":\"%s\",\"input_octets\":%d,\"output_octets\":%d,\"uptime_secs\":%d,\"url\":\"%s\"}", esc($1), esc($2), esc($3), flag, esc($4), esc($6), octets($9), octets($10), uptime_secs, esc($15))
 		}
 		NF >= 3 && $3 != "pass" { if (items != "") items = items ","; items = items row("H") }
 		END { printf "[%s]", items }

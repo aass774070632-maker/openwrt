@@ -14,7 +14,7 @@ define Package/luci-app-hotspot-openwrt
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
   TITLE:=LuCI Hotspot OpenWrt wizard for CoovaChilli and MikroTik RADIUS
-  DEPENDS:=+luci-base +rpcd +rpcd-mod-file +uhttpd +coova-chilli +kmod-tun +iptables-nft
+  DEPENDS:=+luci-base +rpcd +rpcd-mod-file +uhttpd +coova-chilli +kmod-tun
 endef
 
 define Package/luci-app-hotspot-openwrt/description
@@ -51,6 +51,11 @@ define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_BIN) ./files/etc/init.d/hotspot-openwrt $(1)/etc/init.d/
 	$(INSTALL_DIR) $(1)/usr/libexec/hotspot-openwrt
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/apply $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/export-config $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/gen-ssl $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/import-config $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/kick-client $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/logs $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/mac-cookies $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/mac-cookie-watchdog $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/portal-upload $(1)/usr/libexec/hotspot-openwrt/
@@ -59,6 +64,11 @@ define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/userman-info $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/validate $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/license-check $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_DIR) $(1)/etc/chilli
+	$(INSTALL_BIN) ./files/etc/chilli/up.sh $(1)/etc/chilli/
+	$(INSTALL_BIN) ./files/etc/chilli/down.sh $(1)/etc/chilli/
+	$(INSTALL_BIN) ./files/etc/chilli/conup.sh $(1)/etc/chilli/
+	$(INSTALL_BIN) ./files/etc/chilli/condown.sh $(1)/etc/chilli/
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	$(INSTALL_DATA) ./files/usr/share/luci/menu.d/luci-app-hotspot-openwrt.json $(1)/usr/share/luci/menu.d/
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
