@@ -41,8 +41,8 @@ var callSetPassword = rpc.declare({
 
 var SETUP_STYLE_ID = 'alemprator-setup-styles';
 var WATCHCAT_SID = 'alemprator_periodic_reboot';
-var STEP_KEYS = [ 'lan', 'mode', 'vlan', 'advanced' ];
-var WIZARD_BUILD_TAG = 'r93';
+var STEP_KEYS = [ 'lan', 'mode', 'hotspot', 'vlan', 'advanced' ];
+var WIZARD_BUILD_TAG = 'r94';
 var WIZARD_ROUTE = '/cgi-bin/luci/admin/applications/alemprator';
 var DEFAULT_ADMIN_ROUTE = '/cgi-bin/luci/admin/status/overview';
 var VIDEO_EXPLAIN_URL = 'https://www.facebook.com/people/%D8%AC%D9%84%D8%A7%D9%84-%D8%A7%D8%AD%D9%85%D8%AF-%D8%A7%D9%84%D9%82%D8%AD%D9%85/100010720113363/';
@@ -450,6 +450,27 @@ function ensureSetupStyles() {
 		'.alemprator-setup-actions .cbi-button {',
 		'  min-width:110px;',
 		'  border-radius:999px;',
+		'}',
+		'.alemprator-step-chip.is-skipped {',
+		'  opacity:0.38;',
+		'  pointer-events:none;',
+		'}',
+		'.alemprator-hotspot-fields {',
+		'  margin-top:10px;',
+		'}',
+		'.alemprator-hotspot-advanced-toggle {',
+		'  display:inline-flex;',
+		'  align-items:center;',
+		'  gap:6px;',
+		'  margin:10px 0 0 0;',
+		'  padding:7px 14px;',
+		'  border-radius:999px;',
+		'  border:1px solid #c3d6e8;',
+		'  background:#f4f9fc;',
+		'  color:#234064;',
+		'  cursor:pointer;',
+		'  font-size:13px;',
+		'  font-weight:600;',
 		'}'
 	].join('\n');
 
@@ -1996,6 +2017,26 @@ function describeOtaWindow(startHour, endHour) {
 	return formatHour(start) + _(' إلى ') + formatHour(end);
 }
 
+function summarizeHotspotCard(state) {
+	if (!state || !state.hotspotAvailable)
+		return _('الحزمة غير مثبتة');
+
+	if (!state.hotspotEnabled)
+		return _('معطل');
+
+	return (state.hotspotSsid || 'Hotspot') + ' → ' + (state.hotspotRadiusServer || '-');
+}
+
+function hotspotIpConflictsWithLan(lanIpaddr, hotspotIp) {
+	var lanParts = String(lanIpaddr || '').split('.');
+	var hsParts = String(hotspotIp || '').split('.');
+
+	if (lanParts.length !== 4 || hsParts.length !== 4)
+		return false;
+
+	return lanParts[0] === hsParts[0] && lanParts[1] === hsParts[1] && lanParts[2] === hsParts[2];
+}
+
 function boolText(value) {
 	return value ? _('نعم') : _('لا');
 }
@@ -2074,7 +2115,8 @@ return view.extend({
 			uci.load('network'),
 			uci.load('wireless'),
 			uci.load('dhcp'),
-			uci.load('firewall')
+			uci.load('firewall'),
+			L.resolveDefault(uci.load('hotspot_openwrt'), null)
 		]).then(function(results) {
 			var radios = uci.sections('wireless', 'wifi-device');
 
@@ -2333,11 +2375,35 @@ return view.extend({
 
 		if (this.refs.adminPasswordConfirm)
 			this.refs.adminPasswordConfirm.value = '';
+
+		if (this.refs.hotspotEnabled)
+			this.refs.hotspotEnabled.checked = !!this.state.hotspotEnabled;
+
+		if (this.refs.hotspotSsid)
+			this.refs.hotspotSsid.value = this.state.hotspotSsid || 'Hotspot';
+
+		if (this.refs.hotspotRadiusServer)
+			this.refs.hotspotRadiusServer.value = this.state.hotspotRadiusServer || '192.168.1.2';
+
+		if (this.refs.hotspotRadiusSecret)
+			this.refs.hotspotRadiusSecret.value = this.state.hotspotRadiusSecret || '';
+
+		if (this.refs.hotspotNasId)
+			this.refs.hotspotNasId.value = this.state.hotspotNasId || '';
+
+		if (this.refs.hotspotIp)
+			this.refs.hotspotIp.value = this.state.hotspotIp || '192.168.10.1';
+
+		if (this.refs.hotspotPoolStart)
+			this.refs.hotspotPoolStart.value = this.state.hotspotPoolStart || '192.168.10.10';
+
+		if (this.refs.hotspotPoolEnd)
+			this.refs.hotspotPoolEnd.value = this.state.hotspotPoolEnd || '192.168.10.254';
 	},
 
 	reloadStateFromDevice: function() {
 		var self = this;
-		var configs = [ 'alemprator_firstboot', 'alemprator_ota', 'setup', 'watchcat', 'network', 'wireless' ];
+		var configs = [ 'alemprator_firstboot', 'alemprator_ota', 'setup', 'watchcat', 'network', 'wireless', 'hotspot_openwrt' ];
 
 		if (!window.confirm(_('سيتم استبدال القيم الحالية داخل المعالج بإعدادات الجهاز الفعلية. هل تريد المتابعة؟')))
 			return Promise.resolve();
@@ -2360,7 +2426,8 @@ return view.extend({
 			uci.load('setup'),
 			L.resolveDefault(uci.load('watchcat'), null),
 			uci.load('network'),
-			uci.load('wireless')
+			uci.load('wireless'),
+			L.resolveDefault(uci.load('hotspot_openwrt'), null)
 		]).then(function(results) {
 			var radios = uci.sections('wireless', 'wifi-device');
 
@@ -2539,7 +2606,19 @@ return view.extend({
 			firstbootDhcpSection: firstbootDhcpSection,
 			firstbootFirewallSection: firstbootFirewallSection,
 			adminPassword: '',
-			adminPasswordConfirm: ''
+			adminPasswordConfirm: '',
+			hotspotAvailable: !!(uci.get('hotspot_openwrt', 'main')),
+			hotspotEnabled: uci.get('hotspot_openwrt', 'main', 'enabled') === '1',
+			hotspotSsid: (function() {
+				var sec = findNamedWifiIfaceSection('wizard_hotspot');
+				return sec ? String(sec.ssid || 'Hotspot') : 'Hotspot';
+			}()),
+			hotspotRadiusServer: uci.get('hotspot_openwrt', 'main', 'radius_server') || '192.168.1.2',
+			hotspotRadiusSecret: uci.get('hotspot_openwrt', 'main', 'radius_secret') || '',
+			hotspotNasId: uci.get('hotspot_openwrt', 'main', 'radius_nas_id') || '',
+			hotspotIp: uci.get('hotspot_openwrt', 'main', 'hotspot_ip') || '192.168.10.1',
+			hotspotPoolStart: uci.get('hotspot_openwrt', 'main', 'pool_start') || '192.168.10.10',
+			hotspotPoolEnd: uci.get('hotspot_openwrt', 'main', 'pool_end') || '192.168.10.254'
 		};
 	},
 
@@ -2577,6 +2656,14 @@ return view.extend({
 		this.state.otaWindowEnd = this.refs.otaWindowEnd ? normalizeHour(this.refs.otaWindowEnd.value, 6) : this.state.otaWindowEnd;
 		this.state.adminPassword = this.refs.adminPassword ? this.refs.adminPassword.value : '';
 		this.state.adminPasswordConfirm = this.refs.adminPasswordConfirm ? this.refs.adminPasswordConfirm.value : '';
+		this.state.hotspotEnabled = this.refs.hotspotEnabled ? this.refs.hotspotEnabled.checked : false;
+		this.state.hotspotSsid = this.refs.hotspotSsid ? this.refs.hotspotSsid.value.trim() : (this.state.hotspotSsid || 'Hotspot');
+		this.state.hotspotRadiusServer = this.refs.hotspotRadiusServer ? this.refs.hotspotRadiusServer.value.trim() : (this.state.hotspotRadiusServer || '192.168.1.2');
+		this.state.hotspotRadiusSecret = this.refs.hotspotRadiusSecret ? this.refs.hotspotRadiusSecret.value : '';
+		this.state.hotspotNasId = this.refs.hotspotNasId ? this.refs.hotspotNasId.value.trim() : (this.state.hotspotNasId || '');
+		this.state.hotspotIp = this.refs.hotspotIp ? this.refs.hotspotIp.value.trim() : (this.state.hotspotIp || '192.168.10.1');
+		this.state.hotspotPoolStart = this.refs.hotspotPoolStart ? this.refs.hotspotPoolStart.value.trim() : (this.state.hotspotPoolStart || '192.168.10.10');
+		this.state.hotspotPoolEnd = this.refs.hotspotPoolEnd ? this.refs.hotspotPoolEnd.value.trim() : (this.state.hotspotPoolEnd || '192.168.10.254');
 	},
 
 	describeModePlan: function() {
@@ -2683,6 +2770,7 @@ return view.extend({
 			if (this.stepChips && this.stepChips[i]) {
 				setClassState(this.stepChips[i], 'is-active', i == this.stepIndex);
 				setClassState(this.stepChips[i], 'is-complete', i < this.stepIndex);
+				setClassState(this.stepChips[i], 'is-skipped', this.isStepSkipped(i));
 			}
 
 			if (this.stepBadges && this.stepBadges[i]) {
@@ -2807,10 +2895,55 @@ return view.extend({
 		setTextContent(this.refs.buttonPoliciesCardSummary, summarizeButtonPolicies(this.state));
 		setTextContent(this.refs.rebootCardSummary, summarizeRebootPolicy(this.state));
 		setTextContent(this.refs.passwordCardSummary, summarizePasswordCard(this.state));
+
+		setTextContent(this.refs.hotspotCardSummary, summarizeHotspotCard(this.state));
+
+		if (this.refs.hotspotFieldsWrapper)
+			setElementVisible(this.refs.hotspotFieldsWrapper, !!(this.state.hotspotAvailable && this.state.hotspotEnabled));
+
+		if (this.refs.hotspotIpConflictWarning) {
+			var showConflict = this.state.hotspotEnabled && hotspotIpConflictsWithLan(this.state.lanIpaddr, this.state.hotspotIp);
+			setElementVisible(this.refs.hotspotIpConflictWarning, showConflict);
+		}
 	},
 
 	validateStep: function(index) {
 		this.collectState();
+
+		if (STEP_KEYS[index] == 'hotspot') {
+			if (this.state.hotspotAvailable && this.state.hotspotEnabled) {
+				if (!isIPv4(this.state.hotspotRadiusServer)) {
+					notify(_('أدخل عنوان IPv4 صالحاً لخادم RADIUS.'));
+					return false;
+				}
+
+				if (!this.state.hotspotRadiusSecret) {
+					notify(_('كلمة سر RADIUS مطلوبة.'));
+					return false;
+				}
+
+				if (!this.state.hotspotSsid) {
+					notify(_('أدخل اسم شبكة الهوتسبوت.'));
+					return false;
+				}
+
+				if (!isIPv4(this.state.hotspotIp)) {
+					notify(_('أدخل عنوان IPv4 صالحاً لشبكة الهوتسبوت.'));
+					return false;
+				}
+
+				if (hotspotIpConflictsWithLan(this.state.lanIpaddr, this.state.hotspotIp)) {
+					notify(_('نطاق الهوتسبوت يتعارض مع نطاق LAN. غيّر hotspot IP إلى نطاق مختلف (مثل 192.168.10.1).'));
+					return false;
+				}
+
+				var localRadios = this.radios || [];
+				if (!localRadios.length) {
+					notify(_('لا توجد راديوهات واي فاي متاحة لبث شبكة الهوتسبوت.'));
+					return false;
+				}
+			}
+		}
 
 		if (STEP_KEYS[index] == 'lan') {
 			if (!isIPv4(this.state.lanIpaddr)) {
@@ -2979,12 +3112,27 @@ return view.extend({
 		return true;
 	},
 
+	isStepSkipped: function(index) {
+		if (STEP_KEYS[index] == 'hotspot' && !(this.state && this.state.hotspotAvailable))
+			return true;
+
+		if (STEP_KEYS[index] == 'vlan' && this.state && this.state.hotspotAvailable && this.state.hotspotEnabled)
+			return true;
+
+		return false;
+	},
+
 	nextStep: function() {
 		if (!this.validateStep(this.stepIndex))
 			return;
 
-		if (this.stepIndex < this.stepPanels.length - 1) {
-			this.stepIndex++;
+		var nextIndex = this.stepIndex + 1;
+
+		while (nextIndex < this.stepPanels.length - 1 && this.isStepSkipped(nextIndex))
+			nextIndex++;
+
+		if (nextIndex < this.stepPanels.length) {
+			this.stepIndex = nextIndex;
 			this.updateStepUi();
 		}
 	},
@@ -2993,8 +3141,64 @@ return view.extend({
 		this.collectState();
 
 		if (this.stepIndex > 0) {
-			this.stepIndex--;
+			var prevIndex = this.stepIndex - 1;
+
+			while (prevIndex > 0 && this.isStepSkipped(prevIndex))
+				prevIndex--;
+
+			this.stepIndex = prevIndex;
 			this.updateStepUi();
+		}
+	},
+
+	applyHotspotSettings: function(state, radios) {
+		var hotspotIface = 'wizard_hotspot';
+		var hotspotRadio;
+
+		if (!state.hotspotAvailable || !uci.get('hotspot_openwrt', 'main'))
+			return;
+
+		ensureNamedSection('hotspot_openwrt', 'main', 'main');
+		uci.set('hotspot_openwrt', 'main', 'enabled', state.hotspotEnabled ? '1' : '0');
+
+		if (state.hotspotEnabled) {
+			hotspotRadio = getRadioByBand(radios, '2g') || getRadioByBand(radios, '5g');
+
+			if (hotspotRadio) {
+				ensureNamedWifiIface(hotspotIface);
+				uci.set('wireless', hotspotIface, 'device', wifiDeviceName(hotspotRadio));
+				uci.set('wireless', hotspotIface, 'mode', 'ap');
+				uci.set('wireless', hotspotIface, 'network', 'hotspot');
+				uci.set('wireless', hotspotIface, 'disabled', '0');
+				uci.set('wireless', hotspotIface, 'ssid', state.hotspotSsid || 'Hotspot');
+				uci.set('wireless', hotspotIface, 'encryption', 'none');
+				uci.unset('wireless', hotspotIface, 'key');
+				uci.unset('wireless', hotspotIface, 'wds');
+				uci.set('hotspot_openwrt', 'main', 'wifi_iface', hotspotIface);
+			}
+
+			uci.set('hotspot_openwrt', 'main', 'radius_server', state.hotspotRadiusServer);
+			uci.set('hotspot_openwrt', 'main', 'radius_secret', state.hotspotRadiusSecret);
+
+			if (state.hotspotNasId)
+				uci.set('hotspot_openwrt', 'main', 'radius_nas_id', state.hotspotNasId);
+			else
+				uci.unset('hotspot_openwrt', 'main', 'radius_nas_id');
+
+			if (state.hotspotIp)
+				uci.set('hotspot_openwrt', 'main', 'hotspot_ip', state.hotspotIp);
+
+			if (state.hotspotPoolStart)
+				uci.set('hotspot_openwrt', 'main', 'pool_start', state.hotspotPoolStart);
+
+			if (state.hotspotPoolEnd)
+				uci.set('hotspot_openwrt', 'main', 'pool_end', state.hotspotPoolEnd);
+
+			uci.set('setup', 'default', 'hotspot_enabled_from_wizard', '1');
+		}
+		else {
+			uci.remove('wireless', hotspotIface);
+			uci.set('setup', 'default', 'hotspot_enabled_from_wizard', '0');
 		}
 	},
 
@@ -3427,10 +3631,18 @@ return view.extend({
 			self.applyVlanSettings(self.state);
 			self.applyWifiSettings(self.state, self.radios);
 			self.applyPeriodicRebootSettings(self.state);
+			self.applyHotspotSettings(self.state, self.radios);
 
 			return uci.save();
 		}).then(function() {
 			return ui.changes.apply();
+		}).then(function() {
+			if (self.state.hotspotAvailable && self.state.hotspotEnabled) {
+				return L.resolveDefault(fs.exec('/usr/libexec/hotspot-openwrt/apply', []), null).then(function(res) {
+					if (res && res.code !== 0)
+						notify(_('تحذير: تعذر تطبيق إعدادات الهوتسبوت تلقائياً. يمكن تطبيقها يدوياً من صفحة الخدمات.'));
+				});
+			}
 		}).then(function() {
 			var changedIp = self.state.lanIpaddr != oldLanIpaddr;
 
@@ -3504,7 +3716,7 @@ return view.extend({
 		var actions = E('div', { 'class': 'alemprator-setup-actions' });
 		var panel = E('div', { 'class': 'alemprator-setup-shell' });
 		var wizardIntro;
-		var stepTitles = [ _('الخطوة 1: الشبكة المحلية'), _('الخطوة 2: وضع التشغيل والواي فاي وشبكة VLAN'), _('الخطوة 3: القنوات'), _('الخطوة 4: الإعدادات المتقدمة') ];
+		var stepTitles = [ _('الخطوة 1: الشبكة المحلية'), _('الخطوة 2: وضع التشغيل والواي فاي وشبكة VLAN'), _('الخطوة 3: الهوتسبوت'), _('الخطوة 4: القنوات'), _('الخطوة 5: الإعدادات المتقدمة') ];
 		var stepPanels = [];
 		var stepBadges = [];
 		var stepChips = [];
@@ -3541,6 +3753,7 @@ return view.extend({
 		this.refs.buttonPoliciesCardSummary = E('span');
 		this.refs.rebootCardSummary = E('span');
 		this.refs.passwordCardSummary = E('span');
+		this.refs.hotspotCardSummary = E('span');
 
 		wizardIntro = E('div', { 'class': 'alemprator-card alemprator-card--hero' }, [
 			E('div', { 'class': 'alemprator-hero__grid' }, [
@@ -3665,6 +3878,19 @@ return view.extend({
 		this.refs.rebootHours = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'step': '1', 'value': this.state.rebootHours, 'style': 'max-width:140px;' });
 		this.refs.adminPassword = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'autocomplete': 'new-password', 'style': 'max-width:280px;' });
 		this.refs.adminPasswordConfirm = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'autocomplete': 'new-password', 'style': 'max-width:280px;' });
+		this.refs.hotspotEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotEnabled.checked = this.state.hotspotEnabled;
+		this.refs.hotspotSsid = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotSsid || 'Hotspot', 'style': 'max-width:280px;' });
+		this.refs.hotspotRadiusServer = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotRadiusServer || '192.168.1.2', 'style': 'max-width:280px;' });
+		this.refs.hotspotRadiusSecret = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.hotspotRadiusSecret || '', 'style': 'max-width:280px;', 'autocomplete': 'new-password' });
+		this.refs.hotspotNasId = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotNasId || '', 'style': 'max-width:280px;' });
+		this.refs.hotspotIp = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotIp || '192.168.10.1', 'style': 'max-width:280px;' });
+		this.refs.hotspotPoolStart = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotPoolStart || '192.168.10.10', 'style': 'max-width:280px;' });
+		this.refs.hotspotPoolEnd = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotPoolEnd || '192.168.10.254', 'style': 'max-width:280px;' });
+		this.refs.hotspotIpConflictWarning = E('div', {
+			'class': 'alemprator-notice alemprator-notice--warning',
+			'style': 'display:none; margin-top:8px;'
+		}, _('تحذير: نطاق الهوتسبوت يتعارض مع نطاق LAN. يرجى تغيير عنوان IP للهوتسبوت.'));
 		this.refs.otaWindowStart = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' });
 		this.refs.otaWindowEnd = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' });
 		populateSelectOptions(this.refs.otaWindowStart, otaHourChoices(), String(this.state.otaWindowStart == null ? 2 : this.state.otaWindowStart));
@@ -3804,6 +4030,106 @@ return view.extend({
 				)
 			])
 		]));
+
+		stepPanels.push(E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' }, (function(hotspotAvailable) {
+			if (!hotspotAvailable) {
+				return [
+					renderNoticeBox('warning', _('الهوتسبوت غير متوفر'), [
+						E('span', _('لم يتم اكتشاف حزمة luci-app-hotspot-openwrt على الجهاز. هذه الخطوة لن تظهر أثناء التنقل.'))
+					])
+				];
+			}
+
+			return [
+				renderNoticeBox('accent', _('الهوتسبوت'), [
+					E('span', _('اضبط بيانات RADIUS لتشغيل بوابة الدخول. ترك الخانة معطلة لا يؤثر على الإعداد الحالي.'))
+				]),
+				renderWizardCard(
+					_('إعداد الهوتسبوت السريع'),
+					_('يتطلب CoovaChilli ومخدم RADIUS (MikroTik User Manager). الإعدادات المتقدمة متاحة من صفحة الخدمات.'),
+					[
+						renderCardLiveSummary(self.refs.hotspotCardSummary),
+						E('div', { 'class': 'cbi-value' }, [
+							E('label', { 'class': 'cbi-value-title' }, _('تشغيل الهوتسبوت')),
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotEnabled ])
+						]),
+						(self.refs.hotspotFieldsWrapper = E('div', {
+							'class': 'alemprator-hotspot-fields',
+							'style': 'display:none;'
+						}, [
+							E('div', { 'class': 'cbi-value' }, [
+								E('label', { 'class': 'cbi-value-title' }, _('اسم شبكة الهوتسبوت (SSID)')),
+								E('div', { 'class': 'cbi-value-field' }, [
+									self.refs.hotspotSsid,
+									E('div', { 'style': 'margin-top:6px; color:#666;' }, _('الشبكة المفتوحة التي يراها العملاء.'))
+								])
+							]),
+							E('div', { 'class': 'cbi-value' }, [
+								E('label', { 'class': 'cbi-value-title' }, _('عنوان مخدم RADIUS (IP الميكروتك)')),
+								E('div', { 'class': 'cbi-value-field' }, [
+									self.refs.hotspotRadiusServer,
+									E('div', { 'style': 'margin-top:6px; color:#666;' }, _('عنوان IPv4 لـ MikroTik أو أي مخدم RADIUS آخر.'))
+								])
+							]),
+							E('div', { 'class': 'cbi-value' }, [
+								E('label', { 'class': 'cbi-value-title' }, _('كلمة سر RADIUS')),
+								E('div', { 'class': 'cbi-value-field' }, [
+									self.refs.hotspotRadiusSecret,
+									E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يجب أن تتطابق مع الإعداد في User Manager.'))
+								])
+							]),
+							E('button', {
+								'class': 'alemprator-hotspot-advanced-toggle',
+								'type': 'button',
+								'click': function(ev) {
+									ev.preventDefault();
+									var wrapper = self.refs.hotspotAdvancedWrapper;
+									if (!wrapper) return;
+									var visible = wrapper.style.display != 'none';
+									wrapper.style.display = visible ? 'none' : '';
+									ev.currentTarget.textContent = visible ? _('▼ الإعدادات المتقدمة') : _('▲ إخفاء الإعدادات المتقدمة');
+								}
+							}, _('▼ الإعدادات المتقدمة')),
+							(self.refs.hotspotAdvancedWrapper = E('div', { 'style': 'display:none; margin-top:10px;' }, [
+								E('div', { 'class': 'cbi-value' }, [
+									E('label', { 'class': 'cbi-value-title' }, _('معرف NAS (اختياري)')),
+									E('div', { 'class': 'cbi-value-field' }, [
+										self.refs.hotspotNasId,
+										E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اتركه فارغاً لتوليده تلقائياً.'))
+									])
+								]),
+								E('div', { 'class': 'cbi-value' }, [
+									E('label', { 'class': 'cbi-value-title' }, _('بوابة الهوتسبوت (IP)')),
+									E('div', { 'class': 'cbi-value-field' }, [
+										self.refs.hotspotIp,
+										self.refs.hotspotIpConflictWarning,
+										E('div', { 'style': 'margin-top:6px; color:#666;' }, _('الافتراضي 192.168.10.1 — تأكد من عدم تعارضه مع LAN.'))
+									])
+								]),
+								E('div', { 'class': 'cbi-value' }, [
+									E('label', { 'class': 'cbi-value-title' }, _('بداية نطاق DHCP')),
+									E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotPoolStart ])
+								]),
+								E('div', { 'class': 'cbi-value' }, [
+									E('label', { 'class': 'cbi-value-title' }, _('نهاية نطاق DHCP')),
+									E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotPoolEnd ])
+								])
+							])),
+							E('p', { 'style': 'margin-top:14px; color:#52606d; font-size:13px;' }, [
+								_('للإعدادات المتقدمة (Walled Garden، المهلات، Portal): '),
+								E('a', {
+									'href': L.url('admin', 'services', 'hotspot-openwrt'),
+									'target': '_blank',
+									'rel': 'noopener noreferrer',
+									'style': 'color:#1a5faa; text-decoration:underline;'
+								}, _('افتح صفحة الهوتسبوت'))
+							])
+						])),
+						renderNoticeBox('neutral', _('ملخص الهوتسبوت'), [ self.refs.hotspotCardSummary ])
+					]
+				)
+			];
+		}(this.state.hotspotAvailable))));
 
 		stepPanels.push(E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' }, [
 			renderNoticeBox('accent', _('الترتيب'), [ E('span', _('اضبط القنوات ثم احفظ.')) ]),
@@ -4121,6 +4447,36 @@ return view.extend({
 		this.refs.wpsDisabled.addEventListener('change', function() {
 			self.updateStepUi();
 		});
+
+		if (this.refs.hotspotEnabled) {
+			this.refs.hotspotEnabled.addEventListener('change', function() {
+				self.updateStepUi();
+			});
+		}
+
+		if (this.refs.hotspotSsid) {
+			this.refs.hotspotSsid.addEventListener('input', function() {
+				self.updateStepUi();
+			});
+		}
+
+		if (this.refs.hotspotRadiusServer) {
+			this.refs.hotspotRadiusServer.addEventListener('input', function() {
+				self.updateStepUi();
+			});
+		}
+
+		if (this.refs.hotspotRadiusSecret) {
+			this.refs.hotspotRadiusSecret.addEventListener('input', function() {
+				self.updateStepUi();
+			});
+		}
+
+		if (this.refs.hotspotIp) {
+			this.refs.hotspotIp.addEventListener('input', function() {
+				self.updateStepUi();
+			});
+		}
 
 		actions.appendChild(this.refs.reloadButton);
 		actions.appendChild(this.refs.backButton);

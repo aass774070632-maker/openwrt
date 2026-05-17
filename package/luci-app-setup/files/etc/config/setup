@@ -20,4 +20,5 @@ config setup 'default'
 	option reset_hold_seconds '5'
 	option wps_button_disabled '0'
 	option initial_setup_complete '0'
+	option hotspot_enabled_from_wizard '0'
 
