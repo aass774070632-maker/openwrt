@@ -3,7 +3,7 @@
 		"description": "Grant UCI and status access for luci-app-setup",
 		"read": {
 			"cgi-io": [ "backup", "download" ],
-			"uci": [ "alemprator_firstboot", "alemprator_ota", "network", "setup", "watchcat", "wireless" ],
+			"uci": [ "alemprator_firstboot", "alemprator_ota", "hotspot_openwrt", "network", "setup", "watchcat", "wireless" ],
 			"ubus": {
 				"system": [ "board" ],
 				"network.interface.lan": [ "status" ],
@@ -16,9 +16,11 @@
 				"/bin/tar -tzf /tmp/backup.tar.gz": [ "exec" ],
 				"/sbin/reboot": [ "exec" ],
 				"/sbin/sysupgrade --restore-backup /tmp/backup.tar.gz": [ "exec" ],
-				"/tmp/backup.tar.gz": [ "write" ]
+				"/tmp/backup.tar.gz": [ "write" ],
+				"/usr/libexec/hotspot-openwrt/apply": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/validate": [ "exec" ]
 			},
-			"uci": [ "alemprator_firstboot", "alemprator_ota", "dhcp", "firewall", "network", "setup", "watchcat", "wireless" ],
+			"uci": [ "alemprator_firstboot", "alemprator_ota", "dhcp", "firewall", "hotspot_openwrt", "network", "setup", "watchcat", "wireless" ],
 			"ubus": {
 				"file": [ "exec", "remove", "write" ],
 				"luci": [ "setPassword" ]

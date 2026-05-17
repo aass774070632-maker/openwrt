@@ -179,4 +179,11 @@ uci -q batch <<EOF >/dev/null
 EOF
 
 rm -f /tmp/luci-indexcache
+
+# Re-apply hotspot configuration if it was enabled from the wizard
+hotspot_enabled="$(uci -q get setup.default.hotspot_enabled_from_wizard)"
+if [ "$hotspot_enabled" = '1' ] && [ -x /usr/libexec/hotspot-openwrt/apply ]; then
+	/usr/libexec/hotspot-openwrt/apply >/dev/null 2>&1 || true
+fi
+
 exit 0
