@@ -10,6 +10,10 @@ var STATUS_CMD = '/usr/libexec/hotspot-openwrt/status-json';
 var APPLY_CMD = '/usr/libexec/hotspot-openwrt/apply';
 var PORTAL_UPLOAD_CMD = '/usr/libexec/hotspot-openwrt/portal-upload';
 var PORTAL_UPLOAD_TMP = '/tmp/hotspot-openwrt-upload';
+var LOGS_CMD = '/usr/libexec/hotspot-openwrt/logs';
+var EXPORT_CMD = '/usr/libexec/hotspot-openwrt/export-config';
+var IMPORT_CMD = '/usr/libexec/hotspot-openwrt/import-config';
+var GEN_SSL_CMD = '/usr/libexec/hotspot-openwrt/gen-ssl';
 var STYLE_ID = 'hotspot-openwrt-styles';
 
 var FIELD_GROUPS = {
@@ -50,11 +54,14 @@ var FIELD_GROUPS = {
 	],
 	radius: [
 		{ option: 'radius_server', label: 'MikroTik User Manager', hint: 'عنوان RADIUS server', placeholder: '192.168.1.2' },
+		{ option: 'radius_server2', label: 'RADIUS Fallback Server', hint: 'خادم RADIUS احتياطي (اختياري). اتركه فارغاً لاستخدام نفس الخادم.', placeholder: '' },
 		{ option: 'radius_secret', label: 'RADIUS Secret', hint: 'يجب أن يطابق secret في MikroTik', placeholder: '123456', password: true },
 		{ option: 'radius_auth_port', label: 'Auth Port UDP', hint: 'ثابت 1812', placeholder: '1812' },
 		{ option: 'radius_acct_port', label: 'Accounting Port UDP', hint: 'ثابت 1813', placeholder: '1813' },
 		{ option: 'radius_nas_ip', label: 'NAS IP', hint: 'عنوان هذا الراوتر كما يراه MikroTik User Manager. غالبًا 192.168.1.20.', placeholder: '192.168.1.20', choices: getLocalIpChoices },
 		{ option: 'radius_nas_id', label: 'NAS ID', hint: 'اسم هذا الهوتسبوت عند MikroTik', placeholder: 'KT-KM14-102H-HOTSPOT' },
+		{ option: 'acct_interim', label: 'Accounting Interim (ثانية)', hint: 'مدة إرسال Interim-Update لـ RADIUS بالثواني. القيمة الافتراضية 60.', placeholder: '60' },
+		{ option: 'coa_enabled', label: 'CoA / Disconnect (RFC 3576)', hint: 'يفعّل استقبال أوامر قطع الجلسة من RADIUS على UDP 3799. يجب أن يدعمها خادم RADIUS.', type: 'checkbox' },
 		{ option: 'userman_rest_enabled', label: 'قراءة رصيد User Manager', hint: 'يفعل جسر RouterOS REST لعرض الرصيد والبروفايل ووقت الانتهاء في صفحة المشترك.', type: 'checkbox' },
 		{ option: 'userman_rest_scheme', label: 'RouterOS REST Scheme', hint: 'استخدم https مع www-ssl. يمكن استخدام http للاختبار فقط.', placeholder: 'https', choices: getRouterOsSchemeChoices },
 		{ option: 'userman_rest_host', label: 'RouterOS REST Host', hint: 'غالبًا نفس MikroTik User Manager.', placeholder: '192.168.1.2' },
@@ -62,13 +69,28 @@ var FIELD_GROUPS = {
 		{ option: 'userman_rest_username', label: 'RouterOS API User', hint: 'مستخدم قراءة فقط على MikroTik بصلاحيات User Manager.', placeholder: 'hotspot-read' },
 		{ option: 'userman_rest_password', label: 'RouterOS API Password', hint: 'تحفظ على الراوتر فقط ولا ترسل للمتصفح.', placeholder: '', password: true },
 		{ option: 'userman_rest_insecure_ssl', label: 'قبول شهادة HTTPS ذاتية', hint: 'مفيد مع شهادة MikroTik ذاتية التوقيع.', type: 'checkbox' },
+		{ option: 'userman_rest_cacert', label: 'CA Certificate Path', hint: 'مسار ملف شهادة CA على الراوتر لتحقق HTTPS بدون تعطيل التحقق. مثال: /etc/ssl/certs/mikrotik-ca.crt', placeholder: '' },
 		{ option: 'userman_rest_user_field', label: 'حقل البحث عن الكرت', hint: 'غالبًا name، ويمكن تغييره إلى username حسب إصدار User Manager.', placeholder: 'name' },
 		{ option: 'userman_rest_timeout', label: 'مهلة REST بالثواني', hint: 'مهلة قصيرة حتى لا تتأخر صفحة المشترك.', placeholder: '5' }
 	],
 	dns: [
 		{ option: 'dns1', label: 'DNS Server 1', hint: 'يستخدمه الراوتر خلف البوابة', placeholder: '8.8.8.8' },
 		{ option: 'dns2', label: 'DNS Server 2', hint: 'اختياري', placeholder: '82.114.163.31' },
-		{ option: 'walled_garden', label: 'Walled Garden Domains', hint: 'نطاقات مسموحة قبل الدخول، سطر لكل نطاق', multiline: true, placeholder: 'neverssl.com\nconnectivitycheck.gstatic.com' }
+		{ option: 'walled_garden', label: 'Walled Garden Domains', hint: 'نطاقات مسموحة قبل الدخول، سطر لكل نطاق', multiline: true, placeholder: 'neverssl.com\nconnectivitycheck.gstatic.com' },
+		{ option: 'walled_garden_ip', label: 'Walled Garden IPs/CIDRs', hint: 'عناوين IP أو CIDR مسموحة قبل الدخول (للوصول عبر HTTPS أيضاً). سطر لكل عنوان.', multiline: true, placeholder: '1.2.3.4\n5.6.7.0/24' }
+	],
+	security: [
+		{ option: 'uamssl_enabled', label: 'UAM SSL (HTTPS Portal)', hint: 'يفعّل صفحة الدخول عبر HTTPS على المنفذ 3991. كلمة المرور تُرسل مشفرة.', type: 'checkbox' },
+		{ option: 'uamssl_cert', label: 'SSL Certificate Path', hint: 'مسار ملف الشهادة (.crt) على الراوتر.', placeholder: '/etc/chilli/hotspot.crt' },
+		{ option: 'uamssl_key', label: 'SSL Key Path', hint: 'مسار ملف المفتاح الخاص (.key) على الراوتر.', placeholder: '/etc/chilli/hotspot.key' }
+	],
+	advanced: [
+		{ option: 'trial_enabled', label: 'Trial Users (تجربة مجانية)', hint: 'يسمح لأي جهاز بالدخول المجاني المحدود بدون كرت. يتم إعادة التوجيه للبورتال بعد انتهاء الفترة.', type: 'checkbox' },
+		{ option: 'trial_duration', label: 'مدة التجربة (دقائق)', hint: 'الفترة الزمنية بين جلسات التجربة المجانية (دقائق).', placeholder: '30' },
+		{ option: 'trial_uptime_limit', label: 'حد وقت التجربة (دقائق)', hint: 'إجمالي وقت التجربة المسموح به لكل جهاز.', placeholder: '30' },
+		{ option: 'mac_auth_enabled', label: 'MAC Authentication', hint: 'يسمح لأجهزة مسجلة في User Manager بـ MAC address كـ username بالدخول التلقائي بدون بورتال.', type: 'checkbox' },
+		{ option: 'mac_auth_suffix', label: 'MAC Auth Suffix', hint: 'يُضاف لـ MAC عند إرساله لـ RADIUS. مثال: @mac', placeholder: '@mac' },
+		{ option: 'mac_auth_password', label: 'MAC Auth Password', hint: 'كلمة مرور ثابتة لجلسات MAC Auth.', placeholder: 'mac', password: true }
 	],
 	bindings: [
 		{ option: 'ip_binding', label: 'IP Bindings', hint: 'صيغة مبسطة: type mac address comment. النوع blocked يمنع تسجيل دخول الجهاز، والنوع bypassed يمرر الجهاز للإنترنت مباشرة دون صفحة الدخول.', multiline: true, placeholder: 'blocked 00:11:22:33:44:55 192.168.10.11 phone\nbypassed 36:5D:F3:EF:19:25 - manager' }
@@ -86,7 +108,11 @@ var TABS = [
 	{ key: 'active', label: 'Active / Hosts / الطرد' },
 	{ key: 'bindings', label: 'IP Bindings' },
 	{ key: 'dns', label: 'Walled Garden' },
+	{ key: 'security', label: 'Security' },
+	{ key: 'advanced', label: 'Advanced' },
 	{ key: 'cookies', label: 'Cookies' },
+	{ key: 'stats', label: 'Statistics' },
+	{ key: 'logs', label: 'السجل' },
 	{ key: 'apply', label: 'Review' }
 ];
 
@@ -285,6 +311,12 @@ function firstDns(index) {
 	return dns[index] || '';
 }
 
+var BOOL_OPTIONS = [
+	'terms_enabled', 'captive_notify', 'browser_cookie_enabled', 'mac_cookie_enabled',
+	'userman_rest_enabled', 'userman_rest_insecure_ssl', 'uamssl_enabled',
+	'coa_enabled', 'trial_enabled', 'mac_auth_enabled', 'speedtest_enabled'
+];
+
 function getValue(option) {
 	if (option == 'dns1')
 		return firstDns(0);
@@ -292,9 +324,11 @@ function getValue(option) {
 		return firstDns(1);
 	if (option == 'walled_garden')
 		return readList('walled_garden').join('\n');
+	if (option == 'walled_garden_ip')
+		return readList('walled_garden_ip').join('\n');
 	if (option == 'ip_binding')
 		return readLineList('ip_binding').join('\n');
-	if (option == 'terms_enabled' || option == 'captive_notify' || option == 'browser_cookie_enabled' || option == 'mac_cookie_enabled' || option == 'userman_rest_enabled' || option == 'userman_rest_insecure_ssl')
+	if (BOOL_OPTIONS.indexOf(option) > -1)
 		return uci.get('hotspot_openwrt', 'main', option) == '1';
 
 	return uci.get('hotspot_openwrt', 'main', option) || '';
@@ -330,6 +364,7 @@ function ensureMainSection() {
 function saveConfig() {
 	var dns = [];
 	var walledGarden = [];
+	var walledGardenIp = [];
 	var ipBindings = [];
 	var groups = Object.keys(FIELD_GROUPS);
 	var i;
@@ -340,7 +375,7 @@ function saveConfig() {
 		FIELD_GROUPS[groups[i]].forEach(function(field) {
 			var value;
 
-			if (field.option == 'dns1' || field.option == 'dns2' || field.option == 'walled_garden' || field.option == 'ip_binding')
+			if (field.option == 'dns1' || field.option == 'dns2' || field.option == 'walled_garden' || field.option == 'walled_garden_ip' || field.option == 'ip_binding')
 				return;
 
 			value = collectValue(field.option);
@@ -358,6 +393,11 @@ function saveConfig() {
 			walledGarden.push(value);
 	});
 
+	collectValue('walled_garden_ip').split(/[\n,\s]+/).forEach(function(value) {
+		if (value)
+			walledGardenIp.push(value);
+	});
+
 	collectValue('ip_binding').split(/\n+/).forEach(function(value) {
 		value = value.trim();
 		if (value)
@@ -373,6 +413,11 @@ function saveConfig() {
 		uci.set('hotspot_openwrt', 'main', 'walled_garden', walledGarden);
 	else
 		uci.unset('hotspot_openwrt', 'main', 'walled_garden');
+
+	if (walledGardenIp.length)
+		uci.set('hotspot_openwrt', 'main', 'walled_garden_ip', walledGardenIp);
+	else
+		uci.unset('hotspot_openwrt', 'main', 'walled_garden_ip');
 
 	if (ipBindings.length)
 		uci.set('hotspot_openwrt', 'main', 'ip_binding', ipBindings);
@@ -654,6 +699,80 @@ function renderReview(status) {
 				}
 			}, 'فحص الحالة'),
 			E('button', {
+				'class': 'btn cbi-button',
+				'click': function(ev) {
+					ev.preventDefault();
+					this.disabled = true;
+					this.textContent = 'جارٍ التوليد...';
+					var self = this;
+					fs.exec_direct(GEN_SSL_CMD, [], 'json').then(function(result) {
+						if (result && result.ok)
+							notify('تم توليد شهادة SSL: ' + (result.cert || '') + ' ✓');
+						else
+							notify((result && result.message) || 'فشل توليد الشهادة.');
+					}).catch(function(e) {
+						notify(e.message || String(e));
+					}).finally(function() {
+						self.disabled = false;
+						self.textContent = 'توليد شهادة SSL';
+					});
+				}
+			}, 'توليد شهادة SSL'),
+			E('button', {
+				'class': 'btn cbi-button',
+				'click': function(ev) {
+					ev.preventDefault();
+					this.disabled = true;
+					var self = this;
+					fs.exec_direct(EXPORT_CMD, [], 'json').then(function(result) {
+						if (result && result.ok) {
+							notify('تم تصدير الإعدادات إلى ' + result.path + ' (' + result.size + ' byte).');
+						} else {
+							notify((result && result.message) || 'فشل التصدير.');
+						}
+					}).catch(function(e) {
+						notify(e.message || String(e));
+					}).finally(function() {
+						self.disabled = false;
+					});
+				}
+			}, 'تصدير الإعدادات'),
+			E('button', {
+				'class': 'btn cbi-button',
+				'click': function(ev) {
+					ev.preventDefault();
+					var fileInput = document.createElement('input');
+					fileInput.type = 'file';
+					fileInput.accept = '.tar.gz,.tgz';
+					fileInput.onchange = function() {
+						var file = fileInput.files && fileInput.files[0];
+						if (!file) return;
+						var formData = new FormData();
+						formData.append('sessionid', rpc.getSessionID());
+						formData.append('filename', PORTAL_UPLOAD_TMP);
+						formData.append('filedata', file);
+						var xhr = new XMLHttpRequest();
+						xhr.open('POST', L.env.cgi_base + '/cgi-upload', true);
+						xhr.onload = function() {
+							if (xhr.status === 200) {
+								fs.exec_direct(IMPORT_CMD, [PORTAL_UPLOAD_TMP], 'json').then(function(result) {
+									if (result && result.ok)
+										notify(result.message || 'تم الاستيراد بنجاح.');
+									else
+										notify((result && result.message) || 'فشل الاستيراد.');
+								}).catch(function(e) {
+									notify(e.message || String(e));
+								});
+							} else {
+								notify('فشل رفع الملف.');
+							}
+						};
+						xhr.send(formData);
+					};
+					fileInput.click();
+				}
+			}, 'استيراد الإعدادات'),
+			E('button', {
 				'class': 'btn cbi-button cbi-button-apply',
 				'click': function(ev) {
 					ev.preventDefault();
@@ -863,6 +982,97 @@ function renderActive(status) {
 	]);
 }
 
+function formatUptime(secs) {
+	secs = Number(secs || 0);
+	if (!secs) return '-';
+	var h = Math.floor(secs / 3600);
+	var m = Math.floor((secs % 3600) / 60);
+	var s = secs % 60;
+	return (h ? h + 'h ' : '') + (m ? m + 'm ' : '') + s + 's';
+}
+
+function renderStats(status) {
+	var clients = Array.isArray(status.active_list) ? status.active_list : [];
+
+	return E('div', [
+		E('div', { 'class': 'hotspot-summary' }, [
+			statusItem('Active Sessions', String(status.active_clients || 0)),
+			statusItem('Hosts', String(status.waiting_clients || 0)),
+			statusItem('Total', String(status.clients_total || 0)),
+			statusItem('RADIUS', (status.radius_server || '-') + ' UDP')
+		]),
+		clients.length ? E('table', { 'class': 'hotspot-table', 'id': 'hotspot-stats-table' }, [
+			E('tr', [
+				E('th', {}, 'User'),
+				E('th', {}, 'IP'),
+				E('th', {}, 'MAC'),
+				E('th', {}, 'Uptime'),
+				E('th', {}, 'Bytes In'),
+				E('th', {}, 'Bytes Out'),
+				E('th', {}, 'State')
+			])
+		].concat(clients.map(function(c) {
+			return E('tr', [
+				E('td', {}, c.username || '-'),
+				E('td', {}, c.ip || '-'),
+				E('td', {}, c.mac || '-'),
+				E('td', {}, formatUptime(c.uptime_secs)),
+				E('td', {}, formatBytes(c.input_octets)),
+				E('td', {}, formatBytes(c.output_octets)),
+				E('td', {}, c.state || '-')
+			]);
+		}))) : E('div', { 'class': 'hotspot-empty' }, 'لا توجد جلسات نشطة الآن.'),
+		E('div', { 'class': 'hotspot-note' }, 'يتحدث كل 8 ثواني. يعرض كل المشتركين بحالة pass مع وقت الجلسة والبيانات المنقولة.')
+	]);
+}
+
+function renderLogs() {
+	var container = E('div', { 'class': 'hotspot-empty' }, 'جارٍ تحميل السجل...');
+	var linesSelect = E('select', { 'class': '' }, [
+		E('option', { 'value': '50' }, '50 سطر'),
+		E('option', { 'value': '100', 'selected': 'selected' }, '100 سطر'),
+		E('option', { 'value': '200' }, '200 سطر'),
+		E('option', { 'value': '500' }, '500 سطر')
+	]);
+	var refreshBtn = E('button', { 'class': 'btn cbi-button cbi-button-action' }, 'تحديث');
+
+	function loadLogs() {
+		var lines = linesSelect.value || '100';
+		refreshBtn.disabled = true;
+		container.textContent = 'جارٍ التحميل...';
+		L.resolveDefault(fs.exec_direct(LOGS_CMD, [lines], 'json'), {}).then(function(result) {
+			if (result && result.ok && Array.isArray(result.lines)) {
+				if (result.lines.length === 0) {
+					container.textContent = 'لا توجد رسائل متعلقة بالهوتسبوت في السجل.';
+				} else {
+					container.textContent = '';
+					var pre = document.createElement('pre');
+					pre.style.cssText = 'font-size:12px;max-height:400px;overflow:auto;direction:ltr;text-align:left;background:#f5f7fa;padding:8px;border-radius:4px;';
+					pre.textContent = result.lines.join('\n');
+					container.appendChild(pre);
+				}
+			} else {
+				container.textContent = 'تعذر تحميل السجل.';
+			}
+		}).finally(function() {
+			refreshBtn.disabled = false;
+		});
+	}
+
+	refreshBtn.addEventListener('click', loadLogs);
+	setTimeout(loadLogs, 100);
+
+	return E('div', [
+		E('div', { 'style': 'display:flex;gap:8px;align-items:center;margin-bottom:10px;' }, [
+			E('span', {}, 'عدد الأسطر:'),
+			linesSelect,
+			refreshBtn
+		]),
+		container,
+		E('div', { 'class': 'hotspot-note' }, 'يعرض رسائل logread المتعلقة بـ chilli/coova/radius/hotspot/tun0. لا يتحدث تلقائياً — اضغط تحديث.')
+	]);
+}
+
 function renderCookies(status) {
 	var cookies = Array.isArray(status.cookies_list) ? status.cookies_list : [];
 
@@ -900,6 +1110,10 @@ function renderPanel(key, status) {
 		return renderActive(status);
 	if (key == 'cookies')
 		return renderCookies(status);
+	if (key == 'stats')
+		return renderStats(status);
+	if (key == 'logs')
+		return renderLogs();
 	if (key == 'apply')
 		return renderReview(status);
 	if (key == 'portal')
@@ -953,6 +1167,7 @@ return view.extend({
 				var active = document.getElementById('hotspot-openwrt-live-active');
 				var runtime = document.getElementById('hotspot-openwrt-live-runtime');
 				var activeHosts = document.getElementById('hotspot-openwrt-active-hosts');
+				var statsTable = document.getElementById('hotspot-stats-table');
 
 				if (total)
 					total.textContent = String(nextStatus.clients_total || 0);
@@ -962,6 +1177,12 @@ return view.extend({
 					runtime.textContent = nextStatus.chilli_running ? 'يعمل' : 'متوقف';
 				if (activeHosts)
 					activeHosts.replaceChildren.apply(activeHosts, renderActiveContent(nextStatus));
+				if (statsTable) {
+					var newStats = renderStats(nextStatus);
+					var newTable = newStats.querySelector && newStats.querySelector('table');
+					if (newTable)
+						statsTable.parentNode.replaceChild(newTable, statsTable);
+				}
 			});
 		}, 8);
 

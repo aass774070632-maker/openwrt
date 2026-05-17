@@ -1,0 +1,85 @@
+name: Build & Lint Hotspot Package
+
+on:
+  push:
+    paths:
+      - 'package/luci-app-hotspot-openwrt/**'
+  pull_request:
+    paths:
+      - 'package/luci-app-hotspot-openwrt/**'
+
+jobs:
+  shellcheck:
+    name: ShellCheck (shell scripts)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on all shell scripts
+        run: |
+          find package/luci-app-hotspot-openwrt/files \
+            -type f \
+            \( -name '*.sh' -o -name 'apply' -o -name 'status-json' \
+               -o -name 'userman-info' -o -name 'kick-client' \
+               -o -name 'logs' -o -name 'gen-ssl' \
+               -o -name 'export-config' -o -name 'import-config' \
+               -o -name 'mac-cookies' -o -name 'mac-cookie-watchdog' \
+               -o -name 'portal-upload' -o -name 'presence-watchdog' \
+               -o -name 'validate' \
+            \) | sort | xargs shellcheck --shell=sh --severity=warning
+
+  package-integrity:
+    name: Package Integrity Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Makefile install lists all scripts
+        run: |
+          PKG_DIR="package/luci-app-hotspot-openwrt"
+          MAKEFILE="$PKG_DIR/Makefile"
+          MISSING=0
+          for f in "$PKG_DIR/files/usr/libexec/hotspot-openwrt/"*; do
+            name="$(basename "$f")"
+            if ! grep -q "$name" "$MAKEFILE"; then
+              echo "MISSING from Makefile install: $name"
+              MISSING=$((MISSING+1))
+            fi
+          done
+          for f in "$PKG_DIR/files/etc/chilli/"*.sh; do
+            name="$(basename "$f")"
+            if ! grep -q "$name" "$MAKEFILE"; then
+              echo "MISSING from Makefile install: $name"
+              MISSING=$((MISSING+1))
+            fi
+          done
+          [ "$MISSING" -eq 0 ] || exit 1
+          echo "All scripts listed in Makefile ✓"
+
+      - name: Validate ACL JSON
+        run: |
+          python3 -m json.tool \
+            package/luci-app-hotspot-openwrt/files/usr/share/rpcd/acl.d/luci-app-hotspot-openwrt.json \
+            > /dev/null && echo "ACL JSON valid ✓"
+
+      - name: Check new scripts are executable
+        run: |
+          for f in \
+            package/luci-app-hotspot-openwrt/files/usr/libexec/hotspot-openwrt/gen-ssl \
+            package/luci-app-hotspot-openwrt/files/usr/libexec/hotspot-openwrt/logs \
+            package/luci-app-hotspot-openwrt/files/usr/libexec/hotspot-openwrt/export-config \
+            package/luci-app-hotspot-openwrt/files/usr/libexec/hotspot-openwrt/import-config \
+            package/luci-app-hotspot-openwrt/files/etc/chilli/up.sh \
+            package/luci-app-hotspot-openwrt/files/etc/chilli/down.sh \
+            package/luci-app-hotspot-openwrt/files/etc/chilli/conup.sh \
+            package/luci-app-hotspot-openwrt/files/etc/chilli/condown.sh; do
+            [ -f "$f" ] || { echo "Missing: $f"; exit 1; }
+            echo "OK: $f"
+          done

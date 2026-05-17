@@ -19,6 +19,8 @@ endef
 define Package/luci-app-setup/description
  Portable ALemprator LuCI frontend for standard OpenWrt LAN, Wi-Fi and button policies.
  Optional backend binaries may still be used on targets where they are available.
+ When luci-app-hotspot-openwrt is also installed, the setup wizard gains a quick-setup
+ step for CoovaChilli + MikroTik RADIUS (Hotspot) without opening the separate hotspot page.
 endef
 
 define Package/luci-app-setup/conffiles

@@ -62,6 +62,8 @@ fetch_rest() {
 			[ -n "$query" ] && url_http="$url_http?$query"
 			uclient-fetch -q -T "$timeout" --user="$username" --password="$password" -O "$output" "$url_http" >/dev/null 2>&1
 		fi
+	elif [ "$scheme" = 'https' ] && [ -n "$cacert" ] && [ -f "$cacert" ]; then
+		uclient-fetch -q -T "$timeout" --ca-certificate="$cacert" --user="$username" --password="$password" -O "$output" "$url" >/dev/null 2>&1
 	else
 		uclient-fetch -q -T "$timeout" --user="$username" --password="$password" -O "$output" "$url" >/dev/null 2>&1
 	fi
@@ -75,6 +77,7 @@ port="$(uci -q get hotspot_openwrt.main.userman_rest_port || echo 443)"
 username="$(uci -q get hotspot_openwrt.main.userman_rest_username || echo '')"
 password="$(uci -q get hotspot_openwrt.main.userman_rest_password || echo '')"
 insecure_ssl="$(uci -q get hotspot_openwrt.main.userman_rest_insecure_ssl || echo 1)"
+cacert="$(uci -q get hotspot_openwrt.main.userman_rest_cacert || echo '')"
 user_field="$(uci -q get hotspot_openwrt.main.userman_rest_user_field || echo name)"
 timeout="$(uci -q get hotspot_openwrt.main.userman_rest_timeout || echo 5)"
 

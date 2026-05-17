@@ -1,0 +1,70 @@
+#!/bin/sh
+# import-config — Import hotspot configuration from an uploaded tar.gz archive
+# Usage: import-config [archive_path]
+# Default archive path: /tmp/hotspot-openwrt-upload
+
+ARCHIVE="${1:-/tmp/hotspot-openwrt-upload}"
+TMPDIR="/tmp/hotspot-openwrt-import.$$"
+
+# Allowed destination directories for certificate files
+ALLOWED_CERT_DIRS='/etc/chilli /etc/ssl/certs'
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+is_safe_path() {
+	_path="$1"
+	for _allowed in $ALLOWED_CERT_DIRS; do
+		case "$_path" in
+			"$_allowed"/*) return 0 ;;
+		esac
+	done
+	return 1
+}
+
+if [ ! -f "$ARCHIVE" ]; then
+	printf '{"ok":false,"message":"ملف الأرشيف غير موجود في %s."}\n' "$(json_escape "$ARCHIVE")"
+	exit 1
+fi
+
+mkdir -p "$TMPDIR" || {
+	printf '{"ok":false,"message":"فشل إنشاء مجلد مؤقت."}\n'
+	exit 1
+}
+
+tar -xzf "$ARCHIVE" -C "$TMPDIR" 2>/dev/null || {
+	rm -rf "$TMPDIR"
+	printf '{"ok":false,"message":"فشل فك ضغط الأرشيف. تأكد أنه ملف tar.gz صالح."}\n'
+	exit 1
+}
+
+imported=''
+
+# Restore UCI exports
+for export_file in "$TMPDIR/etc/config/"*.export; do
+	[ -f "$export_file" ] || continue
+	pkg="$(basename "$export_file" .export)"
+	uci import "$pkg" < "$export_file" 2>/dev/null && uci commit "$pkg" 2>/dev/null && imported="$imported $pkg"
+done
+
+# Restore chilli files (only from the known safe etc/chilli directory)
+if [ -d "$TMPDIR/etc/chilli" ]; then
+	mkdir -p /etc/chilli
+	cp "$TMPDIR/etc/chilli/"* /etc/chilli/ 2>/dev/null || true
+	imported="$imported chilli-files"
+fi
+
+# Restore SSL certs only to allowed directories
+find "$TMPDIR" -name '*.crt' -o -name '*.pem' -o -name '*.key' | while IFS= read -r f; do
+	rel="${f#"$TMPDIR"}"
+	if is_safe_path "$rel"; then
+		mkdir -p "$(dirname "$rel")" && cp "$f" "$rel" 2>/dev/null || true
+	fi
+done
+
+rm -rf "$TMPDIR"
+rm -f "$ARCHIVE"
+
+printf '{"ok":true,"imported":"%s","message":"تم استيراد الإعدادات. يرجى الضغط على حفظ وتطبيق لإعادة تشغيل الهوتسبوت."}\n' \
+	"$(json_escape "$(printf '%s' "$imported" | sed 's/^ *//')")"

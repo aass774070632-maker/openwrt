@@ -1,36 +1,33 @@
 #!/bin/sh
 # This script is called by fw4 to inject custom NFT rules
+# Uses nft only — no iptables required.
 
-hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip || echo 20.20.20.1)"
-hotspot_cidr="$(uci -q get hotspot_openwrt.main.hotspot_cidr || echo 24)"
-calc_output="$(/bin/ipcalc.sh "$hotspot_ip/$hotspot_cidr" 2>/dev/null)"
-eval "$calc_output"
-hotspot_net="${NETWORK:-20.20.20.0}"
-hotspot_prefix="${hotspot_cidr:-24}"
+# ── MAC Sets ────────────────────────────────────────────────────────────────
+# hotspot_blocked_mac : MACs that must be denied all access (IP Binding type=blocked)
+# hotspot_bypass_mac  : MACs that bypass the captive portal entirely (type=bypassed)
 
-# 1. Access Control (Blocking/Allowing)
-# Create the set if it doesn't exist
-nft "add set inet fw4 hotspot_allowed { type ipv4_addr; flags timeout; }" 2>/dev/null
+nft "add set inet fw4 hotspot_blocked_mac { type ether_addr; flags interval; }" 2>/dev/null || true
+nft "add set inet fw4 hotspot_bypass_mac  { type ether_addr; flags interval; }" 2>/dev/null || true
 
-# Create and clear the auth chain
-nft "add chain inet fw4 hotspot_auth" 2>/dev/null
-nft "flush chain inet fw4 hotspot_auth" 2>/dev/null
+# ── Blocked-MAC enforcement chain ───────────────────────────────────────────
+nft "add chain inet fw4 hotspot_mac_acl" 2>/dev/null || true
+nft "flush chain inet fw4 hotspot_mac_acl" 2>/dev/null || true
+# Drop packets from blocked MACs before they even reach Chilli
+nft "add rule inet fw4 hotspot_mac_acl ether saddr @hotspot_blocked_mac counter drop" 2>/dev/null || true
 
-# Add rules to the auth chain
-nft "add rule inet fw4 hotspot_auth ip saddr @hotspot_allowed counter accept" 2>/dev/null
-nft "add rule inet fw4 hotspot_auth ip saddr $hotspot_net/$hotspot_prefix counter reject" 2>/dev/null
+# Hook the MAC ACL chain into the forward hook (priority -200 so it runs first)
+nft "add chain inet fw4 hotspot_mac_acl_hook { type filter hook forward priority -200; policy accept; }" 2>/dev/null || true
+nft "flush chain inet fw4 hotspot_mac_acl_hook" 2>/dev/null || true
+nft "add rule inet fw4 hotspot_mac_acl_hook ether saddr @hotspot_blocked_mac counter drop" 2>/dev/null || true
 
-# Jump to our auth chain from forward
-nft "delete rule inet fw4 forward ip saddr $hotspot_net/$hotspot_prefix jump hotspot_auth" 2>/dev/null
-nft "insert rule inet fw4 forward ip saddr $hotspot_net/$hotspot_prefix jump hotspot_auth" 2>/dev/null
-
-# 2. Redirection (Captive Portal Redirect)
-# Create a redirection chain in the nat table if it doesn't exist
-nft "add chain inet fw4 hotspot_redirect { type nat hook prerouting priority dstnat; policy accept; }" 2>/dev/null
-nft "flush chain inet fw4 hotspot_redirect" 2>/dev/null
-
-# Redirect port 80 to the local portal for unauthenticated users
-# We skip redirecting if the user is already in the allowed set
-nft "add rule inet fw4 hotspot_redirect ip saddr $hotspot_net/$hotspot_prefix ip saddr != @hotspot_allowed tcp dport 80 counter redirect to :80" 2>/dev/null
+# ── CoA / Disconnect-Message (RFC 3576) ─────────────────────────────────────
+# Allow UDP 3799 from the RADIUS server so CoA-Disconnect messages reach Chilli.
+RADIUS_SERVER="$(uci -q get hotspot_openwrt.main.radius_server)"
+COA_ENABLED="$(uci -q get hotspot_openwrt.main.coa_enabled)"
+if [ "$COA_ENABLED" = '1' ] && [ -n "$RADIUS_SERVER" ]; then
+	nft "add chain inet fw4 hotspot_coa_input { type filter hook input priority 0; policy accept; }" 2>/dev/null || true
+	nft "flush chain inet fw4 hotspot_coa_input" 2>/dev/null || true
+	nft "add rule inet fw4 hotspot_coa_input ip saddr $RADIUS_SERVER udp dport 3799 counter accept" 2>/dev/null || true
+fi
 
 exit 0
