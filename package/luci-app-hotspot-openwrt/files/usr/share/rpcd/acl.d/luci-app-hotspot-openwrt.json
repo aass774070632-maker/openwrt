@@ -4,7 +4,9 @@
 		"read": {
 			"file": {
 				"/usr/libexec/hotspot-openwrt/status-json": [ "exec" ],
-				"/usr/libexec/hotspot-openwrt/validate": [ "exec" ]
+				"/usr/libexec/hotspot-openwrt/validate": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/logs": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/export-config": [ "exec" ]
 			},
 			"uci": [ "chilli", "dhcp", "firewall", "hotspot_openwrt", "network", "wireless" ],
 			"ubus": {
@@ -18,6 +20,8 @@
 			"file": {
 				"/tmp/hotspot-openwrt-upload": [ "write" ],
 				"/usr/libexec/hotspot-openwrt/apply": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/gen-ssl": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/import-config": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/kick-client": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/portal-upload": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/validate": [ "exec" ]

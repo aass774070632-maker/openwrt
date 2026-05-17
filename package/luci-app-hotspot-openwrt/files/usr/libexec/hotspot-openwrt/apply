@@ -114,7 +114,7 @@ configure_chilli_local_access() {
 
 	cat >> "$temp_file" <<-'EOF'
 	# Hotspot OpenWrt managed access
-	HS_TCP_PORTS="80"
+	HS_TCP_PORTS="80,443"
 	# End Hotspot OpenWrt managed access
 	EOF
 	mv "$temp_file" "$config_file"
@@ -335,11 +335,13 @@ restart_presence_watchdog() {
 apply_config() {
 	local backup_dir subscriber_interface bridge_ports wan_interface device_section device_name
 	local hotspot_ip hotspot_cidr pool_start pool_end dhcp_start dhcp_end dhcp_limit
-	local domain radius_server radius_secret radius_auth_port radius_acct_port radius_nas_ip radius_nas_id
+	local domain radius_server radius_server2 radius_secret radius_auth_port radius_acct_port radius_nas_ip radius_nas_id
 	local terms_enabled portal_path portal_storage_path captive_notify mac_cookie_enabled browser_cookie_enabled browser_cookie_days open_status_page
 	local session_timeout idle_timeout status_autorefresh shared_users rate_limit_rx_tx
 	local session_timeout_seconds idle_timeout_seconds status_autorefresh_seconds bandwidth_up bandwidth_down rate_rx rate_tx
-	local uam_page dns_list dns1 dns2 wan_zone calc_output network_addr netmask walled_garden runtime_mode
+	local uam_page dns_list dns1 dns2 wan_zone calc_output network_addr netmask walled_garden walled_garden_ip runtime_mode
+	local acct_interim coa_enabled trial_enabled trial_duration trial_uptime_limit mac_auth_enabled mac_auth_suffix mac_auth_password
+	local uamssl_enabled uamssl_cert uamssl_key
 
 	subscriber_interface="$(uci -q get hotspot_openwrt.main.subscriber_interface)"
 	bridge_ports="$(uci -q get hotspot_openwrt.main.bridge_ports)"
@@ -355,11 +357,23 @@ apply_config() {
 	shared_users="$(uci -q get hotspot_openwrt.main.shared_users)"
 	rate_limit_rx_tx="$(uci -q get hotspot_openwrt.main.rate_limit_rx_tx)"
 	radius_server="$(uci -q get hotspot_openwrt.main.radius_server)"
+	radius_server2="$(uci -q get hotspot_openwrt.main.radius_server2)"
 	radius_secret="$(uci -q get hotspot_openwrt.main.radius_secret)"
 	radius_auth_port="$(uci -q get hotspot_openwrt.main.radius_auth_port)"
 	radius_acct_port="$(uci -q get hotspot_openwrt.main.radius_acct_port)"
 	radius_nas_ip="$(uci -q get hotspot_openwrt.main.radius_nas_ip)"
 	radius_nas_id="$(uci -q get hotspot_openwrt.main.radius_nas_id)"
+	acct_interim="$(uci -q get hotspot_openwrt.main.acct_interim)"
+	coa_enabled="$(uci -q get hotspot_openwrt.main.coa_enabled)"
+	trial_enabled="$(uci -q get hotspot_openwrt.main.trial_enabled)"
+	trial_duration="$(uci -q get hotspot_openwrt.main.trial_duration)"
+	trial_uptime_limit="$(uci -q get hotspot_openwrt.main.trial_uptime_limit)"
+	mac_auth_enabled="$(uci -q get hotspot_openwrt.main.mac_auth_enabled)"
+	mac_auth_suffix="$(uci -q get hotspot_openwrt.main.mac_auth_suffix)"
+	mac_auth_password="$(uci -q get hotspot_openwrt.main.mac_auth_password)"
+	uamssl_enabled="$(uci -q get hotspot_openwrt.main.uamssl_enabled)"
+	uamssl_cert="$(uci -q get hotspot_openwrt.main.uamssl_cert)"
+	uamssl_key="$(uci -q get hotspot_openwrt.main.uamssl_key)"
 	terms_enabled="$(uci -q get hotspot_openwrt.main.terms_enabled)"
 	portal_path="$(uci -q get hotspot_openwrt.main.portal_path)"
 	portal_storage_path="$(uci -q get hotspot_openwrt.main.portal_storage_path)"
@@ -383,7 +397,15 @@ apply_config() {
 	[ -n "$idle_timeout" ] || idle_timeout='none'
 	[ -n "$status_autorefresh" ] || status_autorefresh='00:01:00'
 	[ -n "$shared_users" ] || shared_users='3'
+	[ -n "$acct_interim" ] || acct_interim='60'
+	[ -n "$trial_duration" ] || trial_duration='30'
+	[ -n "$trial_uptime_limit" ] || trial_uptime_limit='30'
+	[ -n "$mac_auth_suffix" ] || mac_auth_suffix='@mac'
+	[ -n "$mac_auth_password" ] || mac_auth_password='mac'
+	[ -n "$uamssl_cert" ] || uamssl_cert='/etc/chilli/hotspot.crt'
+	[ -n "$uamssl_key" ] || uamssl_key='/etc/chilli/hotspot.key'
 	[ -n "$radius_nas_ip" ] || radius_nas_ip="$(ip -4 addr show br-lan 2>/dev/null | awk '/inet / { sub(/\/.*/, "", $2); print $2; exit }')"
+	[ -n "$radius_server2" ] || radius_server2="$radius_server"
 	session_timeout_seconds="$(duration_to_seconds "$session_timeout")"
 	idle_timeout_seconds="$(duration_to_seconds "$idle_timeout")"
 	status_autorefresh_seconds="$(duration_to_seconds "$status_autorefresh")"
@@ -398,6 +420,7 @@ apply_config() {
 	[ -n "$dns2" ] || dns2="$dns1"
 	walled_garden="$(uci -q get hotspot_openwrt.main.walled_garden | tr ' ' ',')"
 	[ -n "$walled_garden" ] || walled_garden='neverssl.com,connectivitycheck.gstatic.com,clients3.google.com,connectivitycheck.android.com,www.gstatic.com'
+	walled_garden_ip="$(uci -q get hotspot_openwrt.main.walled_garden_ip | tr ' ' ',')"
 	mac_allowed="$(uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | sed "s/^.*='//;s/'$//" | awk 'tolower($1) == "bypassed" { print $2 }' | tr 'A-Z-' 'a-z:' | tr '\n' ',' | sed 's/,$//')"
 
 	backup_dir="$(backup_configs)" || fail_json 'backup' 'Could not create configuration backup'
@@ -516,6 +539,8 @@ apply_config() {
 		set chilli.hotspot_openwrt.tundev='tun0'
 		set chilli.hotspot_openwrt.ipup='/etc/chilli/up.sh'
 		set chilli.hotspot_openwrt.ipdown='/etc/chilli/down.sh'
+		set chilli.hotspot_openwrt.conup='/etc/chilli/conup.sh'
+		set chilli.hotspot_openwrt.condown='/etc/chilli/condown.sh'
 		set chilli.hotspot_openwrt.network='$subscriber_interface'
 		set chilli.hotspot_openwrt.net='$network_addr/$hotspot_cidr'
 		set chilli.hotspot_openwrt.dynip='$network_addr/$hotspot_cidr'
@@ -527,12 +552,13 @@ apply_config() {
 		set chilli.hotspot_openwrt.uamserver='http://$hotspot_ip$uam_page'
 		set chilli.hotspot_openwrt.uamhomepage='http://$hotspot_ip$uam_page'
 		set chilli.hotspot_openwrt.radiusserver1='$radius_server'
-		set chilli.hotspot_openwrt.radiusserver2='$radius_server'
+		set chilli.hotspot_openwrt.radiusserver2='$radius_server2'
 		set chilli.hotspot_openwrt.radiussecret='$radius_secret'
 		set chilli.hotspot_openwrt.radiusauthport='$radius_auth_port'
 		set chilli.hotspot_openwrt.radiusacctport='$radius_acct_port'
 		set chilli.hotspot_openwrt.nasip='$radius_nas_ip'
 		set chilli.hotspot_openwrt.radiusnasid='$radius_nas_id'
+		set chilli.hotspot_openwrt.acctupdate='1'
 		set chilli.hotspot_openwrt.domain='$domain'
 		set chilli.hotspot_openwrt.dns1='$hotspot_ip'
 		set chilli.hotspot_openwrt.dns2='$hotspot_ip'
@@ -555,6 +581,14 @@ apply_config() {
 		delete chilli.hotspot_openwrt.macauthdeny
 		delete chilli.hotspot_openwrt.macallowed
 		delete chilli.hotspot_openwrt.macallowlocal
+		delete chilli.hotspot_openwrt.coaport
+		delete chilli.hotspot_openwrt.coanoipcheck
+		delete chilli.hotspot_openwrt.uamuissl
+		delete chilli.hotspot_openwrt.sslcertfile
+		delete chilli.hotspot_openwrt.sslkeyfile
+		delete chilli.hotspot_openwrt.trialuser
+		delete chilli.hotspot_openwrt.trialinterval
+		delete chilli.hotspot_openwrt.trialttl
 	EOF
 	[ -n "$mac_allowed" ] && {
 		uci set chilli.hotspot_openwrt.macallowed="$mac_allowed"
@@ -562,11 +596,48 @@ apply_config() {
 	}
 	[ "$session_timeout_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt.defsessiontimeout="$session_timeout_seconds"
 	[ "$idle_timeout_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt.defidletimeout="$idle_timeout_seconds"
-	[ "$status_autorefresh_seconds" -gt 0 ] && uci set chilli.hotspot_openwrt.definteriminterval="$status_autorefresh_seconds"
+	[ "$acct_interim" -gt 0 ] 2>/dev/null && uci set chilli.hotspot_openwrt.definteriminterval="$acct_interim"
 	[ "$bandwidth_up" -gt 0 ] && uci set chilli.hotspot_openwrt.defbandwidthmaxup="$bandwidth_up"
 	[ "$bandwidth_down" -gt 0 ] && uci set chilli.hotspot_openwrt.defbandwidthmaxdown="$bandwidth_down"
 	if [ "$captive_notify" = '1' ]; then
 		uci set chilli.hotspot_openwrt.dhcpopt="$(captive_portal_dhcpopt "$hotspot_ip" "$portal_path")"
+	fi
+	# Walled garden IPs (uamallowed) — append comma-separated
+	if [ -n "$walled_garden_ip" ]; then
+		current_allowed="$(uci -q get chilli.hotspot_openwrt.uamallowed)"
+		if [ -n "$current_allowed" ]; then
+			uci set chilli.hotspot_openwrt.uamallowed="$current_allowed,$walled_garden_ip"
+		else
+			uci set chilli.hotspot_openwrt.uamallowed="$walled_garden_ip"
+		fi
+	fi
+	# CoA / Disconnect-Message (RFC 3576)
+	if [ "$coa_enabled" = '1' ]; then
+		uci set chilli.hotspot_openwrt.coaport='3799'
+		uci set chilli.hotspot_openwrt.coanoipcheck='1'
+	fi
+	# UAM SSL (port 3991)
+	if [ "$uamssl_enabled" = '1' ]; then
+		[ -f "$uamssl_cert" ] && [ -f "$uamssl_key" ] || \
+			/usr/libexec/hotspot-openwrt/gen-ssl "$uamssl_cert" "$uamssl_key" "$domain" >/dev/null 2>&1 || true
+		uci set chilli.hotspot_openwrt.uamuissl='1'
+		uci set chilli.hotspot_openwrt.sslcertfile="$uamssl_cert"
+		uci set chilli.hotspot_openwrt.sslkeyfile="$uamssl_key"
+	fi
+	# Trial users
+	if [ "$trial_enabled" = '1' ]; then
+		trial_secs="$((${trial_duration:-30} * 60))"
+		trial_uptime_secs="$((${trial_uptime_limit:-30} * 60))"
+		uci set chilli.hotspot_openwrt.trialuser='trial'
+		uci set chilli.hotspot_openwrt.trialinterval="$trial_secs"
+		uci set chilli.hotspot_openwrt.trialttl="$trial_uptime_secs"
+	fi
+	# MAC Authentication
+	if [ "$mac_auth_enabled" = '1' ]; then
+		uci set chilli.hotspot_openwrt.macauth='1'
+		uci set chilli.hotspot_openwrt.macreauth='1'
+		uci set chilli.hotspot_openwrt.macsuffix="$mac_auth_suffix"
+		uci set chilli.hotspot_openwrt.macpasswd="$mac_auth_password"
 	fi
 	uci commit chilli
 	configure_portal_files "$hotspot_ip" "$portal_path" "$portal_storage_path" "$terms_enabled" "$browser_cookie_enabled" "$browser_cookie_days" "$open_status_page" "$status_autorefresh_seconds" || fail_json 'portal' 'Could not update portal page files'
@@ -574,6 +645,20 @@ apply_config() {
 	configure_chilli_local_access || fail_json 'chilli' 'Could not update /etc/chilli/config for local portal access'
 	configure_dnsmasq_compat "$hotspot_ip" "$portal_path" "$captive_notify" "$domain" || fail_json 'dnsmasq' 'Could not update dnsmasq captive portal compatibility settings'
 	configure_firewall_nft_compat "$network_addr" "$hotspot_cidr" "$wan_interface" || fail_json 'firewall' 'Could not update firewall4 hotspot compatibility rules'
+
+	# Populate blocked MAC nft set from ip_binding entries
+	nft "add set inet fw4 hotspot_blocked_mac { type ether_addr; flags interval; }" 2>/dev/null || true
+	nft "flush set inet fw4 hotspot_blocked_mac" 2>/dev/null || true
+	nft "add set inet fw4 hotspot_bypass_mac { type ether_addr; flags interval; }" 2>/dev/null || true
+	nft "flush set inet fw4 hotspot_bypass_mac" 2>/dev/null || true
+	blocked_macs="$(uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | sed "s/^.*='//;s/'$//" | awk 'tolower($1)=="blocked"{ mac=tolower($2); gsub(/-/,":",mac); print mac }')"
+	bypassed_macs="$(uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | sed "s/^.*='//;s/'$//" | awk 'tolower($1)=="bypassed"{ mac=tolower($2); gsub(/-/,":",mac); print mac }')"
+	for mac in $blocked_macs; do
+		nft "add element inet fw4 hotspot_blocked_mac { $mac }" 2>/dev/null || true
+	done
+	for mac in $bypassed_macs; do
+		nft "add element inet fw4 hotspot_bypass_mac { $mac }" 2>/dev/null || true
+	done
 
 	uci set hotspot_openwrt.main.enabled='1'
 	uci commit hotspot_openwrt
