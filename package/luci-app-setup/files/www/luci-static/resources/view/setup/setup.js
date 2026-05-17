@@ -2031,7 +2031,7 @@ function hotspotIpConflictsWithLan(lanIpaddr, hotspotIp) {
 	var lanParts = String(lanIpaddr || '').split('.');
 	var hsParts = String(hotspotIp || '').split('.');
 
-	if (lanParts.length != 4 || hsParts.length != 4)
+	if (lanParts.length !== 4 || hsParts.length !== 4)
 		return false;
 
 	return lanParts[0] === hsParts[0] && lanParts[1] === hsParts[1] && lanParts[2] === hsParts[2];
@@ -2608,7 +2608,7 @@ return view.extend({
 			adminPassword: '',
 			adminPasswordConfirm: '',
 			hotspotAvailable: !!(uci.get('hotspot_openwrt', 'main')),
-			hotspotEnabled: uci.get('hotspot_openwrt', 'main', 'enabled') == '1',
+			hotspotEnabled: uci.get('hotspot_openwrt', 'main', 'enabled') === '1',
 			hotspotSsid: (function() {
 				var sec = findNamedWifiIfaceSection('wizard_hotspot');
 				return sec ? String(sec.ssid || 'Hotspot') : 'Hotspot';
@@ -3639,7 +3639,7 @@ return view.extend({
 		}).then(function() {
 			if (self.state.hotspotAvailable && self.state.hotspotEnabled) {
 				return L.resolveDefault(fs.exec('/usr/libexec/hotspot-openwrt/apply', []), null).then(function(res) {
-					if (res && res.code != 0)
+					if (res && res.code !== 0)
 						notify(_('تحذير: تعذر تطبيق إعدادات الهوتسبوت تلقائياً. يمكن تطبيقها يدوياً من صفحة الخدمات.'));
 				});
 			}
