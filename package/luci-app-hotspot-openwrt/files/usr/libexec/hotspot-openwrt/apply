@@ -605,7 +605,11 @@ apply_config() {
 	# Walled garden IPs (uamallowed) — append comma-separated
 	if [ -n "$walled_garden_ip" ]; then
 		current_allowed="$(uci -q get chilli.hotspot_openwrt.uamallowed)"
-		uci set chilli.hotspot_openwrt.uamallowed="$current_allowed,$walled_garden_ip"
+		if [ -n "$current_allowed" ]; then
+			uci set chilli.hotspot_openwrt.uamallowed="$current_allowed,$walled_garden_ip"
+		else
+			uci set chilli.hotspot_openwrt.uamallowed="$walled_garden_ip"
+		fi
 	fi
 	# CoA / Disconnect-Message (RFC 3576)
 	if [ "$coa_enabled" = '1' ]; then

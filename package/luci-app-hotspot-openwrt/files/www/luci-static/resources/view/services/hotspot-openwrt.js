@@ -311,6 +311,12 @@ function firstDns(index) {
 	return dns[index] || '';
 }
 
+var BOOL_OPTIONS = [
+	'terms_enabled', 'captive_notify', 'browser_cookie_enabled', 'mac_cookie_enabled',
+	'userman_rest_enabled', 'userman_rest_insecure_ssl', 'uamssl_enabled',
+	'coa_enabled', 'trial_enabled', 'mac_auth_enabled', 'speedtest_enabled'
+];
+
 function getValue(option) {
 	if (option == 'dns1')
 		return firstDns(0);
@@ -322,7 +328,7 @@ function getValue(option) {
 		return readList('walled_garden_ip').join('\n');
 	if (option == 'ip_binding')
 		return readLineList('ip_binding').join('\n');
-	if (option == 'terms_enabled' || option == 'captive_notify' || option == 'browser_cookie_enabled' || option == 'mac_cookie_enabled' || option == 'userman_rest_enabled' || option == 'userman_rest_insecure_ssl' || option == 'uamssl_enabled' || option == 'coa_enabled' || option == 'trial_enabled' || option == 'mac_auth_enabled' || option == 'speedtest_enabled')
+	if (BOOL_OPTIONS.indexOf(option) > -1)
 		return uci.get('hotspot_openwrt', 'main', option) == '1';
 
 	return uci.get('hotspot_openwrt', 'main', option) || '';

@@ -12,6 +12,8 @@ jobs:
   shellcheck:
     name: ShellCheck (shell scripts)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -34,6 +36,8 @@ jobs:
   package-integrity:
     name: Package Integrity Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 

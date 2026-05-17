@@ -6,8 +6,21 @@
 ARCHIVE="${1:-/tmp/hotspot-openwrt-upload}"
 TMPDIR="/tmp/hotspot-openwrt-import.$$"
 
+# Allowed destination directories for certificate files
+ALLOWED_CERT_DIRS='/etc/chilli /etc/ssl/certs'
+
 json_escape() {
 	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+is_safe_path() {
+	_path="$1"
+	for _allowed in $ALLOWED_CERT_DIRS; do
+		case "$_path" in
+			"$_allowed"/*) return 0 ;;
+		esac
+	done
+	return 1
 }
 
 if [ ! -f "$ARCHIVE" ]; then
@@ -35,18 +48,20 @@ for export_file in "$TMPDIR/etc/config/"*.export; do
 	uci import "$pkg" < "$export_file" 2>/dev/null && uci commit "$pkg" 2>/dev/null && imported="$imported $pkg"
 done
 
-# Restore chilli files
+# Restore chilli files (only from the known safe etc/chilli directory)
 if [ -d "$TMPDIR/etc/chilli" ]; then
 	mkdir -p /etc/chilli
 	cp "$TMPDIR/etc/chilli/"* /etc/chilli/ 2>/dev/null || true
 	imported="$imported chilli-files"
 fi
 
-# Restore SSL certs if bundled
-find "$TMPDIR" -name '*.crt' -o -name '*.pem' | while read -r f; do
-	rel="${f#$TMPDIR}"
+# Restore SSL certs only to allowed directories
+find "$TMPDIR" -name '*.crt' -o -name '*.pem' -o -name '*.key' | while IFS= read -r f; do
+	rel="${f#"$TMPDIR"}"
 	dest_dir="$(dirname "$rel")"
-	mkdir -p "$dest_dir" && cp "$f" "$rel" 2>/dev/null || true
+	if is_safe_path "$rel"; then
+		mkdir -p "$dest_dir" && cp "$f" "$rel" 2>/dev/null || true
+	fi
 done
 
 rm -rf "$TMPDIR"

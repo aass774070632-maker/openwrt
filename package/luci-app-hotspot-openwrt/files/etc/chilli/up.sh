@@ -11,9 +11,14 @@ nft "add set inet fw4 hotspot_bypass_mac  { type ether_addr; flags interval; }" 
 nft "flush set inet fw4 hotspot_blocked_mac" 2>/dev/null || true
 nft "flush set inet fw4 hotspot_bypass_mac"  2>/dev/null || true
 
-for entry in $(uci -q get hotspot_openwrt.main.ip_binding 2>/dev/null); do
+# Iterate ip_binding entries safely (uci show produces one value per line)
+uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | \
+	sed "s/^hotspot_openwrt\.main\.ip_binding=//;s/'//g" | \
+	tr ' ' '\n' | while IFS= read -r entry; do
+	[ -n "$entry" ] || continue
 	type="$(printf '%s' "$entry" | awk '{print tolower($1)}')"
 	mac="$(printf '%s' "$entry" | awk '{print tolower($2)}' | tr '-' ':')"
+	[ -n "$mac" ] || continue
 	case "$type" in
 		blocked)  nft "add element inet fw4 hotspot_blocked_mac { $mac }" 2>/dev/null || true ;;
 		bypassed) nft "add element inet fw4 hotspot_bypass_mac  { $mac }" 2>/dev/null || true ;;

@@ -5,8 +5,16 @@
 
 CERT="${1:-/etc/chilli/hotspot.crt}"
 KEY="${2:-/etc/chilli/hotspot.key}"
-CN="${3:-$(uci -q get hotspot_openwrt.main.domain || echo hotspot.local)}"
+RAW_CN="${3:-$(uci -q get hotspot_openwrt.main.domain || echo hotspot.local)}"
 HOTSPOT_IP="$(uci -q get hotspot_openwrt.main.hotspot_ip || echo 192.168.10.1)"
+
+# Sanitize CN: allow only hostname-safe characters (alphanumeric, dots, hyphens)
+CN="$(printf '%s' "$RAW_CN" | tr -cd 'a-zA-Z0-9.-' | cut -c1-64)"
+[ -n "$CN" ] || CN="hotspot.local"
+
+# Sanitize HOTSPOT_IP: allow only digits and dots
+HOTSPOT_IP="$(printf '%s' "$HOTSPOT_IP" | tr -cd '0-9.')"
+[ -n "$HOTSPOT_IP" ] || HOTSPOT_IP="192.168.10.1"
 
 if ! command -v openssl >/dev/null 2>&1; then
 	printf '{"ok":false,"message":"openssl غير متوفر على الراوتر. ثبّت باقة openssl أولاً."}\n'
