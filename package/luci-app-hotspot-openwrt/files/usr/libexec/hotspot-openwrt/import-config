@@ -58,9 +58,8 @@ fi
 # Restore SSL certs only to allowed directories
 find "$TMPDIR" -name '*.crt' -o -name '*.pem' -o -name '*.key' | while IFS= read -r f; do
 	rel="${f#"$TMPDIR"}"
-	dest_dir="$(dirname "$rel")"
 	if is_safe_path "$rel"; then
-		mkdir -p "$dest_dir" && cp "$f" "$rel" 2>/dev/null || true
+		mkdir -p "$(dirname "$rel")" && cp "$f" "$rel" 2>/dev/null || true
 	fi
 done
 

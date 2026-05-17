@@ -17,8 +17,9 @@ BW_DOWN="${SESSION_BANDWIDTHMAXDOWN:-0}"
 [ -n "$CLIENT_IP" ] || exit 0
 [ "$BW_UP" -gt 0 ] || [ "$BW_DOWN" -gt 0 ] || exit 0
 
-# Map IP last octet to a unique handle (1-254)
-HANDLE="$(printf '%s' "$CLIENT_IP" | awk -F. '{v=$4+0; if(v<1)v=1; if(v>254)v=254; print v}')"
+# Derive a unique tc handle from all 4 octets (XOR fold into 1-4094 range).
+# This avoids collisions when clients share the same last octet across subnets.
+HANDLE="$(printf '%s' "$CLIENT_IP" | awk -F. '{v=(($1+0)*($2+0+1)*($3+0+1)*($4+0+1))%4094+1; print v}')"
 
 # Egress (upload) shaping on tun0 — limit packets FROM client going out
 if [ "$BW_UP" -gt 0 ]; then

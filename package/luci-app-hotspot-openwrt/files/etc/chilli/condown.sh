@@ -7,7 +7,7 @@ CLIENT_IP="${SESSION_DHCPIP}"
 
 [ -n "$CLIENT_IP" ] || exit 0
 
-HANDLE="$(printf '%s' "$CLIENT_IP" | awk -F. '{v=$4+0; if(v<1)v=1; if(v>254)v=254; print v}')"
+HANDLE="$(printf '%s' "$CLIENT_IP" | awk -F. '{v=(($1+0)*($2+0+1)*($3+0+1)*($4+0+1))%4094+1; print v}')"
 
 # Remove egress filter and class
 tc filter del dev "$TUNDEV" parent 1:0 prio "$HANDLE" 2>/dev/null || true
