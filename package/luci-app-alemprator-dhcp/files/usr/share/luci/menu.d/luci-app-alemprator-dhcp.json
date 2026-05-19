@@ -1,0 +1,13 @@
+{
+	"admin/network/alemprator_dhcp": {
+		"title": "DHCP Server",
+		"order": 50,
+		"action": {
+			"type": "view",
+			"path": "alemprator-dhcp/index"
+		},
+		"depends": {
+			"acl": [ "luci-app-alemprator-dhcp" ]
+		}
+	}
+}

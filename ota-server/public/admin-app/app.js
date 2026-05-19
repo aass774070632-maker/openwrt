@@ -60,6 +60,12 @@ const MESSAGE_TRANSLATIONS = {
   'artifact_path must start with /firmware/': 'مسار الملف يجب أن يبدأ بـ /firmware/.',
   'artifact_path resolves outside public/firmware': 'مسار الملف غير مسموح. استخدم ملفًا داخل /firmware/.',
   'artifact_path file not found': 'الملف المحدد في المسار غير موجود داخل /firmware/.',
+  'artifact_path or artifact_url is required': 'أدخل مسار ملف داخل /firmware/ أو رابط تحميل خارجي أو ارفع ملفًا من المتصفح.',
+  'artifact_url must be a valid URL': 'رابط التحميل الخارجي غير صالح.',
+  'artifact_url must use http or https': 'رابط التحميل يجب أن يبدأ بـ http أو https.',
+  'artifact_url downloaded an empty file': 'رابط التحميل أعاد ملفًا فارغًا.',
+  'release not found': 'الإصدار غير موجود.',
+  'release has campaigns; pause it instead of deleting': 'لا يمكن حذف إصدار مرتبط بحملات. أوقفه بدل الحذف أو احذف الحملات المرتبطة أولاً.',
   'artifact file is required': 'ملف البرنامج الثابت مطلوب للرفع.',
   'Internal server error': 'تعذر إنشاء الإصدار. تحقق من مسار الملف وأنه موجود داخل /firmware/.',
   'Payload too large': 'حجم ملف الرفع كبير جدًا لبوابة الخادم.',
@@ -105,7 +111,18 @@ const UPDATE_STATUS_LABELS = {
 
 function translateKnownMessage(message) {
   const normalized = String(message ?? '').trim();
+  if (/Cannot PATCH \/api\/admin\/devices\/\d+\/hotspot-license/.test(normalized) || /\/api\/admin\/devices\/\d+\/hotspot-license/.test(normalized)) {
+    return 'واجهة الترخيص منشورة لكن مسار الترخيص غير موجود في خادم الإنتاج. أعد نشر Backend الإنتاج قبل استخدام هذا الزر.';
+  }
   return MESSAGE_TRANSLATIONS[normalized] ?? normalized;
+}
+
+function tokenTail(token) {
+  const value = String(token ?? '').trim();
+  if (!value) {
+    return '-';
+  }
+  return value.length > 13 ? value.slice(-13) : value;
 }
 
 function translateValue(value, dictionary) {
@@ -191,6 +208,64 @@ function formatDate(value) {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('ar-SA');
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '-';
+  }
+
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
+
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${bytes} B`;
+}
+
+function releasePrimaryFile(release) {
+  return Array.isArray(release.files) && release.files.length ? release.files[0] : null;
+}
+
+function fileNameFromUrl(value) {
+  try {
+    const parsed = new URL(String(value || ''), window.location.origin);
+    const name = parsed.pathname.split('/').filter(Boolean).pop();
+    return name ? decodeURIComponent(name) : '-';
+  } catch {
+    const parts = String(value || '').split('/').filter(Boolean);
+    return parts.pop() || '-';
+  }
+}
+
+async function copyText(value) {
+  const text = String(value || '');
+  if (!text) {
+    return false;
+  }
+
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+
+  const input = document.createElement('textarea');
+  input.value = text;
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.appendChild(input);
+  input.select();
+  const ok = document.execCommand('copy');
+  input.remove();
+  return ok;
 }
 
 function truncateText(value, limit = 140) {
@@ -466,6 +541,9 @@ function filterDevices() {
       device.board,
       device.mac,
       device.token,
+      tokenTail(device.token),
+      device.last_ip,
+      device.last_result,
       device.current_version,
       device.status,
       device.firmware_model?.display_name,
@@ -686,13 +764,26 @@ function renderDevices() {
   const rows = filterDevices().map((device) => `
     <tr>
       <td class="mono">${escapeHtml(device.id)}</td>
-      <td>
+      <td class="device-cell">
         <strong>${escapeHtml(device.firmware_model?.display_name ?? device.model)}</strong><br>
-        <span class="mono">${escapeHtml(device.model)}</span>
+        <span class="mono">${escapeHtml(device.model)}</span><br>
+        <span class="muted-line">Board: <span class="mono">${escapeHtml(device.board ?? '-')}</span></span>
       </td>
+      <td class="mono">${escapeHtml(device.mac ?? '-')}</td>
+      <td class="mono">${escapeHtml(device.last_ip ?? '-')}</td>
+      <td class="mono">${escapeHtml(tokenTail(device.token))}</td>
       <td class="mono">${escapeHtml(device.current_version ?? '-')}</td>
-      <td>${escapeHtml(translateValue(device.status, DEVICE_STATUS_LABELS))}</td>
+      <td>
+        ${escapeHtml(translateValue(device.status, DEVICE_STATUS_LABELS))}<br>
+        <span class="muted-line">${escapeHtml(device.last_result ?? '-')}</span>
+      </td>
       <td>${formatDate(device.last_seen_at)}</td>
+      <td>
+        <span class="pill ${device.hotspot_licensed ? 'success' : 'muted'}">${device.hotspot_licensed ? 'مرخص' : 'غير مرخص'}</span>
+        <button type="button" class="link-button" data-hotspot-license-device="${escapeHtml(device.id)}" data-hotspot-license-next="${device.hotspot_licensed ? 'false' : 'true'}">
+          ${device.hotspot_licensed ? 'إلغاء الترخيص' : 'ترخيص الهوتسبوت'}
+        </button>
+      </td>
       <td>${renderPills(device.groups, (group) => group.name)}</td>
       <td>${renderPills(device.tags, (tag) => tag.name)}</td>
       <td>${escapeHtml(device.last_error ?? '-')}</td>
@@ -700,7 +791,7 @@ function renderDevices() {
   `);
 
   elements.devicesTable.innerHTML = tableMarkup(
-    ['المعرف', 'الجهاز', 'الإصدار', 'الحالة', 'آخر ظهور', 'المجموعات', 'الوسوم', 'آخر خطأ'],
+    ['المعرف', 'الجهاز', 'MAC', 'IP', 'آخر التوكن', 'الإصدار', 'الحالة/النتيجة', 'آخر ظهور', 'ترخيص الهوتسبوت', 'المجموعات', 'الوسوم', 'آخر خطأ'],
     rows,
   );
 }
@@ -748,24 +839,103 @@ function renderTags() {
 }
 
 function renderReleases() {
-  const rows = filterReleases().map((release) => `
-    <tr>
-      <td class="mono">${escapeHtml(release.id)}</td>
-      <td>${escapeHtml(release.version)}</td>
-      <td>
-        <strong>${escapeHtml(release.firmware_model?.display_name ?? release.model)}</strong><br>
-        <span class="mono">${escapeHtml(release.model)}</span>
-      </td>
-      <td>${escapeHtml(release.channel)}</td>
-      <td>${release.active ? '<span class="pill">نشط</span>' : '<span class="pill warning">غير نشط</span>'}</td>
-      <td class="mono">${escapeHtml(release.sha256.slice(0, 12))}…</td>
-    </tr>
-  `);
+  const rows = filterReleases().map((release) => {
+    const file = releasePrimaryFile(release);
+    const sourceLabel = /^https?:\/\//i.test(release.download_url || '') ? 'رابط خارجي' : 'ملف محلي';
+    const actionButtons = [
+      `<button class="table-action-button active" type="button" data-release-action="details" data-release-id="${escapeHtml(release.id)}">تفاصيل</button>`,
+      `<button class="table-action-button" type="button" data-release-action="copy" data-release-id="${escapeHtml(release.id)}">نسخ الرابط</button>`,
+      `<button class="table-action-button" type="button" data-release-action="download" data-release-id="${escapeHtml(release.id)}">تنزيل</button>`,
+      `<button class="table-action-button" type="button" data-release-action="${release.active ? 'pause' : 'activate'}" data-release-id="${escapeHtml(release.id)}">${release.active ? 'تعطيل' : 'تفعيل'}</button>`,
+      `<button class="table-action-button" type="button" data-release-action="campaign" data-release-id="${escapeHtml(release.id)}">حملة</button>`,
+      `<button class="table-action-button danger" type="button" data-release-action="delete" data-release-id="${escapeHtml(release.id)}">حذف</button>`,
+    ];
+
+    return `
+      <tr>
+        <td class="mono">${escapeHtml(release.id)}</td>
+        <td>
+          <strong>${escapeHtml(release.version)}</strong><br>
+          <span class="muted-line mono">${escapeHtml(release.version_code || '-')}</span><br>
+          <span class="muted-line">${escapeHtml(formatDate(release.created_at))}</span>
+        </td>
+        <td>
+          <strong>${escapeHtml(release.firmware_model?.display_name ?? release.model)}</strong><br>
+          <span class="mono">${escapeHtml(release.model)}</span>
+        </td>
+        <td>
+          ${escapeHtml(release.channel)}<br>
+          <span class="muted-line">${escapeHtml(sourceLabel)}</span>
+        </td>
+        <td>
+          ${release.active ? '<span class="pill">نشط</span>' : '<span class="pill warning">غير نشط</span>'}
+          ${release.force ? '<span class="pill warning">إجباري</span>' : ''}
+        </td>
+        <td>
+          <span>${escapeHtml(formatBytes(file?.size_bytes))}</span><br>
+          <span class="muted-line">${escapeHtml(fileNameFromUrl(file?.url || release.download_url))}</span><br>
+          <span class="muted-line">حملات: ${escapeHtml(release.campaign_count ?? 0)}</span>
+        </td>
+        <td class="mono" title="${escapeHtml(release.sha256)}">${escapeHtml(String(release.sha256 || '').slice(0, 12))}…</td>
+        <td><div class="table-actions">${actionButtons.join('')}</div></td>
+      </tr>
+    `;
+  });
 
   elements.releasesTable.innerHTML = tableMarkup(
-    ['المعرف', 'الإصدار', 'نموذج البرنامج الثابت', 'القناة', 'الحالة', 'SHA256'],
+    ['المعرف', 'الإصدار', 'نموذج البرنامج الثابت', 'القناة', 'الحالة', 'الحجم/الاستخدام', 'SHA256', 'إجراءات'],
     rows,
   );
+}
+
+function findRelease(releaseId) {
+  return state.releases.find((release) => String(release.id) === String(releaseId));
+}
+
+function showReleaseDetails(release) {
+  const file = releasePrimaryFile(release);
+  window.alert([
+    `الإصدار: ${release.version}`,
+    `الطراز: ${release.firmware_model?.display_name ?? release.model}`,
+    `مفتاح الطراز: ${release.model}`,
+    `القناة: ${release.channel}`,
+    `الحالة: ${release.active ? 'نشط' : 'غير نشط'}`,
+    `الحجم: ${formatBytes(file?.size_bytes)}`,
+    `اسم الملف: ${fileNameFromUrl(file?.url || release.download_url)}`,
+    `SHA256: ${release.sha256}`,
+    `الرابط: ${release.download_url}`,
+    `الحملات المرتبطة: ${release.campaign_count ?? 0}`,
+    `تاريخ الإنشاء: ${formatDate(release.created_at)}`,
+    `سجل التغييرات: ${release.changelog || '-'}`,
+  ].join('\n'));
+}
+
+async function setReleaseActive(releaseId, active) {
+  setMessage(active ? 'جارٍ تفعيل الإصدار...' : 'جارٍ تعطيل الإصدار...');
+  await apiFetch(`/admin/releases/${releaseId}/${active ? 'activate' : 'pause'}`, { method: 'POST' });
+  await refreshData();
+  setMessage(active ? 'تم تفعيل الإصدار.' : 'تم تعطيل الإصدار.', 'success');
+}
+
+async function deleteRelease(releaseId) {
+  const release = findRelease(releaseId);
+  if (!release) {
+    return;
+  }
+
+  if ((release.campaign_count ?? 0) > 0) {
+    window.alert('هذا الإصدار مرتبط بحملات. لا يتم حذفه حتى لا تُحذف الحملات المرتبطة به. استخدم تعطيل الإصدار أو احذف الحملات أولاً.');
+    return;
+  }
+
+  if (!window.confirm(`سيتم حذف الإصدار ${release.version} من لوحة OTA. هل أنت متأكد؟`)) {
+    return;
+  }
+
+  setMessage('جارٍ حذف الإصدار...');
+  await apiFetch(`/admin/releases/${releaseId}`, { method: 'DELETE' });
+  await refreshData();
+  setMessage('تم حذف الإصدار.', 'success');
 }
 
 function renderCampaigns() {
@@ -1203,9 +1373,28 @@ forms.release.addEventListener('submit', async (event) => {
     const data = collectFormData(forms.release);
     const artifactFile = forms.release.querySelector('[name="artifact"]').files?.[0] ?? null;
     const artifactPath = normalizeArtifactPathInput(data.artifact_path);
+    const artifactUrl = String(data.artifact_url || '').trim();
 
     // Prefer an explicit server-side artifact path when provided, even if a file was selected.
-    if (artifactPath) {
+    if (artifactUrl) {
+      const payload = {
+        firmware_model_id: data.firmware_model_id ? Number(data.firmware_model_id) : undefined,
+        model: data.model || undefined,
+        version: data.version,
+        version_code: data.version_code || undefined,
+        artifact_url: artifactUrl,
+        changelog: data.changelog || undefined,
+        channel: data.channel || 'stable',
+        rollout_percent: Number(data.rollout_percent || 100),
+        active: forms.release.querySelector('[name="active"]').checked,
+        force: forms.release.querySelector('[name="force"]').checked,
+      };
+
+      await apiFetch('/admin/releases', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    } else if (artifactPath) {
       if (!artifactPath.startsWith('/firmware/')) {
         throw new Error('artifact_path must start with /firmware/');
       }
@@ -1249,7 +1438,7 @@ forms.release.addEventListener('submit', async (event) => {
         body: formData,
       });
     } else {
-      throw new Error('Upload firmware file or provide artifact path.');
+      throw new Error('artifact_path or artifact_url is required');
     }
 
     forms.release.reset();
@@ -1316,9 +1505,73 @@ elements.deviceSearchInput.addEventListener('input', (event) => {
   renderDevices();
 });
 
+elements.devicesTable.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-hotspot-license-device]');
+  if (!button) {
+    return;
+  }
+
+  const deviceId = button.dataset.hotspotLicenseDevice;
+  const licensed = button.dataset.hotspotLicenseNext === 'true';
+
+  button.disabled = true;
+  try {
+    await apiFetch(`/admin/devices/${deviceId}/hotspot-license`, {
+      method: 'PATCH',
+      body: JSON.stringify({ licensed }),
+    });
+    setMessage(licensed ? 'تم ترخيص الهوتسبوت لهذا الجهاز.' : 'تم إلغاء ترخيص الهوتسبوت لهذا الجهاز.', 'success');
+    await refreshData();
+  } catch (error) {
+    setMessage(parseErrorMessage(error), 'warning');
+  } finally {
+    button.disabled = false;
+  }
+});
+
 elements.releaseFilterSelect.addEventListener('change', (event) => {
   state.releaseFilterModelId = event.target.value;
   renderReleases();
+});
+
+elements.releasesTable.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-release-action]');
+  if (!button) {
+    return;
+  }
+
+  const release = findRelease(button.dataset.releaseId);
+  if (!release) {
+    return;
+  }
+
+  const action = button.dataset.releaseAction;
+  button.disabled = true;
+
+  try {
+    if (action === 'details') {
+      showReleaseDetails(release);
+    } else if (action === 'copy') {
+      await copyText(release.download_url);
+      setMessage('تم نسخ رابط التحميل.', 'success');
+    } else if (action === 'download') {
+      window.open(release.download_url, '_blank', 'noopener');
+    } else if (action === 'activate') {
+      await setReleaseActive(release.id, true);
+    } else if (action === 'pause') {
+      await setReleaseActive(release.id, false);
+    } else if (action === 'campaign') {
+      elements.campaignReleaseSelect.value = String(release.id);
+      elements.campaignForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setMessage('تم اختيار الإصدار في نموذج الحملة. أكمل بيانات الحملة ثم احفظها.', 'success');
+    } else if (action === 'delete') {
+      await deleteRelease(release.id);
+    }
+  } catch (error) {
+    setMessage(parseErrorMessage(error), 'warning');
+  } finally {
+    button.disabled = false;
+  }
 });
 
 elements.showArchivedCampaignsInput.addEventListener('change', async (event) => {

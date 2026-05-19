@@ -141,6 +141,31 @@ button:active {
 	border-color: var(--primary);
 }
 
+.hotspot-link-grid {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 10px;
+	margin-top: 20px;
+}
+
+.hotspot-page-link {
+	display: block;
+	padding: 12px;
+	text-align: center;
+	background: #fff;
+	color: var(--primary);
+	text-decoration: none;
+	border: 2px solid #ccfbf1;
+	border-radius: 12px;
+	font-weight: 800;
+	font-size: 14px;
+}
+
+.hotspot-page-link:hover {
+	background: #f0fdfa;
+	border-color: var(--primary);
+}
+
 .info-card {
 	background: #f8fafc;
 	padding: 16px;

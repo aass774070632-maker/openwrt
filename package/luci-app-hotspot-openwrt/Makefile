@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-hotspot-openwrt
 PKG_VERSION:=1.0
-PKG_RELEASE:=1
+PKG_RELEASE:=r33
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 # PKGARCH:=all (Disabled to allow architecture-specific binaries)
 PKG_LICENSE:=GPL-3.0-only
@@ -14,7 +14,7 @@ define Package/luci-app-hotspot-openwrt
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
   TITLE:=LuCI Hotspot OpenWrt wizard for CoovaChilli and MikroTik RADIUS
-  DEPENDS:=+luci-base +rpcd +rpcd-mod-file +uhttpd +coova-chilli +kmod-tun
+	DEPENDS:=+luci-base +rpcd +rpcd-mod-file +uhttpd +coova-chilli +kmod-tun +alemprator-guard
 endef
 
 define Package/luci-app-hotspot-openwrt/description
@@ -33,8 +33,10 @@ define Package/luci-app-hotspot-openwrt/postinst
 [ "$${IPKG_NO_SCRIPT}" = "1" ] && exit 0
 rm -f "$${IPKG_INSTROOT}/tmp/luci-indexcache" "$${IPKG_INSTROOT}"/tmp/luci-indexcache.*.json
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
+ln -sf /usr/libexec/hotspot-openwrt/init.d/hotspot-openwrt /etc/init.d/hotspot-openwrt
 /etc/init.d/rpcd reload >/dev/null 2>&1 || true
 /etc/init.d/uhttpd reload >/dev/null 2>&1 || true
+filelist=/dev/null
 exit 0
 endef
 
@@ -51,8 +53,8 @@ define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_CONF) ./files/etc/config/hotspot_licensing $(1)/etc/config/
 	$(INSTALL_DIR) $(1)/etc/hotspot-openwrt
 	$(INSTALL_BIN) ./files/etc/hotspot-openwrt/firewall.sh $(1)/etc/hotspot-openwrt/
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/etc/init.d/hotspot-openwrt $(1)/etc/init.d/
+	$(INSTALL_DIR) $(1)/usr/libexec/hotspot-openwrt/init.d
+	$(INSTALL_BIN) ./files/etc/init.d/hotspot-openwrt $(1)/usr/libexec/hotspot-openwrt/init.d/
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_BIN) ./files/etc/uci-defaults/99_hotspot-openwrt-firewall $(1)/etc/uci-defaults/
 	$(INSTALL_DIR) $(1)/usr/libexec/hotspot-openwrt

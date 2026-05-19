@@ -8,6 +8,7 @@
 
 var STATUS_CMD = '/usr/libexec/hotspot-openwrt/status-json';
 var APPLY_CMD = '/usr/libexec/hotspot-openwrt/apply';
+var LICENSE_CHECK_CMD = '/usr/libexec/hotspot-openwrt/license-check';
 var PORTAL_UPLOAD_CMD = '/usr/libexec/hotspot-openwrt/portal-upload';
 var PORTAL_UPLOAD_TMP = '/tmp/hotspot-openwrt-upload';
 var LOGS_CMD = '/usr/libexec/hotspot-openwrt/logs';
@@ -21,6 +22,7 @@ var FIELD_GROUPS = {
 		{ option: 'wan_interface', label: 'مدخل الإنترنت', hint: 'اختر واجهة OpenWrt المتصلة براوتر MikroTik. ستظهر الواجهة مع الكرت أو الجسر المرتبط بها.', placeholder: 'lan', choices: getNetworkChoices },
 		{ option: 'subscriber_interface', label: 'واجهة الهوتسبوت', hint: 'واجهة المشتركين التي سيأخذها CoovaChilli. القيمة الآمنة الافتراضية هي hotspot.', placeholder: 'hotspot', choices: getSubscriberInterfaceChoices },
 		{ option: 'bridge_ports', label: 'منافذ المشتركين', hint: 'اختر كرتًا أو أكثر للمشتركين. اتركه فارغًا عند استخدام WiFi فقط.', placeholder: 'lan4', choices: getBridgePortChoices, multiple: true },
+		{ option: 'bridge_ageing_time', label: 'Ageing time', hint: 'قيمة ageing_time لجسري الهوتسبوت br-hotspot و br-hotspot2. الافتراضي 10.', placeholder: '10' },
 		{ option: 'wifi_iface', label: 'واجهة WiFi', hint: 'اختر قسم WiFi الذي سيبث شبكة الهوتسبوت.', placeholder: 'hotspot_openwrt_radio0_ap', choices: getWifiChoices }
 	],
 	profile: [
@@ -46,6 +48,10 @@ var FIELD_GROUPS = {
 		{ option: 'support_phone', label: 'رقم الدعم الفني', hint: 'يظهر كزر تواصل في أسفل الصفحة', placeholder: '777000000' },
 		{ option: 'logo_url', label: 'رابط الشعار', hint: 'رابط صورة تظهر في الأعلى (يمكن تركه فارغاً)', placeholder: '/hotspot/logo.png' },
 		{ option: 'notice_text', label: 'تنبيه للمشتركين', hint: 'نص يظهر بشكل بارز للتنبيهات', placeholder: 'أهلاً بكم في شبكتنا' },
+		{ option: 'live_stream_enabled', label: 'إظهار بث مباشر', hint: 'يعرض زر البث المباشر في صفحة الدخول والحالة عند وجود رابط.', type: 'checkbox' },
+		{ option: 'live_stream_url', label: 'رابط البث المباشر', hint: 'الرابط الذي يفتحه زر البث المباشر.', placeholder: 'https://example.com/live' },
+		{ option: 'rest_area_enabled', label: 'إظهار الاستراحة', hint: 'يعرض زر الاستراحة في صفحة الدخول والحالة عند وجود رابط.', type: 'checkbox' },
+		{ option: 'rest_area_url', label: 'رابط الاستراحة', hint: 'الرابط الذي يفتحه زر الاستراحة.', placeholder: 'https://example.com/lounge' },
 		{ option: 'speedtest_enabled', label: 'تفعيل فحص السرعة في صفحة الحالة', hint: 'يظهر زر للمشترك لقياس سرعة اتصاله الحقيقية بالراوتر', type: 'checkbox' },
 		{ option: 'login_mode', label: 'طريقة تسجيل الدخول', hint: 'اختر ما إذا كان المشترك يحتاج لإدخال رقم الكرت فقط أو مع كلمة سر.', placeholder: 'both', choices: getLoginModeChoices },
 		{ option: 'captive_notify', label: 'إظهار نافذة الدخول تلقائيًا', hint: 'يضيف DHCP option 114 وapi.json لتتعرف الهواتف على الكابتف بورتال', type: 'checkbox' },
@@ -62,6 +68,7 @@ var FIELD_GROUPS = {
 		{ option: 'radius_nas_id', label: 'NAS ID', hint: 'اسم هذا الهوتسبوت عند MikroTik', placeholder: 'KT-KM14-102H-HOTSPOT' },
 		{ option: 'acct_interim', label: 'Accounting Interim (ثانية)', hint: 'مدة إرسال Interim-Update لـ RADIUS بالثواني. القيمة الافتراضية 60.', placeholder: '60' },
 		{ option: 'coa_enabled', label: 'CoA / Disconnect (RFC 3576)', hint: 'يفعّل استقبال أوامر قطع الجلسة من RADIUS على UDP 3799. يجب أن يدعمها خادم RADIUS.', type: 'checkbox' },
+		{ option: 'coa_port', label: 'CoA Port UDP', hint: 'منفذ CoA/Disconnect. الافتراضي في MikroTik هو 3799.', placeholder: '3799' },
 		{ option: 'userman_rest_enabled', label: 'قراءة رصيد User Manager', hint: 'يفعل جسر RouterOS REST لعرض الرصيد والبروفايل ووقت الانتهاء في صفحة المشترك.', type: 'checkbox' },
 		{ option: 'userman_rest_scheme', label: 'RouterOS REST Scheme', hint: 'استخدم https مع www-ssl. يمكن استخدام http للاختبار فقط.', placeholder: 'https', choices: getRouterOsSchemeChoices },
 		{ option: 'userman_rest_host', label: 'RouterOS REST Host', hint: 'غالبًا نفس MikroTik User Manager.', placeholder: '192.168.1.2' },
@@ -74,7 +81,7 @@ var FIELD_GROUPS = {
 		{ option: 'userman_rest_timeout', label: 'مهلة REST بالثواني', hint: 'مهلة قصيرة حتى لا تتأخر صفحة المشترك.', placeholder: '5' }
 	],
 	dns: [
-		{ option: 'dns1', label: 'DNS Server 1', hint: 'يستخدمه الراوتر خلف البوابة', placeholder: '8.8.8.8' },
+		{ option: 'dns1', label: 'DNS Server 1', hint: 'يستخدمه dnsmasq كخادم upstream لطلبات DNS خلف البوابة', placeholder: '8.8.8.8' },
 		{ option: 'dns2', label: 'DNS Server 2', hint: 'اختياري', placeholder: '82.114.163.31' },
 		{ option: 'walled_garden', label: 'Walled Garden Domains', hint: 'نطاقات مسموحة قبل الدخول، سطر لكل نطاق', multiline: true, placeholder: 'neverssl.com\nconnectivitycheck.gstatic.com' },
 		{ option: 'walled_garden_ip', label: 'Walled Garden IPs/CIDRs', hint: 'عناوين IP أو CIDR مسموحة قبل الدخول (للوصول عبر HTTPS أيضاً). سطر لكل عنوان.', multiline: true, placeholder: '1.2.3.4\n5.6.7.0/24' }
@@ -85,7 +92,7 @@ var FIELD_GROUPS = {
 		{ option: 'uamssl_key', label: 'SSL Key Path', hint: 'مسار ملف المفتاح الخاص (.key) على الراوتر.', placeholder: '/etc/chilli/hotspot.key' }
 	],
 	advanced: [
-		{ option: 'trial_enabled', label: 'Trial Users (تجربة مجانية)', hint: 'يسمح لأي جهاز بالدخول المجاني المحدود بدون كرت. يتم إعادة التوجيه للبورتال بعد انتهاء الفترة.', type: 'checkbox' },
+		{ option: 'trial_enabled', label: 'Trial Users (تجربة مجانية)', hint: 'يحفظ الإعداد لسياسة البوابة/RADIUS. لا يتم تمريره كخيارات trial* إلى CoovaChilli على هذا الإصدار حتى لا يتوقف DHCP.', type: 'checkbox' },
 		{ option: 'trial_duration', label: 'مدة التجربة (دقائق)', hint: 'الفترة الزمنية بين جلسات التجربة المجانية (دقائق).', placeholder: '30' },
 		{ option: 'trial_uptime_limit', label: 'حد وقت التجربة (دقائق)', hint: 'إجمالي وقت التجربة المسموح به لكل جهاز.', placeholder: '30' },
 		{ option: 'mac_auth_enabled', label: 'MAC Authentication', hint: 'يسمح لأجهزة مسجلة في User Manager بـ MAC address كـ username بالدخول التلقائي بدون بورتال.', type: 'checkbox' },
@@ -93,7 +100,7 @@ var FIELD_GROUPS = {
 		{ option: 'mac_auth_password', label: 'MAC Auth Password', hint: 'كلمة مرور ثابتة لجلسات MAC Auth.', placeholder: 'mac', password: true }
 	],
 	bindings: [
-		{ option: 'ip_binding', label: 'IP Bindings', hint: 'صيغة مبسطة: type mac address comment. النوع blocked يمنع تسجيل دخول الجهاز، والنوع bypassed يمرر الجهاز للإنترنت مباشرة دون صفحة الدخول.', multiline: true, placeholder: 'blocked 00:11:22:33:44:55 192.168.10.11 phone\nbypassed 36:5D:F3:EF:19:25 - manager' }
+		{ option: 'ip_binding', label: 'IP Bindings', hint: 'صيغة مبسطة: type mac address comment. النوع blocked يمنع الجهاز، والنوع bypassed يضاف إلى قائمة MAC المسموحة في CoovaChilli.', multiline: true, placeholder: 'blocked 00:11:22:33:44:55 192.168.10.11 phone\nbypassed 36:5D:F3:EF:19:25 - manager' }
 	],
 	active: [
 		{ option: 'keepalive_timeout', label: 'مدة طرد المنفصلين من Active / Hosts', hint: 'إذا اختفى الجهاز من شبكة الهوتسبوت، يتم إخراجه من Active أو حذفه من Hosts بعد هذه المدة. اكتب مدة مثل 00:02:00 أو none لتعطيله.', placeholder: '00:02:00' }
@@ -118,6 +125,58 @@ var TABS = [
 
 function notify(message) {
 	ui.addNotification(null, E('p', {}, message));
+}
+
+function licenseCacheInfo() {
+	var enabled = uci.get('hotspot_licensing', 'main', 'enabled') != '0';
+	var rawStatus = uci.get('hotspot_licensing', 'main', 'license_status');
+	var status = rawStatus || 'unknown';
+	var expiresAt = Number(uci.get('hotspot_licensing', 'main', 'expires_at') || 0);
+	var now = Math.floor(Date.now() / 1000);
+	var active = !enabled || (status == 'active' && expiresAt > now);
+	var known = !!rawStatus;
+
+	return {
+		enabled: enabled,
+		status: status,
+		expiresAt: expiresAt,
+		active: active,
+		known: known,
+		label: !enabled ? 'معطل' : (!known ? 'غير معروف' : (active ? 'مرخص' : 'غير مرخص'))
+	};
+}
+
+function licenseCacheText(info) {
+	info = info || licenseCacheInfo();
+	if (!info.enabled)
+		return 'فحص الترخيص معطل من الإعدادات.';
+	if (!info.known)
+		return 'لم تتمكن الواجهة من قراءة حالة الترخيص بعد. سيتم تشغيل فحص حي عند التطبيق.';
+	if (info.active)
+		return 'الهوتسبوت مرخص حالياً وسيتم تشغيل الخدمة بشكل طبيعي.';
+	return 'الهوتسبوت غير مرخص حالياً. عند التطبيق سيتم حفظ الإعدادات، لكن خدمة الهوتسبوت لن تبدأ وسيبقى العملاء بدون بوابة دخول حتى يتم تفعيل الترخيص من لوحة OTA.';
+}
+
+function checkHotspotLicenseLive() {
+	return L.resolveDefault(fs.exec(LICENSE_CHECK_CMD, []), { code: 1 }).then(function(res) {
+		return {
+			ok: !!(res && res.code === 0),
+			message: (res && (res.stderr || res.stdout)) || ''
+		};
+	});
+}
+
+function confirmHotspotLicenseBeforeApply() {
+	return checkHotspotLicenseLive().then(function(result) {
+		var message = result.ok
+			? 'الهوتسبوت مرخص. سيتم حفظ الإعدادات وتشغيل الخدمة الآن. هل تريد المتابعة؟'
+			: 'الهوتسبوت غير مرخص. سيتم حفظ الإعدادات، لكن تشغيل الخدمة سيفشل وسيبقى العملاء بدون إنترنت عبر الهوتسبوت حتى يتم تفعيل الترخيص من لوحة OTA. هل تريد المتابعة؟';
+
+		if (result.message)
+			message += '\n\nتفاصيل الفحص: ' + String(result.message).trim();
+
+		return window.confirm(message);
+	});
 }
 
 function addChoice(choices, value, label) {
@@ -314,7 +373,8 @@ function firstDns(index) {
 var BOOL_OPTIONS = [
 	'terms_enabled', 'captive_notify', 'browser_cookie_enabled', 'mac_cookie_enabled',
 	'userman_rest_enabled', 'userman_rest_insecure_ssl', 'uamssl_enabled',
-	'coa_enabled', 'trial_enabled', 'mac_auth_enabled', 'speedtest_enabled'
+	'coa_enabled', 'trial_enabled', 'mac_auth_enabled', 'speedtest_enabled',
+	'live_stream_enabled', 'rest_area_enabled'
 ];
 
 function getValue(option) {
@@ -328,6 +388,8 @@ function getValue(option) {
 		return readList('walled_garden_ip').join('\n');
 	if (option == 'ip_binding')
 		return readLineList('ip_binding').join('\n');
+	if (option == 'bridge_ageing_time')
+		return uci.get('hotspot_openwrt', 'main', option) || '10';
 	if (BOOL_OPTIONS.indexOf(option) > -1)
 		return uci.get('hotspot_openwrt', 'main', option) == '1';
 
@@ -677,8 +739,11 @@ function switchTab(key, panels, tabs) {
 }
 
 function renderReview(status) {
+	var licenseInfo = licenseCacheInfo();
+
 	return E('div', [
 		E('div', { 'class': 'hotspot-summary' }, [
+			statusItem('License', licenseInfo.label),
 			statusItem('Server Interface', collectValue('subscriber_interface') || getValue('subscriber_interface')),
 			statusItem('Address Pool', (collectValue('pool_start') || getValue('pool_start')) + ' - ' + (collectValue('pool_end') || getValue('pool_end'))),
 			statusItem('Gateway', collectValue('hotspot_ip') || getValue('hotspot_ip')),
@@ -687,6 +752,7 @@ function renderReview(status) {
 			statusItem('Runtime', statusText(status.chilli_running, 'CoovaChilli يعمل', 'متوقف')),
 			statusItem('Route', statusText(status.route_ok, 'tun0 صحيح', 'غير مؤكد'))
 		]),
+		E('div', { 'class': 'hotspot-note' }, licenseCacheText(licenseInfo)),
 		E('div', { 'class': 'hotspot-note' }, 'سيتم ضبط br-hotspot كجسر Layer 2 بدون IP، وسيملك tun0 عنوان الهوتسبوت. هذا يمنع تعارض المسارات الذي سبب انقطاع الإنترنت سابقًا.'),
 		E('div', { 'class': 'hotspot-actions' }, [
 			E('button', {
@@ -776,11 +842,26 @@ function renderReview(status) {
 				'class': 'btn cbi-button cbi-button-apply',
 				'click': function(ev) {
 					ev.preventDefault();
-					this.disabled = true;
-					this.textContent = 'جارٍ التطبيق...';
-					return saveConfig().then(function() {
+					var button = this;
+					var shouldReload = false;
+					button.disabled = true;
+					button.textContent = 'جارٍ فحص الترخيص...';
+					return confirmHotspotLicenseBeforeApply().then(function(allowed) {
+						if (!allowed) {
+							notify('تم إلغاء التطبيق بناءً على حالة الترخيص.');
+							return null;
+						}
+
+						button.textContent = 'جارٍ التطبيق...';
+						shouldReload = true;
+						return saveConfig();
+					}).then(function() {
+						if (!shouldReload)
+							return null;
 						return fs.exec_direct(APPLY_CMD, [], 'json');
 					}).then(function(result) {
+						if (!shouldReload)
+							return;
 						if (result && result.ok)
 							notify(result.message || 'تم تطبيق إعداد الهوتسبوت.');
 						else
@@ -788,7 +869,12 @@ function renderReview(status) {
 					}).catch(function(error) {
 						notify(error.message || String(error));
 					}).finally(function() {
-						window.setTimeout(function() { window.location.reload(); }, 1200);
+						if (shouldReload)
+							window.setTimeout(function() { window.location.reload(); }, 1200);
+						else {
+							button.disabled = false;
+							button.textContent = 'حفظ وتطبيق';
+						}
 					});
 				}
 			}, 'حفظ وتطبيق')
@@ -1126,6 +1212,7 @@ return view.extend({
 	load: function() {
 		return Promise.all([
 			uci.load('hotspot_openwrt'),
+			L.resolveDefault(uci.load('hotspot_licensing'), null),
 			uci.load('network'),
 			uci.load('wireless'),
 			fetchStatus()
@@ -1133,7 +1220,8 @@ return view.extend({
 	},
 
 	render: function(data) {
-		var status = data[3] || {};
+		var status = data[4] || {};
+		var licenseInfo = licenseCacheInfo();
 		var tabs = {};
 		var panels = {};
 		var tabBar;
@@ -1190,6 +1278,7 @@ return view.extend({
 			E('aside', { 'class': 'hotspot-card' }, [
 				E('h3', {}, 'الحالة الحالية'),
 				E('div', { 'class': 'hotspot-status-grid' }, [
+					statusItem('الترخيص', licenseInfo.label),
 					statusItem('الخدمة', E('span', { 'id': 'hotspot-openwrt-live-runtime' }, statusText(status.chilli_running, 'يعمل', 'متوقف'))),
 					statusItem('tun0', statusText(status.tun0_present, 'موجود', 'غير موجود')),
 					statusItem('المسار', statusText(status.route_ok, 'صحيح إلى tun0', 'غير مؤكد')),

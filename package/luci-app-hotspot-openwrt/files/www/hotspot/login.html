@@ -32,6 +32,7 @@
 			<button type="submit">دخول الشبكة</button>
 		</form>
 		
+		<div id="dynamic-links"></div>
 		<div id="dynamic-support"></div>
 
 		<footer style="text-align:center; padding:20px 16px 8px; margin-top:24px; border-top:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.6); font-size:11px; line-height:1.8;">
@@ -97,7 +98,43 @@
 		if (settings.networkName) document.getElementById('dynamic-name').textContent = settings.networkName;
 		if (settings.logoUrl) document.getElementById('dynamic-logo').innerHTML = '<img src="' + settings.logoUrl + '" class="hotspot-logo" alt="Logo">';
 		if (settings.noticeText) document.getElementById('dynamic-notice').innerHTML = '<div class="hotspot-notice">' + settings.noticeText + '</div>';
-		if (settings.supportPhone) document.getElementById('dynamic-support').innerHTML = '<a href="https://wa.me/' + settings.supportPhone + '" class="hotspot-support">تواصل مع الدعم الفني</a>';
+		renderSupportPhone(settings.supportPhone);
+
+		function renderSupportPhone(phone) {
+			var container = document.getElementById('dynamic-support');
+			var displayPhone = String(phone || '').trim();
+			var whatsappPhone = displayPhone.replace(/[^0-9]/g, '');
+			var link;
+
+			if (!container || !displayPhone)
+				return;
+
+			link = document.createElement('a');
+			link.className = 'hotspot-support';
+			link.href = whatsappPhone ? ('https://wa.me/' + whatsappPhone) : ('tel:' + displayPhone);
+			link.textContent = 'الدعم الفني: ' + displayPhone;
+			container.textContent = '';
+			container.appendChild(link);
+		}
+
+		function addPortalLink(label, url) {
+			if (!url) return;
+			if (!/^https?:\/\//i.test(url)) {
+				url = 'http://' + url;
+			}
+			var container = document.getElementById('dynamic-links');
+			if (!container.className) container.className = 'hotspot-link-grid';
+			var link = document.createElement('a');
+			link.className = 'hotspot-page-link';
+			link.href = url;
+			link.target = '_blank';
+			link.rel = 'noopener noreferrer';
+			link.textContent = label;
+			container.appendChild(link);
+		}
+
+		if (settings.liveStreamEnabled) addPortalLink('البث المباشر', settings.liveStreamUrl || '');
+		if (settings.restAreaEnabled) addPortalLink('الاستراحة', settings.restAreaUrl || '');
 
 		// Speed Selection
 		if (settings.availableSpeeds) {
@@ -124,8 +161,10 @@
 		if (settings.loginMode === 'username') {
 			document.getElementById('pass-field').style.display = 'none';
 			document.getElementById('password').removeAttribute('required');
+			document.getElementById('password').value = '';
 			document.querySelector('label[for="username"]').textContent = 'رقم الكرت';
 		} else {
+			document.getElementById('password').setAttribute('required', 'required');
 			document.querySelector('label[for="username"]').textContent = 'اسم المستخدم';
 		}
 
@@ -176,6 +215,8 @@
 		form.addEventListener('submit', function(e) {
 			e.preventDefault();
 			var btn = form.querySelector('button');
+			if (settings.loginMode === 'username') document.getElementById('password').value = '';
+			document.getElementById('userurl').value = statusUrl(usernameInput.value);
 			btn.disabled = true;
 			btn.style.opacity = '0.5';
 			btn.textContent = 'جاري التحقق...';

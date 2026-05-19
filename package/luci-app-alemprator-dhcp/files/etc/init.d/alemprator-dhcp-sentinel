@@ -1,0 +1,19 @@
+#!/bin/sh /etc/rc.common
+
+START=98
+STOP=10
+
+USE_PROCD=1
+PROG=/usr/libexec/alemprator-dhcp/dhcp-sentinel
+
+start_service() {
+    procd_open_instance
+    procd_set_param command "$PROG"
+    procd_set_param respawn
+    procd_close_instance
+}
+
+stop_service() {
+    killall dhcp-sentinel 2>/dev/null
+    rm -f /var/run/alemprator.heartbeat
+}

@@ -153,6 +153,47 @@ curl -fsS -X POST http://127.0.0.1:8080/api/admin/auth/logout \
   -d '{"refresh_token":"<refresh-token>"}'
 ```
 
+## Hotspot Licensing From OTA Admin
+
+The hotspot guard validates routers through:
+
+```text
+POST /api/hotspot-verify
+```
+
+The router must already be registered in the OTA devices table and the device row must have `hotspot_licensed=true`.
+
+Admin dashboard flow:
+
+1. Open `/admin-app/` and log in.
+2. Go to the devices table.
+3. Search by the router MAC or the end of `/etc/alemprator/device.token`.
+4. In the `ترخيص الهوتسبوت` column, click `ترخيص الهوتسبوت`.
+5. On the router, run:
+
+```bash
+ssh root@192.168.1.20 '/usr/libexec/hotspot-openwrt/alemprator-guard; echo exit:$?'
+```
+
+`exit:0` means licensed. `exit:1` means the device is unknown, not licensed, blocked, or the router cannot reach the OTA endpoint.
+
+API equivalent:
+
+```bash
+curl -fsS -X PATCH http://127.0.0.1:8080/api/admin/devices/<device-id>/hotspot-license \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <access-token>' \
+  -d '{"licensed":true}'
+```
+
+Before or after deploying production, verify that the admin app and backend expose the same hotspot-license contract:
+
+```bash
+npm run smoke:prod-hotspot-license
+```
+
+This check fails if the production frontend contains the hotspot-license button while the production backend still returns `404` for `PATCH /api/admin/devices/:id/hotspot-license`.
+
 ## Directory Layout
 
 ```text

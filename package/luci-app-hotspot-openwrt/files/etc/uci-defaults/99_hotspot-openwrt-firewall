@@ -11,7 +11,9 @@ if ! uci -q show firewall | grep -Fq "path='/etc/hotspot-openwrt/firewall.sh'"; 
     uci commit firewall
 fi
 
-# DNS redirects for captive portal detection (idempotent)
+# Remove old DNS redirects for captive portal detection. Chilli handles captive
+# redirect itself; forcing probe domains to 20.20.20.1 makes phones report
+# "connected without internet" after successful login.
 for domain in \
     /connectivitycheck.gstatic.com/20.20.20.1 \
     /connectivitycheck.android.com/20.20.20.1 \
@@ -21,7 +23,6 @@ for domain in \
     /apple.com/20.20.20.1
 do
     uci -q del_list dhcp.@dnsmasq[0].address="$domain" || true
-    uci add_list dhcp.@dnsmasq[0].address="$domain"
 done
 uci commit dhcp
 

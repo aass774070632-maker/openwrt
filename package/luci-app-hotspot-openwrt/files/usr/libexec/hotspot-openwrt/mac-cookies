@@ -50,6 +50,15 @@ find_cookie() {
 	awk -F '\t' -v mac="$mac" '$1 == mac { print; found = 1; exit } END { if (!found) exit 1 }' "$db_file"
 }
 
+find_card_cookie() {
+	local card="$1"
+	enabled || exit 1
+	card="$(strip_realm "$card")"
+	[ -n "$card" ] || exit 1
+	[ -f "$db_file" ] || exit 1
+	awk -F '\t' -v card="$card" '$4 == card || $3 == card { print; found = 1; exit } END { if (!found) exit 1 }' "$db_file"
+}
+
 delete_cookie() {
 	local mac="$1" temp
 	mac="$(normalize_mac "$mac")"
@@ -84,6 +93,7 @@ list_json() {
 case "$1" in
 	save) shift; save_cookie "$@" ;;
 	find) shift; find_cookie "$@" ;;
+	find-card) shift; find_card_cookie "$@" ;;
 	delete) shift; delete_cookie "$@" ;;
 	count) count_cookies ;;
 	list-json) list_json ;;

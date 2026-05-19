@@ -29,7 +29,8 @@ keepalive_timeout="$(uci -q get hotspot_openwrt.main.keepalive_timeout || echo 0
 status_autorefresh="$(uci -q get hotspot_openwrt.main.status_autorefresh || echo 00:01:00)"
 shared_users="$(uci -q get hotspot_openwrt.main.shared_users || echo 3)"
 rate_limit_rx_tx="$(uci -q get hotspot_openwrt.main.rate_limit_rx_tx || echo '')"
-socket_path="/var/run/chilli_hotspot_openwrt.sock"
+primary_socket_path="/var/run/chilli_hotspot_openwrt.sock"
+secondary_socket_path="/var/run/chilli_hotspot_openwrt_secondary.sock"
 mac_cookie_helper='/usr/libexec/hotspot-openwrt/mac-cookies'
 watchdog_pid_file='/var/run/hotspot-openwrt-presence-watchdog.pid'
 mac_cookie_watchdog_pid_file='/var/run/hotspot-openwrt-mac-cookie-watchdog.pid'
@@ -53,8 +54,11 @@ tun0='false'
 
 [ -n "$(ip -4 addr show br-$subscriber_interface 2>/dev/null | awk '/inet / { print $2; exit }')" ] && bridge_has_ip='true'
 
-if [ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1; then
-	client_lines="$(chilli_query -s "$socket_path" list 2>/dev/null)"
+if command -v chilli_query >/dev/null 2>&1 && { [ -S "$primary_socket_path" ] || [ -S "$secondary_socket_path" ]; }; then
+	client_lines="$(
+		[ -S "$primary_socket_path" ] && chilli_query -s "$primary_socket_path" list 2>/dev/null
+		[ -S "$secondary_socket_path" ] && chilli_query -s "$secondary_socket_path" list 2>/dev/null
+	)"
 	client_summary="$(printf '%s\n' "$client_lines" | awk '
 		NF >= 3 {
 			total++

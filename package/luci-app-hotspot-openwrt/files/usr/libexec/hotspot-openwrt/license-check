@@ -11,7 +11,7 @@ if [ -x "$GUARD_BIN" ]; then
     exec "$GUARD_BIN"
 fi
 
-# Fallback: use the validate helper when guard binary is unavailable.
+# Fallback: use the validate helper only when the guard binary is unavailable.
 if [ -x "$VALIDATE_BIN" ]; then
     "$VALIDATE_BIN" >/dev/null 2>&1
     exit $?

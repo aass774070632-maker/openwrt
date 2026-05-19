@@ -282,6 +282,18 @@ export class OtaService {
       return { accepted: false, reason: 'unknown_token' };
     }
 
+    if (!device.hotspot_licensed) {
+      await this.recordEvent(
+        device.id,
+        'hotspot_verify',
+        'blocked',
+        'hotspot license rejected: device is not licensed',
+        { mac: body.mac ?? null, ip: meta.ipAddress, signed: !!clientSig },
+      );
+
+      return { accepted: false, reason: 'not_licensed' };
+    }
+
     // Record the verification
     await this.recordEvent(
       device.id,

@@ -1,0 +1,134 @@
+#!/bin/sh
+
+FORCE=0
+RELOAD=0
+[ "$1" = '--force' ] && FORCE=1
+[ "$1" = '--reload' ] && RELOAD=1
+[ "$2" = '--reload' ] && RELOAD=1
+
+mode="$(uci -q get setup.default.mode)"
+quick_enabled="$(uci -q get setup.default.hotspot_quick_enabled)"
+
+if [ "$FORCE" != '1' ]; then
+	[ -n "$mode" ] || exit 0
+	[ "$quick_enabled" = '1' ] && exit 0
+fi
+
+changed=0
+mark_changed() { changed=1; }
+section_exists() { uci -q get "$1" >/dev/null 2>&1; }
+delete_section() {
+	section_exists "$1" || return 0
+	uci -q delete "$1" && mark_changed
+}
+
+/etc/init.d/hotspot-openwrt stop >/dev/null 2>&1 || true
+/etc/init.d/chilli stop >/dev/null 2>&1 || true
+
+for section in wizard_hotspot wizard_hotspot_quick_primary wizard_hotspot_quick_secondary; do
+	delete_section "wireless.$section"
+done
+
+for section in $(uci -q show wireless | sed -n "s/^wireless\.\([^=]*\)=wifi-iface$/\1/p"); do
+	networks=" $(uci -q get wireless.$section.network) "
+	ssid="$(uci -q get wireless.$section.ssid)"
+	case "$networks:$ssid" in
+		*' hotspot '*|*' hotspot2 '*|*Hotspot*|*hotspot*) delete_section "wireless.$section" ;;
+	esac
+done
+
+for section in hotspot hotspot_dev hotspot2 hotspot2_dev; do
+	delete_section "network.$section"
+done
+
+for section in $(uci -q show network | sed -n "s/^network\.\([^=]*\)=device$/\1/p"); do
+	name="$(uci -q get network.$section.name)"
+	case "$name" in br-hotspot|br-hotspot2) delete_section "network.$section" ;; esac
+done
+
+for section in hotspot hotspot2; do
+	delete_section "dhcp.$section"
+done
+
+for section in $(uci -q show dhcp | sed -n "s/^dhcp\.\([^.=]*\)\.dhcp_option=.*$/\1/p" | sort -u); do
+	options="$(uci -q get dhcp.$section.dhcp_option)"
+	case "$options" in *192.168.10*|*192.168.20*|*/hotspot*) uci -q delete "dhcp.$section.dhcp_option" && mark_changed ;; esac
+done
+
+for section in $(uci -q show dhcp | sed -n "s/^dhcp\.\([^.=]*\)\.option114=.*$/\1/p" | sort -u); do
+	value="$(uci -q get dhcp.$section.option114)"
+	case "$value" in *192.168.10*|*192.168.20*|*/hotspot*) uci -q delete "dhcp.$section.option114" && mark_changed ;; esac
+done
+
+for section in hotspot_openwrt hotspot_openwrt_secondary; do
+	delete_section "chilli.$section"
+done
+
+for section in $(uci -q show chilli | sed -n "s/^chilli\.\([^=]*\)=chilli$/\1/p"); do
+	tundev="$(uci -q get chilli.$section.tundev)"
+	dhcpif="$(uci -q get chilli.$section.dhcpif)"
+	network="$(uci -q get chilli.$section.network)"
+	uamlisten="$(uci -q get chilli.$section.uamlisten)"
+	net="$(uci -q get chilli.$section.net)"
+	dynip="$(uci -q get chilli.$section.dynip)"
+	case "$tundev:$dhcpif:$network:$uamlisten:$net:$dynip" in
+		*tun0*|*tun1*|*hotspot*|*hotspot2*|*192.168.10*|*192.168.20*) delete_section "chilli.$section" ;;
+	esac
+done
+
+for zone in $(uci -q show firewall | sed -n "s/^firewall\.\([^=]*\)=zone$/\1/p"); do
+	uci -q del_list firewall.$zone.network='hotspot' && mark_changed
+	uci -q del_list firewall.$zone.network='hotspot2' && mark_changed
+done
+
+for section in hotspot_openwrt_zone hotspot_openwrt_forward; do
+	delete_section "firewall.$section"
+done
+
+for section in $(uci -q show firewall | sed -n "s/^firewall\.\([^=]*\)=\(include\|zone\|forwarding\|rule\|redirect\|nat\)$/\1/p"); do
+	name="$(uci -q get firewall.$section.name)"
+	path="$(uci -q get firewall.$section.path)"
+	src="$(uci -q get firewall.$section.src)"
+	dest="$(uci -q get firewall.$section.dest)"
+	networks="$(uci -q get firewall.$section.network)"
+	src_ip="$(uci -q get firewall.$section.src_ip)"
+	dest_ip="$(uci -q get firewall.$section.dest_ip)"
+	case "$section:$name:$path:$src:$dest:$networks:$src_ip:$dest_ip" in
+		*hotspot*|*Hotspot*|*br-hotspot*|*tun0*|*tun1*|*192.168.10*|*192.168.20*) delete_section "firewall.$section" ;;
+	esac
+done
+
+rm -f /etc/dnsmasq.d/hotspot-openwrt.conf /etc/nftables.d/90-hotspot-openwrt-forward-nat.nft 2>/dev/null || true
+nft delete chain inet fw4 hotspot_openwrt_tun_forward >/dev/null 2>&1 || true
+nft delete chain inet fw4 hotspot_openwrt_tun_srcnat >/dev/null 2>&1 || true
+nft delete chain inet fw4 hotspot_mac_acl >/dev/null 2>&1 || true
+nft delete chain inet fw4 hotspot_mac_acl_hook >/dev/null 2>&1 || true
+nft delete chain inet fw4 hotspot_coa_input >/dev/null 2>&1 || true
+nft delete set inet fw4 hotspot_blocked_mac >/dev/null 2>&1 || true
+nft delete set inet fw4 hotspot_bypass_mac >/dev/null 2>&1 || true
+
+uci -q set setup.default.hotspot_quick_enabled='0' && mark_changed
+uci -q set setup.default.hotspot_quick_secondary_enabled='0' && mark_changed
+uci -q set setup.default.hotspot_enabled_from_wizard='0' && mark_changed
+
+if section_exists hotspot_openwrt.main; then
+	uci -q set hotspot_openwrt.main.enabled='0' && mark_changed
+	uci -q set hotspot_openwrt.main.quick_setup_enabled='0' && mark_changed
+	uci -q set hotspot_openwrt.main.quick_runtime_dual_enabled='0' && mark_changed
+	uci -q delete hotspot_openwrt.main.wifi_iface && mark_changed
+fi
+
+if [ "$changed" = '1' ]; then
+	for package in setup hotspot_openwrt wireless network dhcp chilli firewall; do
+		uci -q commit "$package" >/dev/null 2>&1 || true
+	done
+fi
+
+if [ "$RELOAD" = '1' ]; then
+	/etc/init.d/rpcd reload >/dev/null 2>&1 || true
+	/etc/init.d/uhttpd reload >/dev/null 2>&1 || true
+	wifi reload >/dev/null 2>&1 || wifi >/dev/null 2>&1 || true
+	/etc/init.d/network reload >/dev/null 2>&1 || true
+fi
+
+exit 0

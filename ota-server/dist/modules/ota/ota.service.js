@@ -199,8 +199,8 @@ let OtaService = class OtaService {
         if (!device) {
             return { accepted: false, reason: 'unknown_token' };
         }
-        if (!device.hotspotLicensed) {
-            await this.recordEvent(device.id, 'hotspot_verify', 'blocked', 'hotspot rejected: not licensed by admin', { mac: body.mac ?? null, ip: meta.ipAddress });
+        if (!device.hotspot_licensed) {
+            await this.recordEvent(device.id, 'hotspot_verify', 'blocked', 'hotspot license rejected: device is not licensed', { mac: body.mac ?? null, ip: meta.ipAddress, signed: !!clientSig });
             return { accepted: false, reason: 'not_licensed' };
         }
         await this.recordEvent(device.id, 'hotspot_verify', 'ok', 'hotspot license verified' + (clientSig ? ' (signed)' : ' (unsigned)'), { mac: body.mac ?? null, ip: meta.ipAddress, signed: !!clientSig });

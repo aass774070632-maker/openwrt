@@ -1,0 +1,21 @@
+{
+	"luci-app-alemprator-dhcp": {
+		"description": "Grant access to Alemprator DHCP Server",
+		"read": {
+			"uci": [ "dhcp", "hotspot_openwrt", "setup", "network" ],
+			"file": {
+				"/tmp/dhcp.leases": [ "read" ],
+				"/etc/ethers": [ "read" ]
+			},
+			"exec": {
+				"/usr/sbin/chilli_query": [ "dhcp-list" ]
+			}
+		},
+		"write": {
+			"uci": [ "dhcp", "network" ],
+			"file": {
+				"/etc/ethers": [ "write" ]
+			}
+		}
+	}
+}

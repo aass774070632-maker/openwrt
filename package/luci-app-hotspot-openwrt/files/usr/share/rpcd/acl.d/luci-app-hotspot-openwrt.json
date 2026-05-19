@@ -3,12 +3,14 @@
 		"description": "Grant access for Hotspot OpenWrt wizard",
 		"read": {
 			"file": {
+				"/usr/libexec/hotspot-openwrt/license-check": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/status-json": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/validate": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/test-radius": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/logs": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/export-config": [ "exec" ]
 			},
-			"uci": [ "chilli", "dhcp", "firewall", "hotspot_openwrt", "network", "wireless" ],
+			"uci": [ "chilli", "dhcp", "firewall", "hotspot_licensing", "hotspot_openwrt", "network", "wireless" ],
 			"ubus": {
 				"system": [ "board" ],
 				"network.interface": [ "dump" ],
@@ -24,12 +26,14 @@
 				"/usr/libexec/hotspot-openwrt/import-config": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/kick-client": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/portal-upload": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/test-radius": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/license-check": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/validate": [ "exec" ]
 			},
 			"ubus": {
 				"file": [ "exec" ]
 			},
-			"uci": [ "chilli", "dhcp", "firewall", "hotspot_openwrt", "network", "wireless" ]
+			"uci": [ "chilli", "dhcp", "firewall", "hotspot_licensing", "hotspot_openwrt", "network", "wireless" ]
 		}
 	}
 }
