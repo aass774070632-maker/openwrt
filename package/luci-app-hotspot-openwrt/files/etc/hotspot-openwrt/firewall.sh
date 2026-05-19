@@ -51,6 +51,13 @@ nft "add rule inet fw4 hotspot_openwrt_tun_srcnat ip saddr $SECONDARY_HOTSPOT_NE
 nft -a list chain inet fw4 srcnat 2>/dev/null | grep -q 'jump hotspot_openwrt_tun_srcnat' || \
 	nft "insert rule inet fw4 srcnat jump hotspot_openwrt_tun_srcnat comment \"hotspot-openwrt tun srcnat\"" 2>/dev/null || true
 
+nft "add chain inet fw4 hotspot_openwrt_tun_input" 2>/dev/null || true
+nft "flush chain inet fw4 hotspot_openwrt_tun_input" 2>/dev/null || true
+nft "add rule inet fw4 hotspot_openwrt_tun_input iifname \"tun0\" counter accept" 2>/dev/null || true
+nft "add rule inet fw4 hotspot_openwrt_tun_input iifname \"tun1\" counter accept" 2>/dev/null || true
+nft -a list chain inet fw4 input 2>/dev/null | grep -q 'jump hotspot_openwrt_tun_input' || \
+        nft "insert rule inet fw4 input jump hotspot_openwrt_tun_input comment \"hotspot-openwrt tun input\"" 2>/dev/null || true
+
 # ── Blocked-MAC enforcement chain ───────────────────────────────────────────
 nft "add chain inet fw4 hotspot_mac_acl" 2>/dev/null || true
 nft "flush chain inet fw4 hotspot_mac_acl" 2>/dev/null || true
