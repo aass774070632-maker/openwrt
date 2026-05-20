@@ -4481,6 +4481,9 @@ return view.extend({
 				applyWifiIfaceFlag('wireless', sid, 'hidden', vlanPolicy.hidden);
 				applyWifiIfaceFlag('wireless', sid, 'isolate', vlanPolicy.isolate);
 			}
+			else {
+				uci.set('wireless', sid, 'disabled', '1');
+			}
 		});
 
 	},
