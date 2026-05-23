@@ -1,0 +1,1 @@
+window.HOTSPOT_OPENWRT_SETTINGS={browserCookieEnabled:true,browserCookieDays:7,openStatusPage:"always",postLoginUrl:("http://"+window.location.hostname+"/hotspot/status.html"),statusAutorefreshSeconds:60};

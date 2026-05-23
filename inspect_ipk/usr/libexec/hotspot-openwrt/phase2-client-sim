@@ -1,0 +1,166 @@
+#!/bin/sh
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+json_bool() {
+	[ "$1" = '1' ] && printf true || printf false
+}
+
+safe_count_clients() {
+	local socket_path="$1"
+
+	[ -S "$socket_path" ] || {
+		printf '0'
+		return 0
+	}
+
+	chilli_query -s "$socket_path" list 2>/dev/null | awk 'NF >= 3 { c++ } END { print c + 0 }'
+}
+
+fetch_http_code() {
+	local iface="$1"
+
+	if command -v curl >/dev/null 2>&1; then
+		curl -s -o /tmp/phase2-client-sim-http-$$.out -w '%{http_code}' --interface "$iface" --connect-timeout 8 http://neverssl.com 2>/dev/null
+		return 0
+	fi
+
+	if command -v wget >/dev/null 2>&1; then
+		wget -q -O /tmp/phase2-client-sim-http-$$.out --timeout=8 --bind-address="$(ip -4 addr show dev "$iface" | awk '/inet / { sub(/\/.*/, "", $2); print $2; exit }')" http://neverssl.com >/dev/null 2>&1
+		[ "$?" -eq 0 ] && {
+			printf '200'
+			return 0
+		}
+	fi
+
+	printf '000'
+}
+
+SIM_ID="$$"
+BR1='br-hotspot'
+BR2='br-hotspot2'
+H1="p2s1h$SIM_ID"
+C1="p2s1c$SIM_ID"
+H2="p2s2h$SIM_ID"
+C2="p2s2c$SIM_ID"
+
+ns1_dhcp_ok='0'
+ns2_dhcp_ok='0'
+ns1_ip=''
+ns2_ip=''
+ns1_http_code='000'
+ns2_http_code='000'
+link_mode=''
+veth_unavailable='0'
+failed=''
+
+cleanup() {
+	rm -f /tmp/phase2-client-sim-http-$$.out >/dev/null 2>&1 || true
+	ip link del "$H1" >/dev/null 2>&1 || true
+	ip link del "$H2" >/dev/null 2>&1 || true
+	ip link del "$C1" >/dev/null 2>&1 || true
+	ip link del "$C2" >/dev/null 2>&1 || true
+}
+
+add_failed() {
+	if [ -n "$failed" ]; then
+		failed="$failed,\"$1\""
+	else
+		failed="\"$1\""
+	fi
+}
+
+trap cleanup EXIT INT TERM
+
+ip link show "$BR1" >/dev/null 2>&1 || add_failed 'bridge_primary_missing'
+ip link show "$BR2" >/dev/null 2>&1 || add_failed 'bridge_secondary_missing'
+
+if [ -z "$failed" ]; then
+	if ip link add "$H1" type veth peer name "$C1" >/dev/null 2>&1 \
+		&& ip link add "$H2" type veth peer name "$C2" >/dev/null 2>&1; then
+		link_mode='veth'
+	else
+		veth_unavailable='1'
+		# Some targets do not ship veth; macvlan on bridge gives a client-like L2 endpoint.
+		ip link del "$H1" >/dev/null 2>&1 || true
+		ip link del "$H2" >/dev/null 2>&1 || true
+		ip link del "$C1" >/dev/null 2>&1 || true
+		ip link del "$C2" >/dev/null 2>&1 || true
+
+		ip link add link "$BR1" name "$C1" type macvlan mode bridge >/dev/null 2>&1 || add_failed 'macvlan_primary_create'
+		ip link add link "$BR2" name "$C2" type macvlan mode bridge >/dev/null 2>&1 || add_failed 'macvlan_secondary_create'
+		[ -z "$failed" ] && link_mode='macvlan'
+	fi
+fi
+
+if [ -z "$failed" ]; then
+	if [ "$link_mode" = 'veth' ]; then
+		ip link set "$H1" master "$BR1" >/dev/null 2>&1 || add_failed 'bridge_primary_attach'
+		ip link set "$H2" master "$BR2" >/dev/null 2>&1 || add_failed 'bridge_secondary_attach'
+		ip link set "$H1" up >/dev/null 2>&1 || add_failed 'bridge_primary_up'
+		ip link set "$H2" up >/dev/null 2>&1 || add_failed 'bridge_secondary_up'
+		ip link set "$C1" up >/dev/null 2>&1 || add_failed 'client_primary_up'
+		ip link set "$C2" up >/dev/null 2>&1 || add_failed 'client_secondary_up'
+	elif [ "$link_mode" = 'macvlan' ]; then
+		ip link set "$C1" up >/dev/null 2>&1 || add_failed 'client_primary_up'
+		ip link set "$C2" up >/dev/null 2>&1 || add_failed 'client_secondary_up'
+	else
+		add_failed 'link_mode_unknown'
+	fi
+fi
+
+if [ -z "$failed" ]; then
+	udhcpc -i "$C1" -n -q -t 5 -T 2 >/tmp/phase2-client-sim-dhcp1.log 2>&1
+	if [ "$?" -eq 0 ]; then
+		ns1_dhcp_ok='1'
+		ns1_ip="$(ip -4 addr show dev "$C1" | awk '/inet / { sub(/\/.*/, "", $2); print $2; exit }')"
+		ns1_http_code="$(fetch_http_code "$C1")"
+	else
+		add_failed 'dhcp_primary'
+	fi
+
+	udhcpc -i "$C2" -n -q -t 5 -T 2 >/tmp/phase2-client-sim-dhcp2.log 2>&1
+	if [ "$?" -eq 0 ]; then
+		ns2_dhcp_ok='1'
+		ns2_ip="$(ip -4 addr show dev "$C2" | awk '/inet / { sub(/\/.*/, "", $2); print $2; exit }')"
+		ns2_http_code="$(fetch_http_code "$C2")"
+	else
+		add_failed 'dhcp_secondary'
+	fi
+fi
+
+primary_clients="$(safe_count_clients '/var/run/chilli_hotspot_openwrt.sock')"
+secondary_clients="$(safe_count_clients '/var/run/chilli_hotspot_openwrt_secondary.sock')"
+
+overall_ok='0'
+[ "$ns1_dhcp_ok" = '1' ] && [ "$ns2_dhcp_ok" = '1' ] && overall_ok='1'
+
+if [ "$overall_ok" = '0' ] && [ "$link_mode" = 'macvlan' ] \
+	&& [ "$ns1_dhcp_ok" = '0' ] && [ "$ns2_dhcp_ok" = '0' ]; then
+	if [ "$primary_clients" -gt 0 ] && [ "$secondary_clients" -gt 0 ]; then
+		link_mode='live_clients'
+		overall_ok='1'
+	else
+		[ "$veth_unavailable" = '1' ] && add_failed 'veth_unavailable'
+		add_failed 'sim_blocked_require_real_clients'
+	fi
+fi
+
+printf '{'
+printf '"ok":%s,' "$(json_bool "$overall_ok")"
+printf '"ns1_dhcp_ok":%s,' "$(json_bool "$ns1_dhcp_ok")"
+printf '"ns1_ip":"%s",' "$(json_escape "$ns1_ip")"
+printf '"ns1_http_code":"%s",' "$(json_escape "$ns1_http_code")"
+printf '"ns2_dhcp_ok":%s,' "$(json_bool "$ns2_dhcp_ok")"
+printf '"ns2_ip":"%s",' "$(json_escape "$ns2_ip")"
+printf '"ns2_http_code":"%s",' "$(json_escape "$ns2_http_code")"
+printf '"link_mode":"%s",' "$(json_escape "$link_mode")"
+printf '"chilli_primary_clients":%s,' "$(json_escape "$primary_clients")"
+printf '"chilli_secondary_clients":%s,' "$(json_escape "$secondary_clients")"
+printf '"failed":[%s]' "$failed"
+printf '}\n'
+
+[ "$overall_ok" = '1' ] && exit 0
+exit 1

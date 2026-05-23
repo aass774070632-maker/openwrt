@@ -1,0 +1,45 @@
+#!/bin/sh
+# export-config — Export hotspot configuration as a tar.gz archive
+# Output: writes /tmp/hotspot-openwrt-export.tar.gz and prints JSON result
+
+OUTPUT='/tmp/hotspot-openwrt-export.tar.gz'
+TMPDIR="/tmp/hotspot-openwrt-export.$$"
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+mkdir -p "$TMPDIR/etc/config" "$TMPDIR/etc/chilli" || {
+	printf '{"ok":false,"message":"فشل إنشاء مجلد مؤقت."}\n'
+	exit 1
+}
+
+# Export UCI configs
+for pkg in hotspot_openwrt chilli; do
+	uci -q export "$pkg" > "$TMPDIR/etc/config/$pkg.export" 2>/dev/null || true
+done
+
+# Copy chilli config files
+for f in /etc/chilli/config /etc/chilli/up.sh /etc/chilli/down.sh /etc/chilli/conup.sh /etc/chilli/condown.sh; do
+	[ -f "$f" ] && cp "$f" "$TMPDIR/etc/chilli/" 2>/dev/null || true
+done
+
+# Copy SSL certs if present
+CERT="$(uci -q get hotspot_openwrt.main.uamssl_cert || echo '')"
+KEY="$(uci -q get hotspot_openwrt.main.uamssl_key || echo '')"
+[ -f "$CERT" ] && { mkdir -p "$TMPDIR$(dirname "$CERT")"; cp "$CERT" "$TMPDIR$CERT" 2>/dev/null || true; }
+[ -f "$KEY"  ] && { mkdir -p "$TMPDIR$(dirname "$KEY")";  cp "$KEY"  "$TMPDIR$KEY"  2>/dev/null || true; }
+
+# Create archive
+tar -czf "$OUTPUT" -C "$TMPDIR" . 2>/dev/null
+RET=$?
+rm -rf "$TMPDIR"
+
+if [ $RET -eq 0 ]; then
+	SIZE="$(wc -c < "$OUTPUT" 2>/dev/null | awk '{print $1+0}')"
+	printf '{"ok":true,"path":"%s","size":%d,"message":"تم تصدير الإعدادات بنجاح."}\n' \
+		"$(json_escape "$OUTPUT")" "$SIZE"
+else
+	printf '{"ok":false,"message":"فشل إنشاء ملف الأرشيف."}\n'
+	exit 1
+fi

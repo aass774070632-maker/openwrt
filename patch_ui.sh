@@ -1,0 +1,1 @@
+ssh -o StrictHostKeyChecking=no root@192.168.1.20 "sed -i 's/return E(.div., { class: .cbi-map. }, \\\[/return E(\"div\", { class: \"cbi-map\", style: \"display:none\" }, \\\[/g' /www/luci-static/resources/view/alemprator-dhcp/index.js"

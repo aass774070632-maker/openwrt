@@ -1,0 +1,159 @@
+#!/bin/sh
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+json_bool() {
+	[ "$1" = '1' ] && printf true || printf false
+}
+
+append_failed() {
+	if [ -n "$FAILED_CHECKS" ]; then
+		FAILED_CHECKS="$FAILED_CHECKS,\"$1\""
+	else
+		FAILED_CHECKS="\"$1\""
+	fi
+}
+
+quick_setup_enabled="$(uci -q get hotspot_openwrt.main.quick_setup_enabled || echo 0)"
+dual_quick_enabled="$(uci -q get hotspot_openwrt.main.quick_runtime_dual_enabled || echo 0)"
+
+primary_if="$(uci -q get hotspot_openwrt.main.quick_subscriber_interface || uci -q get hotspot_openwrt.main.subscriber_interface || echo hotspot)"
+secondary_if="$(uci -q get hotspot_openwrt.main.quick_subscriber_interface_secondary || echo hotspot2)"
+
+primary_device="$(uci -q get network.$primary_if.device || echo '')"
+secondary_device="$(uci -q get network.$secondary_if.device || echo '')"
+
+primary_wireless_network="$(uci -q get wireless.wizard_hotspot_quick_primary.network || echo '')"
+secondary_wireless_network="$(uci -q get wireless.wizard_hotspot_quick_secondary.network || echo '')"
+primary_wireless_disabled="$(uci -q get wireless.wizard_hotspot_quick_primary.disabled || echo 0)"
+secondary_wireless_disabled="$(uci -q get wireless.wizard_hotspot_quick_secondary.disabled || echo 0)"
+
+check_quick_flags='0'
+[ "$quick_setup_enabled" = '1' ] && [ "$dual_quick_enabled" = '1' ] && check_quick_flags='1'
+
+check_ifaces_distinct='0'
+[ -n "$primary_if" ] && [ -n "$secondary_if" ] && [ "$primary_if" != "$secondary_if" ] && check_ifaces_distinct='1'
+
+check_wireless_primary_exists='0'
+uci -q get wireless.wizard_hotspot_quick_primary >/dev/null 2>&1 && check_wireless_primary_exists='1'
+
+check_wireless_secondary_exists='0'
+uci -q get wireless.wizard_hotspot_quick_secondary >/dev/null 2>&1 && check_wireless_secondary_exists='1'
+
+check_wireless_bindings='0'
+[ "$primary_wireless_network" = "$primary_if" ] && [ "$secondary_wireless_network" = "$secondary_if" ] && check_wireless_bindings='1'
+
+check_wireless_primary_enabled='0'
+[ "$primary_wireless_disabled" != '1' ] && check_wireless_primary_enabled='1'
+
+check_wireless_secondary_enabled='0'
+[ "$secondary_wireless_disabled" != '1' ] && check_wireless_secondary_enabled='1'
+
+check_primary_device_set='0'
+[ -n "$primary_device" ] && check_primary_device_set='1'
+
+check_secondary_device_set='0'
+[ -n "$secondary_device" ] && check_secondary_device_set='1'
+
+check_no_vlan_primary='1'
+case "$primary_device" in
+	*.*) check_no_vlan_primary='0' ;;
+esac
+
+check_no_vlan_secondary='1'
+case "$secondary_device" in
+	*.*) check_no_vlan_secondary='0' ;;
+esac
+
+check_primary_interface_up='0'
+ubus call "network.interface.$primary_if" status 2>/dev/null | grep -q '"up":[[:space:]]*true' && check_primary_interface_up='1'
+
+check_secondary_interface_up='0'
+ubus call "network.interface.$secondary_if" status 2>/dev/null | grep -q '"up":[[:space:]]*true' && check_secondary_interface_up='1'
+
+phase2_smoke_json="$(/usr/libexec/hotspot-openwrt/phase2-smoke 2>/dev/null)"
+phase2_smoke_rc="$?"
+
+check_phase2_smoke_rc='0'
+[ "$phase2_smoke_rc" -eq 0 ] && check_phase2_smoke_rc='1'
+
+check_phase2_smoke_ok='0'
+printf '%s' "$phase2_smoke_json" | grep -q '"ok":true' && check_phase2_smoke_ok='1'
+
+status_json="$(/usr/libexec/hotspot-openwrt/status-json 2>/dev/null || true)"
+
+check_status_json='0'
+[ -n "$status_json" ] && check_status_json='1'
+
+check_status_dual='0'
+printf '%s' "$status_json" | grep -q '"dual_quick_mode":true' && check_status_dual='1'
+
+check_status_chilli='0'
+printf '%s' "$status_json" | grep -q '"chilli_running":true' && check_status_chilli='1'
+
+FAILED_CHECKS=''
+
+for entry in \
+	'quick_flags:check_quick_flags' \
+	'ifaces_distinct:check_ifaces_distinct' \
+	'wireless_primary_exists:check_wireless_primary_exists' \
+	'wireless_secondary_exists:check_wireless_secondary_exists' \
+	'wireless_bindings:check_wireless_bindings' \
+	'wireless_primary_enabled:check_wireless_primary_enabled' \
+	'wireless_secondary_enabled:check_wireless_secondary_enabled' \
+	'primary_device_set:check_primary_device_set' \
+	'secondary_device_set:check_secondary_device_set' \
+	'no_vlan_primary:check_no_vlan_primary' \
+	'no_vlan_secondary:check_no_vlan_secondary' \
+	'primary_interface_up:check_primary_interface_up' \
+	'secondary_interface_up:check_secondary_interface_up' \
+	'phase2_smoke_rc:check_phase2_smoke_rc' \
+	'phase2_smoke_ok:check_phase2_smoke_ok' \
+	'status_json:check_status_json' \
+	'status_dual:check_status_dual' \
+	'status_chilli:check_status_chilli'; do
+	label="${entry%%:*}"
+	var="${entry##*:}"
+	eval "value=\${$var}"
+	[ "$value" = '1' ] || append_failed "$label"
+done
+
+ok='1'
+[ -n "$FAILED_CHECKS" ] && ok='0'
+
+printf '{'
+printf '"ok":%s,' "$(json_bool "$ok")"
+printf '"quick_setup_enabled":%s,' "$(json_bool "$quick_setup_enabled")"
+printf '"dual_quick_mode":%s,' "$(json_bool "$dual_quick_enabled")"
+printf '"primary_interface":"%s",' "$(json_escape "$primary_if")"
+printf '"secondary_interface":"%s",' "$(json_escape "$secondary_if")"
+printf '"primary_device":"%s",' "$(json_escape "$primary_device")"
+printf '"secondary_device":"%s",' "$(json_escape "$secondary_device")"
+printf '"phase2_smoke_rc":%s,' "$phase2_smoke_rc"
+printf '"checks":{'
+printf '"quick_flags":%s,' "$(json_bool "$check_quick_flags")"
+printf '"ifaces_distinct":%s,' "$(json_bool "$check_ifaces_distinct")"
+printf '"wireless_primary_exists":%s,' "$(json_bool "$check_wireless_primary_exists")"
+printf '"wireless_secondary_exists":%s,' "$(json_bool "$check_wireless_secondary_exists")"
+printf '"wireless_bindings":%s,' "$(json_bool "$check_wireless_bindings")"
+printf '"wireless_primary_enabled":%s,' "$(json_bool "$check_wireless_primary_enabled")"
+printf '"wireless_secondary_enabled":%s,' "$(json_bool "$check_wireless_secondary_enabled")"
+printf '"primary_device_set":%s,' "$(json_bool "$check_primary_device_set")"
+printf '"secondary_device_set":%s,' "$(json_bool "$check_secondary_device_set")"
+printf '"no_vlan_primary":%s,' "$(json_bool "$check_no_vlan_primary")"
+printf '"no_vlan_secondary":%s,' "$(json_bool "$check_no_vlan_secondary")"
+printf '"primary_interface_up":%s,' "$(json_bool "$check_primary_interface_up")"
+printf '"secondary_interface_up":%s,' "$(json_bool "$check_secondary_interface_up")"
+printf '"phase2_smoke_rc":%s,' "$(json_bool "$check_phase2_smoke_rc")"
+printf '"phase2_smoke_ok":%s,' "$(json_bool "$check_phase2_smoke_ok")"
+printf '"status_json":%s,' "$(json_bool "$check_status_json")"
+printf '"status_dual":%s,' "$(json_bool "$check_status_dual")"
+printf '"status_chilli":%s' "$(json_bool "$check_status_chilli")"
+printf '},'
+printf '"failed":[%s]' "$FAILED_CHECKS"
+printf '}\n'
+
+[ "$ok" = '1' ] && exit 0
+exit 1

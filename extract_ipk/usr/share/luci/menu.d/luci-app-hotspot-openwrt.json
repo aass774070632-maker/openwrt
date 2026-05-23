@@ -1,0 +1,13 @@
+{
+	"admin/services/hotspot-openwrt": {
+		"title": "Hotspot OpenWrt",
+		"order": 50,
+		"action": {
+			"type": "view",
+			"path": "services/hotspot-openwrt"
+		},
+		"depends": {
+			"acl": [ "luci-app-hotspot-openwrt" ]
+		}
+	}
+}
