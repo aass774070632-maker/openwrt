@@ -3314,7 +3314,7 @@ return view.extend({
 			adminPassword: '',
 			adminPasswordConfirm: '',
 			hotspotAvailable: !!(uci.get('hotspot_openwrt', 'main')),
-			hotspotEnabled: uci.get('hotspot_openwrt', 'main', 'enabled') === '1',
+			hotspotEnabled: uci.get('setup', 'default', 'hotspot_enabled_from_wizard') === '1',
 			hotspotSsid: (function() {
 				var sec = findNamedWifiIfaceSection('wizard_hotspot');
 				return sec ? String(sec.ssid || 'Hotspot') : 'Hotspot';
@@ -4443,48 +4443,62 @@ return view.extend({
 			}
 		}
 
-		uci.sections('wireless', 'wifi-iface').forEach(function(section) {
-			var sid = section['.name'];
-			var sectionNetworks = normalizeList(section.network);
-			var isLocalRadio = localRadios.some(function(radio) {
-				return section.device == radio['.name'];
-			});
+                uci.sections('wireless', 'wifi-iface').forEach(function(section) {
+                        var sid = section['.name'];
+                        var sectionNetworks = normalizeList(section.network);
+                        var isLocalRadio = localRadios.some(function(radio) {
+                                return section.device == radio['.name'];
+                        });
 
-			uci.set('wireless', sid, 'disassoc_low_ack', '0');
+                        if (section.mode == null || section.mode == 'ap')
+                                uci.set('wireless', sid, 'disassoc_low_ack', '0');
 
-			if (!isLocalRadio)
-				return;
+                        if (!isLocalRadio)
+                                return;
 
-			if (section.mode != null && section.mode != 'ap')
-				return;
+                        if (section.mode != null && section.mode != 'ap')
+                                return;
 
-			if (vlanOnlyAp && sectionNetworks.indexOf('lan') > -1) {
-				uci.remove('wireless', sid);
-				return;
-			}
+                        if (sid === 'wizard_hotspot') {
+                                return; // managed by applyHotspotSettings
+                        }
 
-			if (sectionNetworks.indexOf('lan') > -1) {
-				if (lanPolicy.enableWds)
-					uci.set('wireless', sid, 'wds', '1');
-				else
-					uci.unset('wireless', sid, 'wds');
+                        // Remove AP interfaces that are unmanaged (ghost SSIDs)
+                        if (!managedSids[sid]) {
+                                uci.remove('wireless', sid);
+                                return;
+                        }
 
-				applyWifiIfaceFlag('wireless', sid, 'hidden', lanPolicy.hidden);
-				applyWifiIfaceFlag('wireless', sid, 'isolate', lanPolicy.isolate);
-			}
-			else if (sectionNetworks.indexOf('wizardvlan') > -1) {
-				if (vlanPolicy.enableWds)
-					uci.set('wireless', sid, 'wds', '1');
-				else
-					uci.unset('wireless', sid, 'wds');
+                        if (sectionNetworks.indexOf('lan') > -1) {
+                                if (vlanOnlyAp) {
+                                        uci.remove('wireless', sid);
+                                        return;
+                                }
 
-				applyWifiIfaceFlag('wireless', sid, 'hidden', vlanPolicy.hidden);
-				applyWifiIfaceFlag('wireless', sid, 'isolate', vlanPolicy.isolate);
-			}
-			else {
-				uci.set('wireless', sid, 'disabled', '1');
-			}
-		});
+                                if (lanPolicy.enableWds)
+                                        uci.set('wireless', sid, 'wds', '1');
+                                else
+                                        uci.unset('wireless', sid, 'wds');
+
+                                applyWifiIfaceFlag('wireless', sid, 'hidden', lanPolicy.hidden);
+                                applyWifiIfaceFlag('wireless', sid, 'isolate', lanPolicy.isolate);
+                                uci.set('wireless', sid, 'disabled', '0');
+                        }
+                        else if (sectionNetworks.indexOf('wizardvlan') > -1) {
+                                if (vlanPolicy.enableWds)
+                                        uci.set('wireless', sid, 'wds', '1');
+                                else
+                                        uci.unset('wireless', sid, 'wds');
+
+                                applyWifiIfaceFlag('wireless', sid, 'hidden', vlanPolicy.hidden);
+                                applyWifiIfaceFlag('wireless', sid, 'isolate', vlanPolicy.isolate);
+                                uci.set('wireless', sid, 'disabled', '0');
+                        }
+                        else {
+                                // Enable strictly managed interfaces that aren't lan/vlan (like hotspot) instead of disabling
+                                uci.set('wireless', sid, 'disabled', '0');
+                        }
+                });
 
 	},
 
@@ -5840,8 +5854,15 @@ return view.extend({
 		});
 
 		this.refs.mode.addEventListener('change', function() {
-			self.updateStepUi();
-		});
+                if (self.refs.mode.value !== 'ap') {
+                        // User chose Mesh, Extender, etc. Reset hotspot.
+                        // Actually, even if they explicitly select 'ap' from the dropdown, maybe reset? Yes, if they are touching mode, they want basic setup.
+                }
+                if (self.refs.hotspotQuickEnabled) self.refs.hotspotQuickEnabled.checked = false;
+                if (self.refs.hotspotEnabled) self.refs.hotspotEnabled.checked = false;
+                if (self.refs.hotspotQuickSecondaryEnabled) self.refs.hotspotQuickSecondaryEnabled.checked = false;
+                self.updateStepUi();
+        });
 
 		this.refs.uplinkSsid.addEventListener('input', function() {
 			self.updateStepUi();
@@ -5943,7 +5964,15 @@ return view.extend({
 			self.updateStepUi();
 		});
 
-		if (this.refs.hotspotQuickEnabled) {
+		
+           if (this.refs.hotspotQuickSecondaryEnabled) {
+                   this.refs.hotspotQuickSecondaryEnabled.addEventListener('change', function() {
+                           self.updateStepUi();
+                   });
+           }
+
+           if (this.refs.hotspotQuickEnabled) {
+
 			this.refs.hotspotQuickEnabled.addEventListener('change', function() {
 				self.updateStepUi();
 				if (self.refs.hotspotQuickEnabled.checked)

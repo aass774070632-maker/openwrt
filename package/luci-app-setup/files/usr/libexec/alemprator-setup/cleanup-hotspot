@@ -32,8 +32,8 @@ done
 for section in $(uci -q show wireless | sed -n "s/^wireless\.\([^=]*\)=wifi-iface$/\1/p"); do
 	networks=" $(uci -q get wireless.$section.network) "
 	ssid="$(uci -q get wireless.$section.ssid)"
-	case "$networks:$ssid" in
-		*' hotspot '*|*' hotspot2 '*|*Hotspot*|*hotspot*) delete_section "wireless.$section" ;;
+	case " $networks " in
+		*" hotspot "*|*" hotspot2 "*|*" hotspot_openwrt "*) delete_section "wireless.$section" ;;
 	esac
 done
 
@@ -94,7 +94,7 @@ for section in $(uci -q show firewall | sed -n "s/^firewall\.\([^=]*\)=\(include
 	src_ip="$(uci -q get firewall.$section.src_ip)"
 	dest_ip="$(uci -q get firewall.$section.dest_ip)"
 	case "$section:$name:$path:$src:$dest:$networks:$src_ip:$dest_ip" in
-		*hotspot*|*Hotspot*|*br-hotspot*|*tun0*|*tun1*|*192.168.10*|*192.168.20*) delete_section "firewall.$section" ;;
+		*" hotspot "*|*" hotspot_openwrt "*|*" br-hotspot "*|*" br-hotspot_openwrt "*|*" tun0 "*|*" tun1 "*) delete_section "firewall.$section" ;;
 	esac
 done
 
