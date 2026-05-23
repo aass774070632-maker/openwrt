@@ -1,0 +1,37 @@
+#!/bin/sh
+
+# Ensure packaged include script is executable
+[ -f /etc/hotspot-openwrt/firewall.sh ] && chmod 0755 /etc/hotspot-openwrt/firewall.sh
+
+# Integrate with OpenWrt Firewall (fw4)
+if ! uci -q show firewall | grep -Fq "path='/etc/hotspot-openwrt/firewall.sh'"; then
+    SECTION="$(uci add firewall include)"
+    uci set firewall.$SECTION.enabled='1'
+    uci set firewall.$SECTION.path='/etc/hotspot-openwrt/firewall.sh'
+    uci commit firewall
+fi
+
+# Remove old DNS redirects for captive portal detection. Chilli handles captive
+# redirect itself; forcing probe domains to 20.20.20.1 makes phones report
+# "connected without internet" after successful login.
+for domain in \
+    /connectivitycheck.gstatic.com/20.20.20.1 \
+    /connectivitycheck.android.com/20.20.20.1 \
+    /clients3.google.com/20.20.20.1 \
+    /msftconnecttest.com/20.20.20.1 \
+    /msftncsi.com/20.20.20.1 \
+    /apple.com/20.20.20.1
+do
+    uci -q del_list dhcp.@dnsmasq[0].address="$domain" || true
+done
+uci commit dhcp
+
+# Captive portal redirect handler
+uci set uhttpd.main.error_page='/cgi-bin/generate_204'
+uci commit uhttpd
+
+/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+/etc/init.d/uhttpd restart >/dev/null 2>&1 || true
+/etc/init.d/firewall restart >/dev/null 2>&1 || true
+
+exit 0

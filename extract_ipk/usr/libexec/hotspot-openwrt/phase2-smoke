@@ -1,0 +1,135 @@
+#!/bin/sh
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+json_bool() {
+	[ "$1" = '1' ] && printf true || printf false
+}
+
+network_for() {
+	local ipaddr="$1" cidr="$2" output
+	output="$(/bin/ipcalc.sh "$ipaddr/$cidr" 2>/dev/null)" || return 1
+	eval "$output"
+	printf '%s' "$NETWORK"
+}
+
+append_failed() {
+	if [ -n "$FAILED_CHECKS" ]; then
+		FAILED_CHECKS="$FAILED_CHECKS,\"$1\""
+	else
+		FAILED_CHECKS="\"$1\""
+	fi
+}
+
+quick_setup_enabled="$(uci -q get hotspot_openwrt.main.quick_setup_enabled || echo 0)"
+dual_quick_enabled="$(uci -q get hotspot_openwrt.main.quick_runtime_dual_enabled || echo 0)"
+
+primary_if="$(uci -q get hotspot_openwrt.main.quick_subscriber_interface || uci -q get hotspot_openwrt.main.subscriber_interface || echo hotspot)"
+secondary_if="$(uci -q get hotspot_openwrt.main.quick_subscriber_interface_secondary || echo hotspot2)"
+
+primary_ip="$(uci -q get hotspot_openwrt.main.quick_gateway_primary || uci -q get hotspot_openwrt.main.hotspot_ip || echo '')"
+secondary_ip="$(uci -q get hotspot_openwrt.main.quick_gateway_secondary || echo '')"
+
+primary_cidr="$(uci -q get hotspot_openwrt.main.hotspot_cidr || echo 24)"
+secondary_cidr="$primary_cidr"
+
+primary_net=''
+secondary_net=''
+[ -n "$primary_ip" ] && primary_net="$(network_for "$primary_ip" "$primary_cidr" 2>/dev/null || echo '')"
+[ -n "$secondary_ip" ] && secondary_net="$(network_for "$secondary_ip" "$secondary_cidr" 2>/dev/null || echo '')"
+
+status_json="$(/usr/libexec/hotspot-openwrt/status-json 2>/dev/null || true)"
+
+check_mode='0'
+[ "$quick_setup_enabled" = '1' ] && [ "$dual_quick_enabled" = '1' ] && check_mode='1'
+
+check_ifaces_distinct='0'
+[ -n "$primary_if" ] && [ -n "$secondary_if" ] && [ "$primary_if" != "$secondary_if" ] && check_ifaces_distinct='1'
+
+check_chilli_primary='0'
+uci -q get chilli.hotspot_openwrt >/dev/null 2>&1 && check_chilli_primary='1'
+
+check_chilli_secondary='0'
+uci -q get chilli.hotspot_openwrt_secondary >/dev/null 2>&1 && check_chilli_secondary='1'
+
+check_tun0='0'
+ip -4 addr show tun0 2>/dev/null | grep -q 'inet ' && check_tun0='1'
+
+check_tun1='0'
+ip -4 addr show tun1 2>/dev/null | grep -q 'inet ' && check_tun1='1'
+
+check_route_tun0='0'
+if [ -n "$primary_net" ]; then
+	ip route show 2>/dev/null | grep -q "^$primary_net/$primary_cidr .*dev tun0" && check_route_tun0='1'
+fi
+
+check_route_tun1='0'
+if [ -n "$secondary_net" ]; then
+	ip route show 2>/dev/null | grep -q "^$secondary_net/$secondary_cidr .*dev tun1" && check_route_tun1='1'
+fi
+
+check_nft_tun0='0'
+grep -q 'iifname "tun0"' /etc/nftables.d/90-hotspot-openwrt-forward-nat.nft 2>/dev/null && check_nft_tun0='1'
+
+check_nft_tun1='0'
+grep -q 'iifname "tun1"' /etc/nftables.d/90-hotspot-openwrt-forward-nat.nft 2>/dev/null && check_nft_tun1='1'
+
+check_status_json='0'
+[ -n "$status_json" ] && check_status_json='1'
+
+check_status_dual='0'
+printf '%s' "$status_json" | grep -q '"dual_quick_mode":true' && check_status_dual='1'
+
+FAILED_CHECKS=''
+
+for entry in \
+	'mode:check_mode' \
+	'ifaces_distinct:check_ifaces_distinct' \
+	'chilli_primary:check_chilli_primary' \
+	'chilli_secondary:check_chilli_secondary' \
+	'tun0:check_tun0' \
+	'tun1:check_tun1' \
+	'route_tun0:check_route_tun0' \
+	'route_tun1:check_route_tun1' \
+	'nft_tun0:check_nft_tun0' \
+	'nft_tun1:check_nft_tun1' \
+	'status_json:check_status_json' \
+	'status_dual:check_status_dual'; do
+	label="${entry%%:*}"
+	var="${entry##*:}"
+	eval "value=\${$var}"
+	[ "$value" = '1' ] || append_failed "$label"
+done
+
+ok='1'
+[ -n "$FAILED_CHECKS" ] && ok='0'
+
+printf '{'
+printf '"ok":%s,' "$(json_bool "$ok")"
+printf '"quick_setup_enabled":%s,' "$(json_bool "$quick_setup_enabled")"
+printf '"dual_quick_mode":%s,' "$(json_bool "$dual_quick_enabled")"
+printf '"primary_interface":"%s",' "$(json_escape "$primary_if")"
+printf '"secondary_interface":"%s",' "$(json_escape "$secondary_if")"
+printf '"primary_ip":"%s",' "$(json_escape "$primary_ip")"
+printf '"secondary_ip":"%s",' "$(json_escape "$secondary_ip")"
+printf '"checks":{'
+printf '"mode":%s,' "$(json_bool "$check_mode")"
+printf '"ifaces_distinct":%s,' "$(json_bool "$check_ifaces_distinct")"
+printf '"chilli_primary":%s,' "$(json_bool "$check_chilli_primary")"
+printf '"chilli_secondary":%s,' "$(json_bool "$check_chilli_secondary")"
+printf '"tun0":%s,' "$(json_bool "$check_tun0")"
+printf '"tun1":%s,' "$(json_bool "$check_tun1")"
+printf '"route_tun0":%s,' "$(json_bool "$check_route_tun0")"
+printf '"route_tun1":%s,' "$(json_bool "$check_route_tun1")"
+printf '"nft_tun0":%s,' "$(json_bool "$check_nft_tun0")"
+printf '"nft_tun1":%s,' "$(json_bool "$check_nft_tun1")"
+printf '"status_json":%s,' "$(json_bool "$check_status_json")"
+printf '"status_dual":%s' "$(json_bool "$check_status_dual")"
+printf '},'
+printf '"failed":[%s]' "$FAILED_CHECKS"
+printf '}\n'
+
+[ "$ok" = '1' ] && exit 0
+exit 1

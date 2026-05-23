@@ -1,4 +1,5 @@
 {
     "git.alwaysSignOff": true,
-    "remote.autoForwardPortsFallback": 0
+    "remote.autoForwardPortsFallback": 0,
+    "chat.agent.maxRequests": 400
 }

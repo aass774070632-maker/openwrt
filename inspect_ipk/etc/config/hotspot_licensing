@@ -1,0 +1,9 @@
+
+config licensing 'main'
+	option enabled '1'
+	option grace_period '259200'
+	option verify_path '/api/hotspot-verify'
+	option server_url 'https://ota.kartnet.org'
+	option license_status 'unknown'
+	option last_check '0'
+	option expires_at '0'
