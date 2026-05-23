@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-setup
 PKG_VERSION:=1.0
-PKG_RELEASE:=94
+PKG_RELEASE:=120
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKGARCH:=all
 PKG_LICENSE:=GPL-3.0-only
@@ -92,6 +92,10 @@ fi
 
 rm -f /tmp/luci-indexcache /tmp/luci-indexcache.*.json
 
+if [ -x /usr/libexec/alemprator-setup/cleanup-hotspot ]; then
+	/usr/libexec/alemprator-setup/cleanup-hotspot --reload >/dev/null 2>&1 || true
+fi
+
 uhttpd_reload_result=0
 /etc/init.d/uhttpd reload >/dev/null 2>&1 || uhttpd_reload_result=$$?
 
@@ -129,9 +133,12 @@ define Package/luci-app-setup/install
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/setup.js $(1)/www/luci-static/resources/view/setup/setup_r93.js
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/landing.js $(1)/www/luci-static/resources/view/setup/
 	$(INSTALL_DATA) ./files/www/luci-static/resources/view/setup/landing.js $(1)/www/luci-static/resources/view/setup/landing_r2.js
+	$(INSTALL_DIR) $(1)/www
+	$(INSTALL_DATA) ./files/www/captive-portal.html $(1)/www/captive-portal.html
 	$(INSTALL_DIR) $(1)/usr/libexec/alemprator-setup
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-setup/reset-disabled $(1)/usr/libexec/alemprator-setup/
 	$(INSTALL_BIN) ./files/usr/libexec/alemprator-setup/wps-disabled $(1)/usr/libexec/alemprator-setup/
+	$(INSTALL_BIN) ./files/usr/libexec/alemprator-setup/cleanup-hotspot $(1)/usr/libexec/alemprator-setup/
 	$(INSTALL_DIR) $(1)/etc/rc.d
 	$(LN) ../init.d/setup $(1)/etc/rc.d/S99setup
 endef

@@ -85,6 +85,9 @@ let AdminController = class AdminController {
     addTagToDevice(deviceId, tagId, request) {
         return this.adminService.addTagToDevice(deviceId, tagId, request.admin?.id);
     }
+    setDeviceHotspotLicense(deviceId, body, request) {
+        return this.adminService.setDeviceHotspotLicense(deviceId, body.licensed === true, request.admin?.id);
+    }
     removeTagFromDevice(deviceId, tagId, request) {
         return this.adminService.removeTagFromDevice(deviceId, tagId, request.admin?.id);
     }
@@ -93,6 +96,15 @@ let AdminController = class AdminController {
     }
     createRelease(body, request) {
         return this.adminService.createRelease(body, request.admin?.id);
+    }
+    activateRelease(releaseId, request) {
+        return this.adminService.setReleaseActive(releaseId, true, request.admin?.id);
+    }
+    pauseRelease(releaseId, request) {
+        return this.adminService.setReleaseActive(releaseId, false, request.admin?.id);
+    }
+    deleteRelease(releaseId, request) {
+        return this.adminService.deleteRelease(releaseId, request.admin?.id);
     }
     createReleaseWithUpload(artifact, body, request) {
         return this.adminService.createReleaseFromUpload(body, artifact, request.admin?.id);
@@ -208,6 +220,15 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "addTagToDevice", null);
 __decorate([
+    (0, common_1.Patch)('devices/:deviceId/hotspot-license'),
+    __param(0, (0, common_1.Param)('deviceId', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object, Object]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "setDeviceHotspotLicense", null);
+__decorate([
     (0, common_1.Delete)('devices/:deviceId/tags/:tagId'),
     __param(0, (0, common_1.Param)('deviceId', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Param)('tagId', common_1.ParseIntPipe)),
@@ -230,6 +251,30 @@ __decorate([
     __metadata("design:paramtypes", [create_release_dto_1.CreateReleaseDto, Object]),
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "createRelease", null);
+__decorate([
+    (0, common_1.Post)('releases/:releaseId/activate'),
+    __param(0, (0, common_1.Param)('releaseId', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "activateRelease", null);
+__decorate([
+    (0, common_1.Post)('releases/:releaseId/pause'),
+    __param(0, (0, common_1.Param)('releaseId', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "pauseRelease", null);
+__decorate([
+    (0, common_1.Delete)('releases/:releaseId'),
+    __param(0, (0, common_1.Param)('releaseId', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "deleteRelease", null);
 __decorate([
     (0, common_1.Post)('releases/upload'),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('artifact', {

@@ -20,8 +20,12 @@ export class CreateReleaseDto {
   version_code?: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   artifact_path!: string;
+
+  @IsString()
+  @IsOptional()
+  artifact_url?: string;
 
   @IsString()
   @IsOptional()

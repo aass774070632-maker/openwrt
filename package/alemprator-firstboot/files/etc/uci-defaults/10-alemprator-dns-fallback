@@ -1,0 +1,23 @@
+#!/bin/sh
+# 10-alemprator-dns-fallback
+# Permanent DNS fix: always configure dnsmasq with public fallback DNS servers.
+# This ensures OTA updates work regardless of WAN/gateway/ISP DNS state.
+# Runs on EVERY boot (first boot and after sysupgrade) because it is in uci-defaults.
+
+# Only add if not already configured to avoid duplicates on upgrade
+current_servers="$(uci -q get dhcp.@dnsmasq[0].server 2>/dev/null)"
+
+if printf '%s' "$current_servers" | grep -q '8.8.8.8'; then
+	exit 0
+fi
+
+uci -q batch <<EOF >/dev/null
+	delete dhcp.@dnsmasq[0].server
+	add_list dhcp.@dnsmasq[0].server='8.8.8.8'
+	add_list dhcp.@dnsmasq[0].server='1.1.1.1'
+	add_list dhcp.@dnsmasq[0].server='8.8.4.4'
+	set dhcp.@dnsmasq[0].noresolv='0'
+	commit dhcp
+EOF
+
+exit 0

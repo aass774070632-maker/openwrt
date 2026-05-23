@@ -5,13 +5,17 @@ json_escape() {
 }
 
 enabled="$(uci -q get hotspot_openwrt.main.enabled || echo 0)"
+quick_setup_enabled="$(uci -q get hotspot_openwrt.main.quick_setup_enabled || echo 0)"
+quick_runtime_dual_enabled="$(uci -q get hotspot_openwrt.main.quick_runtime_dual_enabled || echo 0)"
 chilli_disabled="$(uci -q get chilli.hotspot_openwrt.disabled || uci -q get chilli.@chilli[0].disabled || echo absent)"
 chilli_pid="$(pidof chilli 2>/dev/null || true)"
 hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip || echo 192.168.10.1)"
+secondary_hotspot_ip="$(uci -q get hotspot_openwrt.main.quick_gateway_secondary || echo '')"
 radius_server="$(uci -q get hotspot_openwrt.main.radius_server || echo '')"
 radius_auth_port="$(uci -q get hotspot_openwrt.main.radius_auth_port || echo 1812)"
 radius_acct_port="$(uci -q get hotspot_openwrt.main.radius_acct_port || echo 1813)"
 subscriber_interface="$(uci -q get hotspot_openwrt.main.subscriber_interface || echo hotspot)"
+secondary_subscriber_interface="$(uci -q get hotspot_openwrt.main.quick_subscriber_interface_secondary || echo '')"
 portal_path="$(uci -q get hotspot_openwrt.main.portal_path || echo /hotspot)"
 portal_storage_path="$(uci -q get hotspot_openwrt.main.portal_storage_path || echo /www/hotspot)"
 captive_notify="$(uci -q get hotspot_openwrt.main.captive_notify || echo 0)"
@@ -25,7 +29,8 @@ keepalive_timeout="$(uci -q get hotspot_openwrt.main.keepalive_timeout || echo 0
 status_autorefresh="$(uci -q get hotspot_openwrt.main.status_autorefresh || echo 00:01:00)"
 shared_users="$(uci -q get hotspot_openwrt.main.shared_users || echo 3)"
 rate_limit_rx_tx="$(uci -q get hotspot_openwrt.main.rate_limit_rx_tx || echo '')"
-socket_path="/var/run/chilli_hotspot_openwrt.sock"
+primary_socket_path="/var/run/chilli_hotspot_openwrt.sock"
+secondary_socket_path="/var/run/chilli_hotspot_openwrt_secondary.sock"
 mac_cookie_helper='/usr/libexec/hotspot-openwrt/mac-cookies'
 watchdog_pid_file='/var/run/hotspot-openwrt-presence-watchdog.pid'
 mac_cookie_watchdog_pid_file='/var/run/hotspot-openwrt-mac-cookie-watchdog.pid'
@@ -41,13 +46,19 @@ cookies_total='0'
 cookies_list='[]'
 bridge_has_ip='false'
 route_ok='false'
+tun1='false'
+route_ok_secondary='false'
 tun0='false'
 [ -n "$(ip -4 addr show tun0 2>/dev/null)" ] && tun0='true'
+[ -n "$(ip -4 addr show tun1 2>/dev/null)" ] && tun1='true'
 
 [ -n "$(ip -4 addr show br-$subscriber_interface 2>/dev/null | awk '/inet / { print $2; exit }')" ] && bridge_has_ip='true'
 
-if [ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1; then
-	client_lines="$(chilli_query -s "$socket_path" list 2>/dev/null)"
+if command -v chilli_query >/dev/null 2>&1 && { [ -S "$primary_socket_path" ] || [ -S "$secondary_socket_path" ]; }; then
+	client_lines="$(
+		[ -S "$primary_socket_path" ] && chilli_query -s "$primary_socket_path" list 2>/dev/null
+		[ -S "$secondary_socket_path" ] && chilli_query -s "$secondary_socket_path" list 2>/dev/null
+	)"
 	client_summary="$(printf '%s\n' "$client_lines" | awk '
 		NF >= 3 {
 			total++
@@ -96,13 +107,19 @@ if [ "$tun0" = 'true' ] && ip route show 2>/dev/null | grep -q "^$(printf '%s' "
 	route_ok='true'
 fi
 
+if [ -n "$secondary_hotspot_ip" ] && [ "$tun1" = 'true' ] && ip route show 2>/dev/null | grep -q "^$(printf '%s' "$secondary_hotspot_ip" | awk -F. '{ print $1 "." $2 "." $3 }')\.0/.* dev tun1"; then
+	route_ok_secondary='true'
+fi
+
 printf '{'
 printf '"enabled":"%s",' "$(json_escape "$enabled")"
 printf '"chilli_disabled":"%s",' "$(json_escape "$chilli_disabled")"
 printf '"chilli_running":%s,' "$([ -n "$chilli_pid" ] && echo true || echo false)"
 printf '"tun0_present":%s,' "$tun0"
+printf '"tun1_present":%s,' "$tun1"
 printf '"bridge_has_ip":%s,' "$bridge_has_ip"
 printf '"route_ok":%s,' "$route_ok"
+printf '"route_ok_secondary":%s,' "$route_ok_secondary"
 printf '"clients_total":%s,' "$clients_total"
 printf '"active_clients":%s,' "$active_clients"
 printf '"waiting_clients":%s,' "$waiting_clients"
@@ -114,7 +131,11 @@ printf '"cookies_total":%s,' "$cookies_total"
 printf '"cookies_list":%s,' "$cookies_list"
 printf '"last_client":"%s",' "$(json_escape "$last_client")"
 printf '"hotspot_ip":"%s",' "$(json_escape "$hotspot_ip")"
+printf '"secondary_hotspot_ip":"%s",' "$(json_escape "$secondary_hotspot_ip")"
 printf '"subscriber_interface":"%s",' "$(json_escape "$subscriber_interface")"
+printf '"secondary_subscriber_interface":"%s",' "$(json_escape "$secondary_subscriber_interface")"
+printf '"quick_setup_enabled":%s,' "$([ "$quick_setup_enabled" = '1' ] && echo true || echo false)"
+printf '"dual_quick_mode":%s,' "$([ "$quick_setup_enabled" = '1' ] && [ "$quick_runtime_dual_enabled" = '1' ] && echo true || echo false)"
 printf '"portal_path":"%s",' "$(json_escape "$portal_path")"
 printf '"portal_storage_path":"%s",' "$(json_escape "$portal_storage_path")"
 printf '"captive_notify":%s,' "$([ "$captive_notify" = '1' ] && echo true || echo false)"

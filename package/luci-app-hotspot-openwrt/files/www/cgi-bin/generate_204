@@ -1,6 +1,16 @@
 #!/bin/sh
 # Hotspot Alemprator Guard - Captive Portal Redirector
+portal_path="$(uci -q get hotspot_openwrt.main.portal_path || echo /hotspot)"
+hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip || echo 192.168.10.1)"
+
+case "$portal_path" in
+	/*) ;;
+	*) portal_path="/$portal_path" ;;
+esac
+
+location="http://$hotspot_ip$portal_path/login.html"
+
 printf 'Status: 302 Found\r\n'
-printf 'Location: http://b.net/hotspot/login.html\r\n'
+printf 'Location: %s\r\n' "$location"
 printf 'Cache-Control: no-store\r\n\r\n'
 exit 0

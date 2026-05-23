@@ -50,6 +50,7 @@ export declare class AdminService {
         last_result: string | null;
         last_error: string | null;
         last_ip: string | null;
+        hotspot_licensed: boolean;
         first_registered_at: string | null;
         last_seen_at: string | null;
         created_at: string;
@@ -125,6 +126,7 @@ export declare class AdminService {
         last_result: string | null;
         last_error: string | null;
         last_ip: string | null;
+        hotspot_licensed: boolean;
         first_registered_at: string | null;
         last_seen_at: string | null;
         created_at: string;
@@ -156,6 +158,7 @@ export declare class AdminService {
         last_result: string | null;
         last_error: string | null;
         last_ip: string | null;
+        hotspot_licensed: boolean;
         first_registered_at: string | null;
         last_seen_at: string | null;
         created_at: string;
@@ -205,6 +208,7 @@ export declare class AdminService {
         last_result: string | null;
         last_error: string | null;
         last_ip: string | null;
+        hotspot_licensed: boolean;
         first_registered_at: string | null;
         last_seen_at: string | null;
         created_at: string;
@@ -236,6 +240,39 @@ export declare class AdminService {
         last_result: string | null;
         last_error: string | null;
         last_ip: string | null;
+        hotspot_licensed: boolean;
+        first_registered_at: string | null;
+        last_seen_at: string | null;
+        created_at: string;
+        updated_at: string;
+        groups: {
+            id: number;
+            name: string;
+        }[];
+        tags: {
+            id: number;
+            name: string;
+            color: string | null;
+        }[];
+    }>;
+    setDeviceHotspotLicense(deviceId: number, licensed: boolean, adminUserId?: number): Promise<{
+        id: number;
+        token: string;
+        model: string;
+        board: string;
+        mac: string;
+        firmware_model: {
+            id: number;
+            slug: string;
+            display_name: string;
+            model_key: string;
+        } | null;
+        current_version: string | null;
+        status: string | null;
+        last_result: string | null;
+        last_error: string | null;
+        last_ip: string | null;
+        hotspot_licensed: boolean;
         first_registered_at: string | null;
         last_seen_at: string | null;
         created_at: string;
@@ -251,33 +288,27 @@ export declare class AdminService {
         }[];
     }>;
     listReleases(): Promise<{
-        id: number;
-        model: string;
+        id: any;
+        model: any;
         firmware_model: {
-            id: number;
-            slug: string;
-            model_key: string;
-            display_name: string;
+            id: any;
+            slug: any;
+            model_key: any;
+            display_name: any;
         } | null;
-        version: string;
-        version_code: string | null;
-        download_url: string;
-        sha256: string;
-        changelog: string;
-        force: boolean;
-        rollout_percent: number;
-        active: boolean;
-        channel: string;
-        created_at: string;
-        updated_at: string;
-        files: {
-            id: number;
-            kind: string;
-            url: string;
-            sha256: string;
-            size_bytes: number | null;
-            created_at: string;
-        }[];
+        version: any;
+        version_code: any;
+        download_url: any;
+        sha256: any;
+        changelog: any;
+        force: any;
+        rollout_percent: any;
+        active: any;
+        channel: any;
+        created_at: any;
+        updated_at: any;
+        campaign_count: any;
+        files: any;
     }[]>;
     listCampaignDevices(campaignId: number): Promise<{
         id: number;
@@ -305,6 +336,7 @@ export declare class AdminService {
             last_result: string | null;
             last_error: string | null;
             last_ip: string | null;
+            hotspot_licensed: boolean;
             first_registered_at: string | null;
             last_seen_at: string | null;
             created_at: string;
@@ -321,64 +353,79 @@ export declare class AdminService {
         };
     }[]>;
     createRelease(body: CreateReleaseDto, adminUserId?: number): Promise<{
-        id: number;
-        model: string;
+        id: any;
+        model: any;
         firmware_model: {
-            id: number;
-            slug: string;
-            model_key: string;
-            display_name: string;
+            id: any;
+            slug: any;
+            model_key: any;
+            display_name: any;
         } | null;
-        version: string;
-        version_code: string | null;
-        download_url: string;
-        sha256: string;
-        changelog: string;
-        force: boolean;
-        rollout_percent: number;
-        active: boolean;
-        channel: string;
-        created_at: string;
-        updated_at: string;
-        files: {
-            id: number;
-            kind: string;
-            url: string;
-            sha256: string;
-            size_bytes: number | null;
-            created_at: string;
-        }[];
+        version: any;
+        version_code: any;
+        download_url: any;
+        sha256: any;
+        changelog: any;
+        force: any;
+        rollout_percent: any;
+        active: any;
+        channel: any;
+        created_at: any;
+        updated_at: any;
+        campaign_count: any;
+        files: any;
+    }>;
+    setReleaseActive(releaseId: number, active: boolean, adminUserId?: number): Promise<{
+        id: any;
+        model: any;
+        firmware_model: {
+            id: any;
+            slug: any;
+            model_key: any;
+            display_name: any;
+        } | null;
+        version: any;
+        version_code: any;
+        download_url: any;
+        sha256: any;
+        changelog: any;
+        force: any;
+        rollout_percent: any;
+        active: any;
+        channel: any;
+        created_at: any;
+        updated_at: any;
+        campaign_count: any;
+        files: any;
+    }>;
+    deleteRelease(releaseId: number, adminUserId?: number): Promise<{
+        ok: boolean;
+        deleted_id: number;
     }>;
     createReleaseFromUpload(body: Record<string, string | undefined>, artifact: {
         filename?: string;
     } | undefined, adminUserId?: number): Promise<{
-        id: number;
-        model: string;
+        id: any;
+        model: any;
         firmware_model: {
-            id: number;
-            slug: string;
-            model_key: string;
-            display_name: string;
+            id: any;
+            slug: any;
+            model_key: any;
+            display_name: any;
         } | null;
-        version: string;
-        version_code: string | null;
-        download_url: string;
-        sha256: string;
-        changelog: string;
-        force: boolean;
-        rollout_percent: number;
-        active: boolean;
-        channel: string;
-        created_at: string;
-        updated_at: string;
-        files: {
-            id: number;
-            kind: string;
-            url: string;
-            sha256: string;
-            size_bytes: number | null;
-            created_at: string;
-        }[];
+        version: any;
+        version_code: any;
+        download_url: any;
+        sha256: any;
+        changelog: any;
+        force: any;
+        rollout_percent: any;
+        active: any;
+        channel: any;
+        created_at: any;
+        updated_at: any;
+        campaign_count: any;
+        files: any;
     }>;
     listCampaigns(includeArchived?: boolean): Promise<{
         id: number;
@@ -395,33 +442,27 @@ export declare class AdminService {
         updated_at: string;
         device_state_count: number;
         release: {
-            id: number;
-            model: string;
+            id: any;
+            model: any;
             firmware_model: {
-                id: number;
-                slug: string;
-                model_key: string;
-                display_name: string;
+                id: any;
+                slug: any;
+                model_key: any;
+                display_name: any;
             } | null;
-            version: string;
-            version_code: string | null;
-            download_url: string;
-            sha256: string;
-            changelog: string;
-            force: boolean;
-            rollout_percent: number;
-            active: boolean;
-            channel: string;
-            created_at: string;
-            updated_at: string;
-            files: {
-                id: number;
-                kind: string;
-                url: string;
-                sha256: string;
-                size_bytes: number | null;
-                created_at: string;
-            }[];
+            version: any;
+            version_code: any;
+            download_url: any;
+            sha256: any;
+            changelog: any;
+            force: any;
+            rollout_percent: any;
+            active: any;
+            channel: any;
+            created_at: any;
+            updated_at: any;
+            campaign_count: any;
+            files: any;
         };
         rules: {
             id: number;
@@ -469,33 +510,27 @@ export declare class AdminService {
         updated_at: string;
         device_state_count: number;
         release: {
-            id: number;
-            model: string;
+            id: any;
+            model: any;
             firmware_model: {
-                id: number;
-                slug: string;
-                model_key: string;
-                display_name: string;
+                id: any;
+                slug: any;
+                model_key: any;
+                display_name: any;
             } | null;
-            version: string;
-            version_code: string | null;
-            download_url: string;
-            sha256: string;
-            changelog: string;
-            force: boolean;
-            rollout_percent: number;
-            active: boolean;
-            channel: string;
-            created_at: string;
-            updated_at: string;
-            files: {
-                id: number;
-                kind: string;
-                url: string;
-                sha256: string;
-                size_bytes: number | null;
-                created_at: string;
-            }[];
+            version: any;
+            version_code: any;
+            download_url: any;
+            sha256: any;
+            changelog: any;
+            force: any;
+            rollout_percent: any;
+            active: any;
+            channel: any;
+            created_at: any;
+            updated_at: any;
+            campaign_count: any;
+            files: any;
         };
         rules: {
             id: number;
@@ -530,33 +565,27 @@ export declare class AdminService {
         updated_at: string;
         device_state_count: number;
         release: {
-            id: number;
-            model: string;
+            id: any;
+            model: any;
             firmware_model: {
-                id: number;
-                slug: string;
-                model_key: string;
-                display_name: string;
+                id: any;
+                slug: any;
+                model_key: any;
+                display_name: any;
             } | null;
-            version: string;
-            version_code: string | null;
-            download_url: string;
-            sha256: string;
-            changelog: string;
-            force: boolean;
-            rollout_percent: number;
-            active: boolean;
-            channel: string;
-            created_at: string;
-            updated_at: string;
-            files: {
-                id: number;
-                kind: string;
-                url: string;
-                sha256: string;
-                size_bytes: number | null;
-                created_at: string;
-            }[];
+            version: any;
+            version_code: any;
+            download_url: any;
+            sha256: any;
+            changelog: any;
+            force: any;
+            rollout_percent: any;
+            active: any;
+            channel: any;
+            created_at: any;
+            updated_at: any;
+            campaign_count: any;
+            files: any;
         };
         rules: {
             id: number;
@@ -591,33 +620,27 @@ export declare class AdminService {
         updated_at: string;
         device_state_count: number;
         release: {
-            id: number;
-            model: string;
+            id: any;
+            model: any;
             firmware_model: {
-                id: number;
-                slug: string;
-                model_key: string;
-                display_name: string;
+                id: any;
+                slug: any;
+                model_key: any;
+                display_name: any;
             } | null;
-            version: string;
-            version_code: string | null;
-            download_url: string;
-            sha256: string;
-            changelog: string;
-            force: boolean;
-            rollout_percent: number;
-            active: boolean;
-            channel: string;
-            created_at: string;
-            updated_at: string;
-            files: {
-                id: number;
-                kind: string;
-                url: string;
-                sha256: string;
-                size_bytes: number | null;
-                created_at: string;
-            }[];
+            version: any;
+            version_code: any;
+            download_url: any;
+            sha256: any;
+            changelog: any;
+            force: any;
+            rollout_percent: any;
+            active: any;
+            channel: any;
+            created_at: any;
+            updated_at: any;
+            campaign_count: any;
+            files: any;
         };
         rules: {
             id: number;
@@ -652,33 +675,27 @@ export declare class AdminService {
         updated_at: string;
         device_state_count: number;
         release: {
-            id: number;
-            model: string;
+            id: any;
+            model: any;
             firmware_model: {
-                id: number;
-                slug: string;
-                model_key: string;
-                display_name: string;
+                id: any;
+                slug: any;
+                model_key: any;
+                display_name: any;
             } | null;
-            version: string;
-            version_code: string | null;
-            download_url: string;
-            sha256: string;
-            changelog: string;
-            force: boolean;
-            rollout_percent: number;
-            active: boolean;
-            channel: string;
-            created_at: string;
-            updated_at: string;
-            files: {
-                id: number;
-                kind: string;
-                url: string;
-                sha256: string;
-                size_bytes: number | null;
-                created_at: string;
-            }[];
+            version: any;
+            version_code: any;
+            download_url: any;
+            sha256: any;
+            changelog: any;
+            force: any;
+            rollout_percent: any;
+            active: any;
+            channel: any;
+            created_at: any;
+            updated_at: any;
+            campaign_count: any;
+            files: any;
         };
         rules: {
             id: number;
@@ -704,6 +721,8 @@ export declare class AdminService {
     }>;
     private normalizeArtifactPath;
     private resolveArtifactPath;
+    private normalizeArtifactUrl;
+    private loadReleaseArtifact;
     private serializeRelease;
     private serializeFirmwareModel;
     private serializeDevice;

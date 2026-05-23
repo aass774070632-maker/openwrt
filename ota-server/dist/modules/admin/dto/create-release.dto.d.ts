@@ -4,6 +4,7 @@ export declare class CreateReleaseDto {
     version: string;
     version_code?: string;
     artifact_path: string;
+    artifact_url?: string;
     changelog?: string;
     force?: boolean;
     rollout_percent?: number;

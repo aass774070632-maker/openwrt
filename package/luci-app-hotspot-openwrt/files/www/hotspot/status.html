@@ -107,6 +107,7 @@
 			<button type="submit" style="background: #ef4444;">تسجيل الخروج</button>
 		</form>
 		
+		<div id="dynamic-links"></div>
 		<div id="dynamic-support"></div>
 	</main>
 
@@ -116,7 +117,43 @@
 			var settings = window.HOTSPOT_OPENWRT_SETTINGS || {};
 			if (settings.networkName) document.getElementById('dynamic-name').textContent = settings.networkName;
 			if (settings.logoUrl) document.getElementById('dynamic-logo').innerHTML = '<img src="' + settings.logoUrl + '" class="hotspot-logo" alt="Logo">';
-			if (settings.supportPhone) document.getElementById('dynamic-support').innerHTML = '<a href="https://wa.me/' + settings.supportPhone + '" class="hotspot-support">تواصل مع الدعم الفني</a>';
+			renderSupportPhone(settings.supportPhone);
+
+			function renderSupportPhone(phone) {
+				var container = document.getElementById('dynamic-support');
+				var displayPhone = String(phone || '').trim();
+				var whatsappPhone = displayPhone.replace(/[^0-9]/g, '');
+				var link;
+
+				if (!container || !displayPhone)
+					return;
+
+				link = document.createElement('a');
+				link.className = 'hotspot-support';
+				link.href = whatsappPhone ? ('https://wa.me/' + whatsappPhone) : ('tel:' + displayPhone);
+				link.textContent = 'الدعم الفني: ' + displayPhone;
+				container.textContent = '';
+				container.appendChild(link);
+			}
+
+			function addPortalLink(label, url) {
+				if (!url) return;
+				if (!/^https?:\/\//i.test(url)) {
+					url = 'http://' + url;
+				}
+				var container = document.getElementById('dynamic-links');
+				if (!container.className) container.className = 'hotspot-link-grid';
+				var link = document.createElement('a');
+				link.className = 'hotspot-page-link';
+				link.href = url;
+				link.target = '_blank';
+				link.rel = 'noopener noreferrer';
+				link.textContent = label;
+				container.appendChild(link);
+			}
+
+			if (settings.liveStreamEnabled) addPortalLink('البث المباشر', settings.liveStreamUrl || '');
+			if (settings.restAreaEnabled) addPortalLink('الاستراحة', settings.restAreaUrl || '');
 
 			if (settings.speedtestEnabled) {
 				document.getElementById('speedtest-container').style.display = 'block';
@@ -145,6 +182,12 @@
 				.then(function(r) { return r.ok ? r.json() : null; })
 				.then(function(data) {
 					if (!data) return;
+					if (!data.authenticated) {
+						var loginUrl = '/hotspot/login.html?userurl=' + encodeURIComponent(location.href);
+						if (username) loginUrl += '&username=' + encodeURIComponent(username);
+						location.replace(loginUrl);
+						return;
+					}
 					window.lastCardInfo = data;
 					cardNumber.textContent = data.card_number || username || '-';
 					connectionState.textContent = data.authenticated ? 'متصل الآن' : 'بانتظار الدخول';

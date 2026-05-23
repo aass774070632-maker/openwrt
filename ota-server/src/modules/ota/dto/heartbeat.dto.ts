@@ -10,8 +10,8 @@ export class HeartbeatDto {
   status!: string;
 
   @IsString()
-  @IsNotEmpty()
-  current_version!: string;
+  @IsOptional()
+  current_version?: string;
 
   @IsString()
   @IsOptional()

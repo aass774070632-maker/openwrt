@@ -333,11 +333,29 @@ let AdminService = class AdminService {
         });
         return this.getDeviceById(deviceId);
     }
+    async setDeviceHotspotLicense(deviceId, licensed, adminUserId) {
+        await this.assertDeviceExists(deviceId);
+        await this.prisma.device.update({
+            where: {
+                id: deviceId,
+            },
+            data: {
+                hotspot_licensed: licensed,
+            },
+        });
+        await this.recordAudit(adminUserId, licensed ? 'device.hotspot_license.enable' : 'device.hotspot_license.disable', 'device', String(deviceId), { hotspot_licensed: licensed });
+        return this.getDeviceById(deviceId);
+    }
     async listReleases() {
         const releases = await this.prisma.release.findMany({
             include: {
                 files: true,
                 firmwareModel: true,
+                _count: {
+                    select: {
+                        campaigns: true,
+                    },
+                },
             },
             orderBy: [
                 { createdAt: 'desc' },
@@ -405,22 +423,9 @@ let AdminService = class AdminService {
                 modelKey: model,
             },
         });
-        const normalizedArtifactPath = this.normalizeArtifactPath(body.artifact_path);
-        const filePath = this.resolveArtifactPath(normalizedArtifactPath);
-        let buffer;
-        let fileStats;
-        try {
-            [buffer, fileStats] = await Promise.all([(0, promises_1.readFile)(filePath), (0, promises_1.stat)(filePath)]);
-        }
-        catch (error) {
-            const code = error?.code;
-            if (code === 'ENOENT') {
-                throw new common_1.BadRequestException('artifact_path file not found');
-            }
-            throw error;
-        }
-        const sha256 = (0, node_crypto_1.createHash)('sha256').update(buffer).digest('hex');
-        const downloadUrl = `${this.trimTrailingSlash(env_1.env.FIRMWARE_PUBLIC_BASE_URL)}${normalizedArtifactPath}`;
+        const artifact = await this.loadReleaseArtifact(body);
+        const sha256 = (0, node_crypto_1.createHash)('sha256').update(artifact.buffer).digest('hex');
+        const downloadUrl = artifact.downloadUrl;
         const release = await this.prisma.$transaction(async (tx) => {
             await tx.releaseFile.deleteMany({
                 where: {
@@ -469,7 +474,7 @@ let AdminService = class AdminService {
                                 kind: 'sysupgrade',
                                 url: downloadUrl,
                                 sha256,
-                                sizeBytes: BigInt(fileStats.size),
+                                sizeBytes: BigInt(artifact.sizeBytes),
                             },
                         ],
                     },
@@ -477,15 +482,92 @@ let AdminService = class AdminService {
                 include: {
                     files: true,
                     firmwareModel: true,
+                    _count: {
+                        select: {
+                            campaigns: true,
+                        },
+                    },
                 },
             });
         });
         await this.recordAudit(adminUserId, 'release.create', 'release', String(release.id), {
             model,
             version: release.version,
-            artifact_path: normalizedArtifactPath,
+            artifact_path: artifact.source,
         });
         return this.serializeRelease(release);
+    }
+    async setReleaseActive(releaseId, active, adminUserId) {
+        const existingRelease = await this.prisma.release.findUnique({
+            where: { id: releaseId },
+            select: { id: true, model: true, channel: true, version: true },
+        });
+        if (!existingRelease) {
+            throw new common_1.NotFoundException('release not found');
+        }
+        const release = await this.prisma.$transaction(async (tx) => {
+            if (active) {
+                await tx.release.updateMany({
+                    where: {
+                        model: existingRelease.model,
+                        channel: existingRelease.channel,
+                        active: true,
+                        id: { not: releaseId },
+                    },
+                    data: { active: false },
+                });
+            }
+            return tx.release.update({
+                where: { id: releaseId },
+                data: { active },
+                include: {
+                    files: true,
+                    firmwareModel: true,
+                    _count: {
+                        select: {
+                            campaigns: true,
+                        },
+                    },
+                },
+            });
+        });
+        await this.recordAudit(adminUserId, active ? 'release.activate' : 'release.pause', 'release', String(release.id), {
+            model: release.model,
+            version: release.version,
+            channel: release.channel,
+            active,
+        });
+        return this.serializeRelease(release);
+    }
+    async deleteRelease(releaseId, adminUserId) {
+        const existingRelease = await this.prisma.release.findUnique({
+            where: { id: releaseId },
+            include: {
+                _count: {
+                    select: {
+                        campaigns: true,
+                    },
+                },
+            },
+        });
+        if (!existingRelease) {
+            throw new common_1.NotFoundException('release not found');
+        }
+        if (existingRelease._count.campaigns > 0) {
+            throw new common_1.BadRequestException('release has campaigns; pause it instead of deleting');
+        }
+        await this.recordAudit(adminUserId, 'release.delete', 'release', String(existingRelease.id), {
+            model: existingRelease.model,
+            version: existingRelease.version,
+            channel: existingRelease.channel,
+        });
+        await this.prisma.release.delete({
+            where: { id: releaseId },
+        });
+        return {
+            ok: true,
+            deleted_id: releaseId,
+        };
     }
     async createReleaseFromUpload(body, artifact, adminUserId) {
         if (!artifact?.filename) {
@@ -860,6 +942,63 @@ let AdminService = class AdminService {
         }
         return resolvedPath;
     }
+    normalizeArtifactUrl(artifactUrl) {
+        let parsed;
+        try {
+            parsed = new URL(artifactUrl.trim());
+        }
+        catch {
+            throw new common_1.BadRequestException('artifact_url must be a valid URL');
+        }
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+            throw new common_1.BadRequestException('artifact_url must use http or https');
+        }
+        return parsed.toString();
+    }
+    async loadReleaseArtifact(body) {
+        const artifactUrl = body.artifact_url?.trim();
+        const artifactPath = body.artifact_path?.trim();
+        if (artifactUrl) {
+            const normalizedUrl = this.normalizeArtifactUrl(artifactUrl);
+            const response = await fetch(normalizedUrl, {
+                redirect: 'follow',
+            });
+            if (!response.ok) {
+                throw new common_1.BadRequestException(`artifact_url download failed: ${response.status}`);
+            }
+            const buffer = Buffer.from(await response.arrayBuffer());
+            if (buffer.length <= 0) {
+                throw new common_1.BadRequestException('artifact_url downloaded an empty file');
+            }
+            return {
+                source: normalizedUrl,
+                downloadUrl: normalizedUrl,
+                buffer,
+                sizeBytes: buffer.length,
+            };
+        }
+        if (!artifactPath) {
+            throw new common_1.BadRequestException('artifact_path or artifact_url is required');
+        }
+        const normalizedArtifactPath = this.normalizeArtifactPath(artifactPath);
+        const filePath = this.resolveArtifactPath(normalizedArtifactPath);
+        try {
+            const [buffer, fileStats] = await Promise.all([(0, promises_1.readFile)(filePath), (0, promises_1.stat)(filePath)]);
+            return {
+                source: normalizedArtifactPath,
+                downloadUrl: `${this.trimTrailingSlash(env_1.env.FIRMWARE_PUBLIC_BASE_URL)}${normalizedArtifactPath}`,
+                buffer,
+                sizeBytes: fileStats.size,
+            };
+        }
+        catch (error) {
+            const code = error?.code;
+            if (code === 'ENOENT') {
+                throw new common_1.BadRequestException('artifact_path file not found');
+            }
+            throw error;
+        }
+    }
     serializeRelease(release) {
         return {
             id: release.id,
@@ -883,6 +1022,7 @@ let AdminService = class AdminService {
             channel: release.channel,
             created_at: release.createdAt.toISOString(),
             updated_at: release.updatedAt.toISOString(),
+            campaign_count: release._count?.campaigns ?? 0,
             files: release.files.map((file) => ({
                 id: file.id,
                 kind: file.kind,
@@ -929,6 +1069,7 @@ let AdminService = class AdminService {
             last_result: device.lastResult,
             last_error: device.lastError,
             last_ip: device.lastIp,
+            hotspot_licensed: device.hotspot_licensed,
             first_registered_at: device.firstRegisteredAt?.toISOString() ?? null,
             last_seen_at: device.lastSeenAt?.toISOString() ?? null,
             created_at: device.createdAt.toISOString(),

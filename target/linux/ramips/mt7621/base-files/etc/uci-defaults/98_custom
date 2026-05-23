@@ -18,6 +18,11 @@ case "$board_name" in
         device_ssid_5g='KT-KM14-102H-5GHz'
         device_bridge_ports='lan wan'
         ;;
+    kt,km15-103h)
+        device_hostname='KT-KM15-103H'
+        device_ssid_2g='KT-KM15-103H-2.4'
+        device_ssid_5g='KT-KM15-103H-5G'
+        ;;
     kt,km12-007h|'')
         ;;
 esac
@@ -51,6 +56,7 @@ uci set network.lan.ipaddr="$device_lan_ipaddr"
 uci set network.lan.netmask='255.255.255.0'
 uci set network.lan.gateway='192.168.1.2'
 uci add_list network.lan.dns='8.8.8.8'
+uci add_list network.lan.dns='1.1.1.1'
 uci add_list network.lan.dns='82.114.163.31'
 uci set network.lan.delegate='0'
 uci set network.lan.defaultroute='1'
@@ -62,6 +68,13 @@ for bridge_port in $device_bridge_ports; do
 done
 uci set network.cfg030f15.ageing_time='10'
 uci set network.cfg030f15.ipv6='0'
+# Direct DNS for the router itself (dnsmasq is disabled in bridge mode)
+cat > /etc/resolv.conf <<'RESOLVEOF'
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+nameserver 82.114.163.31
+RESOLVEOF
+
 ##########################
 # /etc/config/wireless
 uci set wireless.@wifi-iface[1].ssid="${device_ssid_5g}_$(cat /sys/class/ieee80211/phy1/macaddress|awk -F ":" '{print $5""$6 }'| tr a-z A-Z)"
@@ -70,6 +83,9 @@ uci set wireless.radio1.channel='36'
 uci set wireless.default_radio0.wds='1'
 uci set wireless.radio1.htmode='HE80'
 uci set wireless.radio1.country='PA'
+uci set wireless.radio1.cell_density='0'
+uci set wireless.radio1.txpower='36'
+uci set wireless.default_radio1.disassoc_low_ack='0'
 uci set wireless.@wifi-iface[0].ssid="${device_ssid_2g}_$(cat /sys/class/ieee80211/phy0/macaddress|awk -F ":" '{print $5""$6 }'| tr a-z A-Z)"
 uci set wireless.@wifi-device[0].disabled='0'
 uci set wireless.radio0.channel='auto'
@@ -77,9 +93,8 @@ uci set wireless.default_radio1.wds='1'
 uci set wireless.radio0.htmode='HE20'
 uci set wireless.radio0.country='PA'
 uci set wireless.radio0.cell_density='0'
+uci set wireless.radio0.txpower='36'
 uci set wireless.default_radio0.disassoc_low_ack='0'
-uci set wireless.radio1.cell_density='0'
-uci set wireless.default_radio1.disassoc_low_ack='0'
 ##########################
 uci set ttyd.cfg01a8ea.debug='7'
 uci set ttyd.cfg01a8ea.command='/usr/libexec/login.sh'
@@ -148,11 +163,11 @@ if ! grep -q "$RC_LOCAL_MARKER" "$RC_LOCAL" 2>/dev/null; then
     cat >> "$RC_LOCAL_TMP" <<'EOF'
 
 # Added by 98_custom: disable unused bridge-mode services
-#/etc/init.d/firewall disable
-#/etc/init.d/log disable
-#/etc/init.d/urandom_seed disable
-#/etc/init.d/odhcpd disable
-#/etc/init.d/dnsmasq disable
+/etc/init.d/firewall disable
+/etc/init.d/log disable
+/etc/init.d/urandom_seed disable
+/etc/init.d/odhcpd disable
+/etc/init.d/dnsmasq disable
 exit 0
 EOF
     cat "$RC_LOCAL_TMP" > "$RC_LOCAL"

@@ -155,7 +155,7 @@ let OtaService = class OtaService {
     }
     async heartbeat(body, meta) {
         this.enforceRateLimit('heartbeat', body.token, meta.ipAddress);
-        this.verifySignature('heartbeat', [body.token, body.status, body.current_version, body.last_result ?? '', body.last_error ?? ''], meta);
+        this.verifySignature('heartbeat', [body.token, body.status, body.current_version ?? '', body.last_result ?? '', body.last_error ?? ''], meta);
         const device = await this.prisma.device.findUnique({
             where: { token: body.token },
         });
@@ -166,18 +166,45 @@ let OtaService = class OtaService {
             where: { id: device.id },
             data: {
                 status: body.status,
-                currentVersion: body.current_version,
+                currentVersion: body.current_version ?? null,
                 lastResult: body.last_result ?? null,
                 lastError: body.last_error ?? null,
                 lastSeenAt: new Date(),
                 lastIp: meta.ipAddress,
             },
         });
-        await this.updateLatestCampaignState(device.id, body.current_version, body.status);
+        await this.updateLatestCampaignState(device.id, body.current_version ?? '', body.status);
         await this.recordEvent(device.id, 'heartbeat', body.status, 'device heartbeat received', this.toJsonObject(body));
         return {
             ok: true,
         };
+    }
+    async hotspotVerify(body, meta) {
+        const GUARD_KEY = Buffer.from('f50335e0dd432f2cc4ece8eac7def87e0bec7d6781206d36f12bb68bbc526cb0', 'hex');
+        const clientSig = meta.signature;
+        if (clientSig) {
+            const action = `hotspot_guard|${body.token}|${body.mac ?? ''}`;
+            const expectedSig = (0, node_crypto_1.createHmac)('sha256', GUARD_KEY)
+                .update(action)
+                .digest('hex');
+            const sigValid = clientSig.length === expectedSig.length &&
+                (0, node_crypto_1.timingSafeEqual)(Buffer.from(clientSig, 'hex'), Buffer.from(expectedSig, 'hex'));
+            if (!sigValid) {
+                return { accepted: false, reason: 'invalid_signature' };
+            }
+        }
+        const device = await this.prisma.device.findUnique({
+            where: { token: body.token },
+        });
+        if (!device) {
+            return { accepted: false, reason: 'unknown_token' };
+        }
+        if (!device.hotspot_licensed) {
+            await this.recordEvent(device.id, 'hotspot_verify', 'blocked', 'hotspot license rejected: device is not licensed', { mac: body.mac ?? null, ip: meta.ipAddress, signed: !!clientSig });
+            return { accepted: false, reason: 'not_licensed' };
+        }
+        await this.recordEvent(device.id, 'hotspot_verify', 'ok', 'hotspot license verified' + (clientSig ? ' (signed)' : ' (unsigned)'), { mac: body.mac ?? null, ip: meta.ipAddress, signed: !!clientSig });
+        return { accepted: true, expires_in: 259200 };
     }
     collectDownloadUrls(release) {
         const urls = [release.downloadUrl, ...release.files.map((file) => file.url)].filter(Boolean);

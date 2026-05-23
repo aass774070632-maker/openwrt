@@ -1,6 +1,7 @@
 #!/bin/sh
 
-socket_path='/var/run/chilli_hotspot_openwrt.sock'
+primary_socket_path='/var/run/chilli_hotspot_openwrt.sock'
+secondary_socket_path='/var/run/chilli_hotspot_openwrt_secondary.sock'
 state_dir='/var/run/hotspot-openwrt-absent'
 
 duration_to_seconds() {
@@ -30,56 +31,58 @@ normalize_mac() {
 	printf '%s' "$1" | tr 'A-Z-' 'a-z:'
 }
 
-connected_macs() {
+valid_client_ip() {
+	case "$1" in
+		''|0.0.0.0|127.*|169.254.*|255.255.255.255|*[!0-9.]*) return 1 ;;
+	esac
+	printf '%s' "$1" | awk -F. 'NF == 4 { for (i = 1; i <= 4; i++) if ($i < 0 || $i > 255 || $i == "") exit 1; exit 0 } { exit 1 }'
+}
+
+associated_macs() {
 	if command -v iw >/dev/null 2>&1; then
 		for iface in $(iw dev 2>/dev/null | awk '/Interface/ { iface=$2 } /type AP/ { print iface }'); do
 			iw dev "$iface" station dump 2>/dev/null | awk '/^Station / { print $2 }'
 		done
 	fi
-	bridge fdb show 2>/dev/null | awk '{ print $1 }'
-	ip neigh show 2>/dev/null | awk '{ print $5 }'
 }
 
 client_responds() {
 	local ip="$1"
-	[ -n "$ip" ] || return 1
+	valid_client_ip "$ip" || return 1
 	ping -c 2 -W 1 "$ip" >/dev/null 2>&1
 }
 
-scan_once() {
-	local timeout="$1" mode="$2" now kicked checked mac ip state stamp_name stamp_file first_seen age normalized_mac connected_file client_file current_file
-	[ -S "$socket_path" ] && command -v chilli_query >/dev/null 2>&1 || return 0
-	mkdir -p "$state_dir" || return 0
-	now="$(date +%s)"
-	kicked='0'
-	checked='0'
-	connected_file="$state_dir/connected.$$"
-	client_file="$state_dir/clients.$$"
-	current_file="$state_dir/current.$$"
-	connected_macs | while read mac; do
-		[ -n "$mac" ] && normalize_mac "$mac"
-	done | sort -u > "$connected_file"
+scan_chilli_socket() {
+	local timeout="$1" instance="$2" socket_path="$3" mac ip state stamp_name stamp_file first_seen age normalized_mac client_file after_state
+	[ -S "$socket_path" ] || return 0
+	client_file="$state_dir/clients.${instance}.$$"
 	chilli_query -s "$socket_path" list 2>/dev/null > "$client_file"
-	: > "$current_file"
 	while read mac ip state rest; do
 		[ -n "$mac" ] && [ -n "$ip" ] || continue
 		checked=$((checked + 1))
 		normalized_mac="$(normalize_mac "$mac")"
-		stamp_name="$(printf '%s' "$normalized_mac" | tr ':' '_')"
+		stamp_name="${instance}_$(printf '%s' "$normalized_mac" | tr ':' '_')"
 		stamp_file="$state_dir/$stamp_name"
 		printf '%s\n' "$stamp_name" >> "$current_file"
-		   if grep -qx "$normalized_mac" "$connected_file" 2>/dev/null; then
-			   # MAC حاضر في ARP/iw/bridge: اعتبره متصلًا فورًا
+		   if grep -qx "$normalized_mac" "$associated_file" 2>/dev/null; then
+			   # MAC مرتبط فعلياً بالواي فاي: اعتبره متصلاً فوراً.
 			   rm -f "$stamp_file"
 			   continue
 		   fi
-		   # MAC غير موجود: جرب ping مرتين
+		   if ! valid_client_ip "$ip"; then
+			   chilli_query -s "$socket_path" dhcp-release "$normalized_mac" >/dev/null 2>&1 || true
+			   logger -t hotspot-openwrt-watchdog "released stale invalid-ip host instance=$instance mac=$normalized_mac ip=$ip state=$state"
+			   rm -f "$stamp_file"
+			   kicked=$((kicked + 1))
+			   continue
+		   fi
+		   # لا تعتمد على bridge fdb أو ip neigh لأنها قد تبقى بعد فصل الجهاز.
 		   if client_responds "$ip"; then
-			   # رد على ping: اعتبره حاضرًا
+			   # رد على ping: اعتبره حاضراً حتى لو لم يظهر في iw مؤقتاً.
 			   rm -f "$stamp_file"
 			   continue
 		   fi
-		   # MAC غائب ولم يرد على ping: ابدأ عداد الغياب
+		   # MAC غير مرتبط ولم يرد على ping: ابدأ عداد الغياب.
 		   if [ ! -s "$stamp_file" ]; then
 			   printf '%s\n' "$now" > "$stamp_file"
 			   continue
@@ -89,22 +92,42 @@ scan_once() {
 		   age=$((now - first_seen))
 		   if [ "$age" -ge "$timeout" ]; then
 			   if [ "$state" = 'pass' ]; then
-				   chilli_query -s "$socket_path" logout ip "$ip" >/dev/null 2>&1 || true
-				   logger -t hotspot-openwrt-watchdog "logged out disconnected active client mac=$normalized_mac ip=$ip absent_seconds=$age timeout=$timeout"
+				   chilli_query -s "$socket_path" logout ip "$ip" >/dev/null 2>&1 || chilli_query -s "$socket_path" logout mac "$normalized_mac" >/dev/null 2>&1 || true
+				   after_state="$(chilli_query -s "$socket_path" list 2>/dev/null | awk -v mac="$normalized_mac" -v ip="$ip" 'tolower($1) == mac || $2 == ip { print $3; found = 1; exit } END { if (!found) exit 0 }')"
+				   logger -t hotspot-openwrt-watchdog "logged out disconnected active client instance=$instance mac=$normalized_mac ip=$ip absent_seconds=$age timeout=$timeout new_state=${after_state:-missing}"
 			   else
 				   chilli_query -s "$socket_path" dhcp-release "$normalized_mac" >/dev/null 2>&1 || true
-				   logger -t hotspot-openwrt-watchdog "released disconnected host mac=$normalized_mac ip=$ip state=$state absent_seconds=$age timeout=$timeout"
+				   logger -t hotspot-openwrt-watchdog "released disconnected host instance=$instance mac=$normalized_mac ip=$ip state=$state absent_seconds=$age timeout=$timeout"
 			   fi
 			   rm -f "$stamp_file"
 			   kicked=$((kicked + 1))
 		   fi
 	done < "$client_file"
+	rm -f "$client_file"
+}
+
+scan_once() {
+	local timeout="$1" mode="$2" now kicked checked associated_file current_file stamp_file
+	command -v chilli_query >/dev/null 2>&1 || return 0
+	[ -S "$primary_socket_path" ] || [ -S "$secondary_socket_path" ] || return 0
+	mkdir -p "$state_dir" || return 0
+	now="$(date +%s)"
+	kicked='0'
+	checked='0'
+	associated_file="$state_dir/associated.$$"
+	current_file="$state_dir/current.$$"
+	associated_macs | while read mac; do
+		[ -n "$mac" ] && normalize_mac "$mac"
+	done | sort -u > "$associated_file"
+	: > "$current_file"
+	scan_chilli_socket "$timeout" primary "$primary_socket_path"
+	scan_chilli_socket "$timeout" secondary "$secondary_socket_path"
 	for stamp_file in "$state_dir"/*; do
 		[ -f "$stamp_file" ] || continue
-		case "$(basename "$stamp_file")" in connected.*|clients.*|current.*) continue ;; esac
+		case "$(basename "$stamp_file")" in associated.*|connected.*|clients.*|current.*) continue ;; esac
 		grep -qx "$(basename "$stamp_file")" "$current_file" 2>/dev/null || rm -f "$stamp_file"
 	done
-	rm -f "$connected_file" "$client_file" "$current_file"
+	rm -f "$associated_file" "$current_file"
 	[ "$mode" = '--once' ] && printf '{"checked":%s,"kicked":%s}\n' "$checked" "$kicked"
 }
 

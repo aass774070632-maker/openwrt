@@ -125,6 +125,15 @@ export class AdminController {
     return this.adminService.addTagToDevice(deviceId, tagId, request.admin?.id);
   }
 
+  @Patch('devices/:deviceId/hotspot-license')
+  setDeviceHotspotLicense(
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+    @Body() body: { licensed?: boolean },
+    @Req() request: AdminRequestLike,
+  ) {
+    return this.adminService.setDeviceHotspotLicense(deviceId, body.licensed === true, request.admin?.id);
+  }
+
   @Delete('devices/:deviceId/tags/:tagId')
   removeTagFromDevice(
     @Param('deviceId', ParseIntPipe) deviceId: number,
@@ -142,6 +151,30 @@ export class AdminController {
   @Post('releases')
   createRelease(@Body() body: CreateReleaseDto, @Req() request: AdminRequestLike) {
     return this.adminService.createRelease(body, request.admin?.id);
+  }
+
+  @Post('releases/:releaseId/activate')
+  activateRelease(
+    @Param('releaseId', ParseIntPipe) releaseId: number,
+    @Req() request: AdminRequestLike,
+  ) {
+    return this.adminService.setReleaseActive(releaseId, true, request.admin?.id);
+  }
+
+  @Post('releases/:releaseId/pause')
+  pauseRelease(
+    @Param('releaseId', ParseIntPipe) releaseId: number,
+    @Req() request: AdminRequestLike,
+  ) {
+    return this.adminService.setReleaseActive(releaseId, false, request.admin?.id);
+  }
+
+  @Delete('releases/:releaseId')
+  deleteRelease(
+    @Param('releaseId', ParseIntPipe) releaseId: number,
+    @Req() request: AdminRequestLike,
+  ) {
+    return this.adminService.deleteRelease(releaseId, request.admin?.id);
   }
 
   @Post('releases/upload')

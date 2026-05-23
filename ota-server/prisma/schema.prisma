@@ -8,63 +8,64 @@ datasource db {
 }
 
 model Device {
-  id                Int           @id @default(autoincrement())
-  token             String        @unique
+  id                Int                 @id @default(autoincrement())
+  token             String              @unique
   model             String
   mac               String
   board             String
-  firmwareModelId   Int?          @map("firmware_model_id")
-  currentVersion    String?       @map("current_version")
+  firmwareModelId   Int?                @map("firmware_model_id")
+  currentVersion    String?             @map("current_version")
   status            String?
-  lastResult        String?       @map("last_result")
-  lastError         String?       @map("last_error")
-  lastIp            String?       @map("last_ip")
-  firstRegisteredAt DateTime?     @map("first_registered_at")
-  lastSeenAt        DateTime?     @map("last_seen_at")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
-  firmwareModel     FirmwareModel? @relation(fields: [firmwareModelId], references: [id], onDelete: SetNull)
+  lastResult        String?             @map("last_result")
+  lastError         String?             @map("last_error")
+  lastIp            String?             @map("last_ip")
+  firstRegisteredAt DateTime?           @map("first_registered_at")
+  lastSeenAt        DateTime?           @map("last_seen_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  hotspot_licensed  Boolean             @default(false)
+  campaignStates    CampaignDevice[]
   events            DeviceEvent[]
   groupMemberships  DeviceGroupMember[]
   tagMemberships    DeviceTagMember[]
-  campaignStates    CampaignDevice[]
+  firmwareModel     FirmwareModel?      @relation(fields: [firmwareModelId], references: [id])
 
   @@index([firmwareModelId])
   @@map("devices")
 }
 
 model Release {
-  id             Int           @id @default(autoincrement())
-  model          String
-  firmwareModelId Int?         @map("firmware_model_id")
-  version        String
-  versionCode    String?       @map("version_code")
-  downloadUrl    String        @map("download_url")
-  sha256         String
-  changelog      String?
-  force          Boolean       @default(false)
-  rolloutPercent Int           @default(100) @map("rollout_percent")
-  active         Boolean       @default(false)
-  channel        String        @default("stable")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
-  firmwareModel  FirmwareModel? @relation(fields: [firmwareModelId], references: [id], onDelete: SetNull)
-  files          ReleaseFile[]
-  campaigns      Campaign[]
+  id              Int            @id @default(autoincrement())
+  model           String
+  firmwareModelId Int?           @map("firmware_model_id")
+  version         String
+  versionCode     String?        @map("version_code")
+  downloadUrl     String         @map("download_url")
+  sha256          String
+  changelog       String?
+  force           Boolean        @default(false)
+  rolloutPercent  Int            @default(100) @map("rollout_percent")
+  active          Boolean        @default(false)
+  channel         String         @default("stable")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  campaigns       Campaign[]
+  files           ReleaseFile[]
+  firmwareModel   FirmwareModel? @relation(fields: [firmwareModelId], references: [id])
 
   @@index([firmwareModelId])
   @@map("releases")
 }
 
 model ReleaseFile {
-  id         Int      @id @default(autoincrement())
-  releaseId  Int      @map("release_id")
-  kind       String
-  url        String
-  sha256     String
-  sizeBytes  BigInt?  @map("size_bytes")
-  createdAt  DateTime @default(now()) @map("created_at")
-  release    Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  id        Int      @id @default(autoincrement())
+  releaseId Int      @map("release_id")
+  kind      String
+  url       String
+  sha256    String
+  sizeBytes BigInt?  @map("size_bytes")
+  createdAt DateTime @default(now()) @map("created_at")
+  release   Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
 
   @@map("release_files")
 }
@@ -83,12 +84,12 @@ model DeviceEvent {
 }
 
 model AdminUser {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
-  passwordHash String   @map("password_hash")
+  id           Int            @id @default(autoincrement())
+  email        String         @unique
+  passwordHash String         @map("password_hash")
   role         String
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
   sessions     AdminSession[]
   auditLogs    AuditLog[]
 
@@ -115,30 +116,30 @@ model AdminSession {
 }
 
 model FirmwareModel {
-  id             Int      @id @default(autoincrement())
-  slug           String   @unique
-  modelKey       String   @unique @map("model_key")
-  displayName    String   @map("display_name")
-  boardIdentifier String? @map("board_identifier")
-  artifactKind   String   @default("sysupgrade") @map("artifact_kind")
-  notes          String?
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  devices        Device[]
-  releases       Release[]
+  id              Int       @id @default(autoincrement())
+  slug            String    @unique
+  modelKey        String    @unique @map("model_key")
+  displayName     String    @map("display_name")
+  boardIdentifier String?   @map("board_identifier")
+  artifactKind    String    @default("sysupgrade") @map("artifact_kind")
+  notes           String?
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  devices         Device[]
+  releases        Release[]
 
   @@map("firmware_models")
 }
 
 model DeviceGroup {
-  id          Int                 @id @default(autoincrement())
-  name        String              @unique
+  id          Int                  @id @default(autoincrement())
+  name        String               @unique
   description String?
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
-  members     DeviceGroupMember[]
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
   targetRules CampaignTargetRule[] @relation("CampaignRuleGroup")
+  members     DeviceGroupMember[]
 
   @@map("device_groups")
 }
@@ -157,14 +158,14 @@ model DeviceGroupMember {
 }
 
 model DeviceTag {
-  id          Int                 @id @default(autoincrement())
-  name        String              @unique
+  id          Int                  @id @default(autoincrement())
+  name        String               @unique
   description String?
   color       String?
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
-  members     DeviceTagMember[]
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
   targetRules CampaignTargetRule[] @relation("CampaignRuleTag")
+  members     DeviceTagMember[]
 
   @@map("device_tags")
 }
@@ -196,9 +197,9 @@ model Campaign {
   endAt          DateTime?            @map("end_at")
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @updatedAt @map("updated_at")
-  release        Release              @relation(fields: [releaseId], references: [id], onDelete: Cascade)
-  targetRules    CampaignTargetRule[]
   devices        CampaignDevice[]
+  targetRules    CampaignTargetRule[]
+  release        Release              @relation(fields: [releaseId], references: [id], onDelete: Cascade)
 
   @@index([releaseId])
   @@index([archivedAt])
@@ -218,8 +219,8 @@ model CampaignTargetRule {
   tagId       Int?         @map("tag_id")
   createdAt   DateTime     @default(now()) @map("created_at")
   campaign    Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  group       DeviceGroup? @relation("CampaignRuleGroup", fields: [groupId], references: [id], onDelete: SetNull)
-  tag         DeviceTag?   @relation("CampaignRuleTag", fields: [tagId], references: [id], onDelete: SetNull)
+  group       DeviceGroup? @relation("CampaignRuleGroup", fields: [groupId], references: [id])
+  tag         DeviceTag?   @relation("CampaignRuleTag", fields: [tagId], references: [id])
 
   @@index([campaignId])
   @@index([groupId])
@@ -254,7 +255,7 @@ model AuditLog {
   entityId    String?    @map("entity_id")
   payloadJson Json?      @map("payload_json")
   createdAt   DateTime   @default(now()) @map("created_at")
-  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id])
 
   @@index([adminUserId])
   @@index([entityType, entityId])

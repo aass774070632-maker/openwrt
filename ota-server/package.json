@@ -12,6 +12,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test": "echo \"No tests configured yet\" && exit 0",
     "smoke:e2e": "bash scripts/smoke-e2e.sh",
+    "smoke:prod-hotspot-license": "bash scripts/smoke-production-hotspot-license.sh",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "seed:models": "node --env-file=.env scripts/seed-firmware-models.mjs",

@@ -1,6 +1,7 @@
 #!/bin/sh
 
-socket_path='/var/run/chilli_hotspot_openwrt.sock'
+primary_socket_path='/var/run/chilli_hotspot_openwrt.sock'
+secondary_socket_path='/var/run/chilli_hotspot_openwrt_secondary.sock'
 mac="$1"
 ip="$2"
 state="$3"
@@ -12,13 +13,38 @@ if [ -z "$mac" ]; then
 	exit 0
 fi
 
-if [ ! -S "$socket_path" ] || ! command -v chilli_query >/dev/null 2>&1; then
+if ! command -v chilli_query >/dev/null 2>&1; then
 	printf 'false,"message":"CoovaChilli is not running"}\n'
 	exit 0
 fi
 
 # Normalize MAC for dhcp-release
 normalized_mac="$(printf '%s' "$mac" | tr 'A-Z-' 'a-z:')"
+socket_path=''
+
+for candidate_socket in "$primary_socket_path" "$secondary_socket_path"; do
+	[ -S "$candidate_socket" ] || continue
+	if [ -n "$ip" ] && [ "$ip" != '-' ]; then
+		chilli_query -s "$candidate_socket" list 2>/dev/null | awk -v ip="$ip" '$2 == ip { found = 1; exit } END { exit found ? 0 : 1 }' || continue
+	else
+		chilli_query -s "$candidate_socket" list 2>/dev/null | awk -v mac="$normalized_mac" 'tolower($1) == mac { found = 1; exit } END { exit found ? 0 : 1 }' || continue
+	fi
+	socket_path="$candidate_socket"
+	break
+done
+
+if [ -z "$socket_path" ]; then
+	for candidate_socket in "$primary_socket_path" "$secondary_socket_path"; do
+		[ -S "$candidate_socket" ] || continue
+		socket_path="$candidate_socket"
+		break
+	done
+fi
+
+if [ -z "$socket_path" ]; then
+	printf 'false,"message":"CoovaChilli is not running"}\n'
+	exit 0
+fi
 
 if [ "$state" = "pass" ]; then
 	if [ -n "$ip" ] && [ "$ip" != "-" ]; then

@@ -1,12 +1,18 @@
 #!/bin/sh
-socket_path='/var/run/chilli_hotspot_openwrt.sock'
+primary_socket_path='/var/run/chilli_hotspot_openwrt.sock'
+secondary_socket_path='/var/run/chilli_hotspot_openwrt_secondary.sock'
 remote_addr="${REMOTE_ADDR:-}"
 
 # Get limit from Chilli (bps)
 get_limit() {
 	local col="$1"
-	local line
-	line="$(chilli_query -s "$socket_path" list 2>/dev/null | grep "$remote_addr")"
+	local line socket_path
+	line="$(
+		for socket_path in "$primary_socket_path" "$secondary_socket_path"; do
+			[ -S "$socket_path" ] || continue
+			chilli_query -s "$socket_path" list 2>/dev/null | awk -v ip="$remote_addr" '$2 == ip { print; exit }'
+		done | sed -n '1p'
+	)"
 	[ -n "$line" ] || { echo 100000000; return; }
 	local val
 	val="$(echo "$line" | awk "{ print \$$col }" | sed 's/.*%//; s/\///; s/[^0-9]//g')"

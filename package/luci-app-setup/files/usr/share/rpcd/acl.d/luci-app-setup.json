@@ -3,7 +3,10 @@
 		"description": "Grant UCI and status access for luci-app-setup",
 		"read": {
 			"cgi-io": [ "backup", "download" ],
-			"uci": [ "alemprator_firstboot", "alemprator_ota", "hotspot_openwrt", "network", "setup", "watchcat", "wireless" ],
+			"file": {
+				"/usr/libexec/hotspot-openwrt/license-check": [ "exec" ]
+			},
+			"uci": [ "alemprator_firstboot", "alemprator_ota", "chilli", "hotspot_licensing", "hotspot_openwrt", "network", "setup", "watchcat", "wireless" ],
 			"ubus": {
 				"system": [ "board" ],
 				"network.interface.lan": [ "status" ],
@@ -13,14 +16,18 @@
 		"write": {
 			"cgi-io": [ "upload" ],
 			"file": {
+				"/etc/init.d/hotspot-openwrt stop": [ "exec" ],
 				"/bin/tar -tzf /tmp/backup.tar.gz": [ "exec" ],
+				"/usr/libexec/alemprator-setup/cleanup-hotspot --force --reload": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/apply": [ "exec" ],
 				"/sbin/reboot": [ "exec" ],
 				"/sbin/sysupgrade --restore-backup /tmp/backup.tar.gz": [ "exec" ],
 				"/tmp/backup.tar.gz": [ "write" ],
 				"/usr/libexec/hotspot-openwrt/apply": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/test-radius": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/validate": [ "exec" ]
 			},
-			"uci": [ "alemprator_firstboot", "alemprator_ota", "dhcp", "firewall", "hotspot_openwrt", "network", "setup", "watchcat", "wireless" ],
+			"uci": [ "alemprator_firstboot", "alemprator_ota", "chilli", "dhcp", "firewall", "hotspot_licensing", "hotspot_openwrt", "network", "setup", "watchcat", "wireless" ],
 			"ubus": {
 				"file": [ "exec", "remove", "write" ],
 				"luci": [ "setPassword" ]

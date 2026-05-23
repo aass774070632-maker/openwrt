@@ -1,0 +1,7 @@
+FAIL: luci-app-cpu-status
+FAIL: luci-app-cpu-perf
+FAIL: luci-app-temp-status
+FAIL: luci-app-log-viewer
+FAIL: luci-app-tn-netports
+FAIL: luci-app-netspeedtest
+FAIL: luci-app-bandix-plus

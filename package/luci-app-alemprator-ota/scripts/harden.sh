@@ -2,8 +2,16 @@
 # Alemprator OTA Guard - Hardening Script
 # Protects sensitive central system scripts using custom Python hardener
 
+MODE="$1"
 CC_BIN="$2"
 TARGET_DIR="$3"
+
+# إذا كان الوضع "ignore" أو "skip" نتخطى التشفير بالكامل
+# السبب: common.sh مكتبة مشتركة، تشفيرها يكسر جميع السكربتات الأخرى
+if [ "$MODE" = "ignore" ] || [ "$MODE" = "skip" ] || [ "$MODE" = "none" ]; then
+    echo "Alemprator OTA Guard: Hardening skipped (mode=$MODE)."
+    exit 0
+fi
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PYTHON_HARDENER="$SCRIPT_DIR/alemp_harden.py"
@@ -17,9 +25,10 @@ if [ ! -f "$PYTHON_HARDENER" ] || [ ! -f "$TEMPLATE_FILE" ]; then
 fi
 
 # List of sensitive OTA scripts to harden
+# NOTE: common.sh MUST NOT be included here — it is a shared library sourced at
+# runtime. SHC-compiling it breaks all scripts that try to `. /tmp/common.sh`.
 SCRIPTS=(
     "/usr/libexec/alemprator-ota/agent.sh"
-    "/usr/libexec/alemprator-ota/common.sh"
     "/usr/libexec/alemprator-ota/internet-check"
     "/usr/libexec/alemprator-ota/manual-clear"
     "/usr/libexec/alemprator-ota/manual-info"

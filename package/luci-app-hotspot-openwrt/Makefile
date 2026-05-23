@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-hotspot-openwrt
 PKG_VERSION:=1.0
-PKG_RELEASE:=1
+PKG_RELEASE:=r33
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 # PKGARCH:=all (Disabled to allow architecture-specific binaries)
 PKG_LICENSE:=GPL-3.0-only
@@ -14,7 +14,7 @@ define Package/luci-app-hotspot-openwrt
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
   TITLE:=LuCI Hotspot OpenWrt wizard for CoovaChilli and MikroTik RADIUS
-  DEPENDS:=+luci-base +rpcd +rpcd-mod-file +uhttpd +coova-chilli +kmod-tun
+	DEPENDS:=+luci-base +rpcd +rpcd-mod-file +uhttpd +coova-chilli +kmod-tun +alemprator-guard
 endef
 
 define Package/luci-app-hotspot-openwrt/description
@@ -24,6 +24,8 @@ endef
 
 define Package/luci-app-hotspot-openwrt/conffiles
 /etc/config/hotspot_openwrt
+/etc/config/hotspot_licensing
+/etc/hotspot-openwrt/firewall.sh
 endef
 
 define Package/luci-app-hotspot-openwrt/postinst
@@ -33,6 +35,7 @@ rm -f "$${IPKG_INSTROOT}/tmp/luci-indexcache" "$${IPKG_INSTROOT}"/tmp/luci-index
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 /etc/init.d/rpcd reload >/dev/null 2>&1 || true
 /etc/init.d/uhttpd reload >/dev/null 2>&1 || true
+filelist=/dev/null
 exit 0
 endef
 
@@ -47,8 +50,12 @@ define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/etc/config/hotspot_openwrt $(1)/etc/config/
 	$(INSTALL_CONF) ./files/etc/config/hotspot_licensing $(1)/etc/config/
+	$(INSTALL_DIR) $(1)/etc/hotspot-openwrt
+	$(INSTALL_BIN) ./files/etc/hotspot-openwrt/firewall.sh $(1)/etc/hotspot-openwrt/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/etc/init.d/hotspot-openwrt $(1)/etc/init.d/
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_BIN) ./files/etc/uci-defaults/99_hotspot-openwrt-firewall $(1)/etc/uci-defaults/
 	$(INSTALL_DIR) $(1)/usr/libexec/hotspot-openwrt
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/apply $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/export-config $(1)/usr/libexec/hotspot-openwrt/
@@ -59,8 +66,12 @@ define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/mac-cookies $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/mac-cookie-watchdog $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/portal-upload $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/phase2-smoke $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/phase2-client-sim $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/phase3-rc-gate $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/presence-watchdog $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/status-json $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/kick-client $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/userman-info $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/validate $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/license-check $(1)/usr/libexec/hotspot-openwrt/
@@ -83,6 +94,7 @@ define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_DATA) ./files/www/hotspot/settings.js $(1)/www/hotspot/
 	$(INSTALL_DATA) ./files/www/hotspot/api.json $(1)/www/hotspot/
 	$(INSTALL_DIR) $(1)/www/cgi-bin
+	$(INSTALL_BIN) ./files/www/cgi-bin/generate_204 $(1)/www/cgi-bin/
 	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-login $(1)/www/cgi-bin/
 	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-card-info $(1)/www/cgi-bin/
 	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-logout $(1)/www/cgi-bin/

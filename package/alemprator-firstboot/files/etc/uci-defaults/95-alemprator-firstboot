@@ -19,6 +19,10 @@ case "$board_name" in
 		DEFAULT_SSID="ALemprator-KT-KM14-102H"
 		OTHER_DEFAULT_SSID="ALemprator-KT-KM12-007H"
 		;;
+	kt,km15-103h)
+		DEFAULT_SSID="ALemprator-KT-KM15-103H"
+		OTHER_DEFAULT_SSID="ALemprator-KT-KM12-007H"
+		;;
 	kt,dv02-012h)
 		DEFAULT_SSID="ALemprator-KT-DV02-012H"
 		OTHER_DEFAULT_SSID="ALemprator-KT-AR07-102H"
@@ -100,6 +104,15 @@ EOF
 if [ "$is_configured" = 1 ]; then
 	rm -f "$PENDING_FLAG"
 	rm -f "$BASELINE_FILE"
+	# Even on sysupgrade/reconfigured devices, ensure DNS fallback servers are set
+	if ! uci -q get dhcp.@dnsmasq[0].server 2>/dev/null | grep -q '8.8.8.8'; then
+		uci -q delete dhcp.@dnsmasq[0].server 2>/dev/null || true
+		uci -q add_list dhcp.@dnsmasq[0].server='8.8.8.8'
+		uci -q add_list dhcp.@dnsmasq[0].server='1.1.1.1'
+		uci -q add_list dhcp.@dnsmasq[0].server='8.8.4.4'
+		uci -q set dhcp.@dnsmasq[0].noresolv='0'
+		uci commit dhcp
+	fi
 	/etc/init.d/alemprator-firstboot reload >/dev/null 2>&1 || true
 	exit 0
 fi
@@ -131,6 +144,8 @@ uci -q batch <<EOF >/dev/null
 	set dhcp.${SETUP_NETWORK}.limit='50'
 	set dhcp.${SETUP_NETWORK}.leasetime='1h'
 	delete dhcp.${SETUP_NETWORK}.ignore
+	add_list dhcp.@dnsmasq[0].server='8.8.8.8'
+	add_list dhcp.@dnsmasq[0].server='1.1.1.1'
 
 	set firewall.${SETUP_FIREWALL}=zone
 	set firewall.${SETUP_FIREWALL}.name='${SETUP_FIREWALL}'
@@ -174,5 +189,30 @@ uci -q set ${CFG}.main.auto_cleanup_armed='1'
 /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
 /etc/init.d/firewall restart >/dev/null 2>&1 || true
 wifi reload >/dev/null 2>&1 || true
+
+# ===== Captive Portal: إعداد إعادة توجيه uhttpd =====
+# عند الاتصال بشبكة الإعداد، يُحوّل الأجهزة لصفحة تسجيل الدخول
+uci -q batch <<PORTALEOF >/dev/null
+	set uhttpd.main.redirect_https='0'
+	add_list uhttpd.main.lua_prefix='/hotspot-detect.html=/www/captive-portal.html'
+PORTALEOF
+
+# إنشاء ملف redirect بسيط لـ Captive Portal detection endpoints
+mkdir -p /www
+cat > /www/hotspot-detect.html << 'HTMLEOF'
+<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY><script>window.location.replace('/captive-portal.html');</script></BODY></HTML>
+HTMLEOF
+
+# Android connectivity check (generate_204)
+cat > /www/generate_204 << 'HTMLEOF'
+<HTML><HEAD></HEAD><BODY><script>window.location.replace('/captive-portal.html');</script></BODY></HTML>
+HTMLEOF
+
+# Windows NCSI
+cat > /www/ncsi.txt << 'HTMLEOF'
+Microsoft NCSI
+HTMLEOF
+
+/etc/init.d/uhttpd reload >/dev/null 2>&1 || true
 
 exit 0

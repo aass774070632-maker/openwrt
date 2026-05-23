@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>مركز تحكم تحديثات OTA</title>
-  <link rel="stylesheet" href="/admin-app/styles.css?v=20260429-1">
+  <link rel="stylesheet" href="/admin-app/styles.css?v=20260518-2">
 </head>
 <body>
   <div class="page-shell">
@@ -145,6 +145,7 @@
               <label><span>الإصدار</span><input name="version" placeholder="24.10.4-km14-r8" required></label>
               <label><span>رمز الإصدار</span><input name="version_code" placeholder="r8"></label>
               <label><span>مسار ملف موجود على السيرفر</span><input name="artifact_path" placeholder="/firmware/openwrt-...-r8.bin"></label>
+              <label><span>رابط تحميل خارجي</span><input name="artifact_url" placeholder="https://example.com/openwrt-...-r8.bin"></label>
               <label><span>رفع من المتصفح</span><input name="artifact" type="file" accept=".bin,.img,.itb,.gz,.tar,.zst"></label>
               <label class="full-width"><span>سجل التغييرات</span><textarea name="changelog" rows="4"></textarea></label>
               <label><span>القناة</span><input name="channel" value="stable"></label>
@@ -230,6 +231,6 @@
     </main>
   </div>
 
-  <script src="/admin-app/app.js?v=20260429-1" defer></script>
+  <script src="/admin-app/app.js?v=20260518-2" defer></script>
 </body>
 </html>

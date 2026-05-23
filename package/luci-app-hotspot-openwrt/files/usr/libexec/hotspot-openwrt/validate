@@ -9,6 +9,20 @@
 LICENSE_CACHE="/etc/alemprator/hotspot.license"
 GRACE_PERIOD=$((3 * 86400)) # 3 days in seconds
 
+sync_license_check_cache() {
+    [ -x /usr/libexec/hotspot-openwrt/license-check ] || return 1
+    /usr/libexec/hotspot-openwrt/license-check >/dev/null 2>&1 || return 1
+
+    mkdir -p /etc/alemprator || return 1
+    cat > "$LICENSE_CACHE" <<EOF
+license_last_check='$NOW'
+license_expires_at='$((NOW + GRACE_PERIOD))'
+license_status='active'
+EOF
+    chmod 600 "$LICENSE_CACHE" 2>/dev/null || true
+    return 0
+}
+
 load_config
 
 # Ensure we have the server URL
@@ -16,6 +30,13 @@ load_config
 
 TOKEN=$(ensure_token)
 NOW=$(date +%s)
+
+# After a factory reset, newer guard/license-check may be valid while the legacy
+# local cache is gone. Recreate the cache from license-check before falling back
+# to the older OTA verification path used by this validator.
+if sync_license_check_cache; then
+    exit 0
+fi
 
 # 1. Check local cache first
 if [ -f "$LICENSE_CACHE" ]; then
@@ -54,7 +75,7 @@ EOF
     elif [ "$ACCEPTED" = "0" ] || [ "$ACCEPTED" = "false" ]; then
         # Explicitly rejected
         echo "license_status='blocked'" > "$LICENSE_CACHE"
-        exit 0
+        exit 1
     fi
 fi
 
@@ -69,4 +90,4 @@ if [ -f "$LICENSE_CACHE" ]; then
 fi
 
 # Not authorized
-exit 0
+exit 1

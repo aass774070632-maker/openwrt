@@ -1,0 +1,59 @@
+#!/bin/sh
+
+json_escape() {
+	printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s%s", (NR>1 ? "\\n" : ""), $0 }'
+}
+
+json_reply() {
+	local ok="$1" stage="$2" message="$3"
+	printf '{"ok":%s,"stage":"%s","message":"%s"}\n' "$ok" "$(json_escape "$stage")" "$(json_escape "$message")"
+}
+
+valid_ipv4() {
+	printf '%s' "$1" | awk -F. 'NF != 4 { exit 1 } { for (i = 1; i <= 4; i++) if ($i !~ /^[0-9]+$/ || $i < 0 || $i > 255) exit 1 }'
+}
+
+valid_port() {
+	case "$1" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	[ "$1" -ge 1 ] 2>/dev/null && [ "$1" -le 65535 ] 2>/dev/null
+}
+
+server="$1"
+auth_port="${2:-1812}"
+acct_port="${3:-1813}"
+coa_port="${4:-0}"
+
+if ! valid_ipv4 "$server"; then
+	json_reply false validate 'RADIUS server must be a valid IPv4 address'
+	exit 1
+fi
+
+if ! valid_port "$auth_port" || ! valid_port "$acct_port"; then
+	json_reply false validate 'RADIUS auth/accounting ports must be between 1 and 65535'
+	exit 1
+fi
+
+if [ "$coa_port" != '0' ] && ! valid_port "$coa_port"; then
+	json_reply false validate 'CoA port must be between 1 and 65535'
+	exit 1
+fi
+
+if ! ip route get "$server" >/dev/null 2>&1; then
+	json_reply false route 'No route to RADIUS server'
+	exit 1
+fi
+
+if command -v ping >/dev/null 2>&1; then
+	if ping -c 1 -W 1 "$server" >/dev/null 2>&1; then
+		json_reply true ping 'RADIUS server is reachable. Check MikroTik shared secret and NAS entry if authentication still fails.'
+		exit 0
+	fi
+
+	json_reply true route 'Route to RADIUS exists, but ICMP ping did not reply. This can still be OK if MikroTik blocks ping.'
+	exit 0
+fi
+
+json_reply true route 'Route to RADIUS exists. Ping tool is unavailable, so UDP/auth test was not attempted.'
+exit 0

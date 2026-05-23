@@ -41,17 +41,96 @@ var callSetPassword = rpc.declare({
 
 var SETUP_STYLE_ID = 'alemprator-setup-styles';
 var WATCHCAT_SID = 'alemprator_periodic_reboot';
-var STEP_KEYS = [ 'lan', 'mode', 'hotspot', 'vlan', 'advanced' ];
-var WIZARD_BUILD_TAG = 'r94';
+var STEP_KEYS = [ 'options', 'maintenance' ];
+var WIZARD_BUILD_TAG = 'r120';
 var WIZARD_ROUTE = '/cgi-bin/luci/admin/applications/alemprator';
 var DEFAULT_ADMIN_ROUTE = '/cgi-bin/luci/admin/status/overview';
 var VIDEO_EXPLAIN_URL = 'https://www.facebook.com/people/%D8%AC%D9%84%D8%A7%D9%84-%D8%A7%D8%AD%D9%85%D8%AF-%D8%A7%D9%84%D9%82%D8%AD%D9%85/100010720113363/';
 var FIRSTBOOT_DEFAULT_NETWORK = 'alemprator_setup';
 var FIRSTBOOT_DEFAULT_WIRELESS = 'alemprator_firstboot';
 var SAFE_RESTORE_BACKUP_PATH = '/tmp/backup.tar.gz';
+var HOTSPOT_APPLY_CMD = '/usr/libexec/hotspot-openwrt/apply';
+var HOTSPOT_INIT_CMD = '/etc/init.d/hotspot-openwrt';
+var HOTSPOT_CLEANUP_CMD = '/usr/libexec/alemprator-setup/cleanup-hotspot';
+var HOTSPOT_LICENSE_CHECK_CMD = '/usr/libexec/hotspot-openwrt/license-check';
+var HOTSPOT_TEST_RADIUS_CMD = '/usr/libexec/hotspot-openwrt/test-radius';
+var HOTSPOT_QUICK_IFACE_PRIMARY = 'wizard_hotspot_quick_primary';
+var HOTSPOT_QUICK_IFACE_SECONDARY = 'wizard_hotspot_quick_secondary';
 
 function notify(message) {
 	ui.addNotification(null, E('p', message));
+}
+
+function hotspotLicenseCacheInfo() {
+	var enabled = uci.get('hotspot_licensing', 'main', 'enabled') != '0';
+	var rawStatus = uci.get('hotspot_licensing', 'main', 'license_status');
+	var status = rawStatus || 'unknown';
+	var expiresAt = Number(uci.get('hotspot_licensing', 'main', 'expires_at') || 0);
+	var now = Math.floor(Date.now() / 1000);
+	var active = !enabled || (status == 'active' && expiresAt > now);
+	var known = !!rawStatus;
+
+	return {
+		enabled: enabled,
+		status: status,
+		expiresAt: expiresAt,
+		active: active,
+		known: known,
+		label: !enabled ? _('فحص الترخيص معطل') : (!known ? _('غير معروف') : (active ? _('مرخص') : _('غير مرخص')))
+	};
+}
+
+function hotspotLicenseCacheMessage(info) {
+	info = info || hotspotLicenseCacheInfo();
+
+	if (!info.enabled)
+		return _('فحص ترخيص الهوتسبوت معطل من الإعدادات.');
+
+	if (!info.known)
+		return _('لم تتمكن الواجهة من قراءة حالة الترخيص بعد. سيتم تشغيل فحص حي عند اختيار التفعيل أو عند الحفظ والتطبيق.');
+
+	if (info.active)
+		return _('الهوتسبوت مرخص حالياً، وسيتم تشغيل الخدمة بشكل طبيعي عند الحفظ والتطبيق.');
+
+	return _('الهوتسبوت غير مرخص حالياً. يمكن حفظ الإعدادات، لكن الخدمة لن تعمل وسيبقى العملاء بدون بوابة دخول حتى يتم تفعيل الترخيص من لوحة OTA.');
+}
+
+function checkHotspotLicenseLive() {
+	return L.resolveDefault(fs.exec(HOTSPOT_LICENSE_CHECK_CMD, []), { code: 1 }).then(function(res) {
+		return {
+			ok: !!(res && res.code === 0),
+			message: (res && (res.stderr || res.stdout)) || ''
+		};
+	});
+}
+
+function showHotspotLicenseSelectionMessage(contextLabel) {
+	return checkHotspotLicenseLive().then(function(result) {
+		var message = result.ok
+			? _('الهوتسبوت مرخص. اختيار ') + contextLabel + _(' سيشغل الخدمة بشكل طبيعي بعد الحفظ والتطبيق.')
+			: _('الهوتسبوت غير مرخص. اختيار ') + contextLabel + _(' سيحفظ الإعدادات فقط، لكن تشغيل الخدمة سيفشل وسيبقى العملاء بدون بوابة دخول حتى يتم تفعيل الترخيص من لوحة OTA.');
+
+		if (result.message)
+			message += '\n\n' + _('تفاصيل الفحص: ') + String(result.message).trim();
+
+		window.alert(message);
+	});
+}
+
+function confirmHotspotLicenseBeforeSetupApply(state) {
+	if (!state || (!state.hotspotQuickEnabled && !state.hotspotEnabled))
+		return Promise.resolve(true);
+
+	return checkHotspotLicenseLive().then(function(result) {
+		var message = result.ok
+			? _('الهوتسبوت مرخص. سيتم حفظ الإعدادات وتشغيل الخدمة الآن. هل تريد المتابعة؟')
+			: _('الهوتسبوت غير مرخص. سيتم حفظ الإعدادات، لكن تشغيل الخدمة سيفشل وسيبقى العملاء بدون إنترنت عبر الهوتسبوت حتى يتم تفعيل الترخيص من لوحة OTA. هل تريد المتابعة؟');
+
+		if (result.message)
+			message += '\n\n' + _('تفاصيل الفحص: ') + String(result.message).trim();
+
+		return window.confirm(message);
+	});
 }
 
 function ensureSetupStyles() {
@@ -65,18 +144,28 @@ function ensureSetupStyles() {
 	styleTag.textContent = [
 		'.alemprator-setup-shell {',
 		'  display:grid;',
-		'  grid-template-columns:minmax(280px, 330px) minmax(0, 1fr);',
-		'  gap:22px;',
+		'  grid-template-columns:minmax(0, 1fr);',
+		'  gap:16px;',
 		'  align-items:start;',
+		'  position:relative;',
+		'  left:50%;',
+		'  transform:translateX(-50%);',
+		'  width:calc(100vw - 48px);',
+		'  max-width:1680px;',
+		'  min-width:0;',
+		'}',
+		'.alemprator-setup-wizard {',
+		'  min-width:0;',
 		'}',
 		'.alemprator-setup-status-column {',
-		'  position:sticky;',
-		'  top:12px;',
-		'  align-self:start;',
+		'  position:static;',
+		'  align-self:stretch;',
+		'  min-width:0;',
 		'}',
 		'@media (max-width: 1120px) {',
 		'  .alemprator-setup-shell {',
 		'    grid-template-columns:1fr;',
+		'    width:calc(100vw - 28px);',
 		'  }',
 		'  .alemprator-setup-status-column {',
 		'    position:static;',
@@ -209,9 +298,9 @@ function ensureSetupStyles() {
 		'}',
 		'.alemprator-status-grid {',
 		'  display:grid;',
-		'  grid-template-columns:repeat(2, minmax(0, 1fr));',
+		'  grid-template-columns:repeat(auto-fit, minmax(min(100%, 180px), 1fr));',
 		'  gap:12px;',
-		'  margin-top:18px;',
+		'  margin-top:14px;',
 		'}',
 		'@media (max-width: 560px) {',
 		'  .alemprator-status-grid {',
@@ -336,8 +425,25 @@ function ensureSetupStyles() {
 		'}',
 		'.alemprator-card-grid {',
 		'  display:grid;',
-		'  grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));',
-		'  gap:18px;',
+		'  grid-template-columns:repeat(4, minmax(0, 1fr));',
+		'  gap:14px;',
+		'  align-items:start;',
+		'}',
+		'.alemprator-card-grid--fluid {',
+		'  margin-top:12px;',
+		'  grid-template-columns:repeat(4, minmax(0, 1fr));',
+		'}',
+		'@media (max-width: 1280px) {',
+		'  .alemprator-card-grid,',
+		'  .alemprator-card-grid--fluid {',
+		'    grid-template-columns:repeat(3, minmax(0, 1fr));',
+		'  }',
+		'}',
+		'@media (max-width: 920px) {',
+		'  .alemprator-card-grid,',
+		'  .alemprator-card-grid--fluid {',
+		'    grid-template-columns:repeat(2, minmax(0, 1fr));',
+		'  }',
 		'}',
 		'@media (max-width: 760px) {',
 		'  .alemprator-card-grid {',
@@ -351,6 +457,38 @@ function ensureSetupStyles() {
 		'.alemprator-card-grid > * > .alemprator-card--section {',
 		'  margin-top:0;',
 		'  height:100%;',
+		'}',
+		'.alemprator-card-grid > .alemprator-card--section.is-wide,',
+		'.alemprator-card-grid > * > .alemprator-card--section.is-wide {',
+		'  grid-column:1 / -1;',
+		'  height:auto;',
+		'}',
+		'.alemprator-card-grid > .alemprator-notice,',
+		'.alemprator-card-grid > .alemprator-card-grid {',
+		'  grid-column:1 / -1;',
+		'}',
+		'.alemprator-card__body {',
+		'  display:grid;',
+		'  grid-template-columns:repeat(auto-fit, minmax(min(100%, 210px), 1fr));',
+		'  gap:10px 16px;',
+		'  align-items:start;',
+		'}',
+		'.alemprator-card__body > .alemprator-inline-summary,',
+		'.alemprator-card__body > .alemprator-notice,',
+		'.alemprator-card__body > p,',
+		'.alemprator-card__body > .alemprator-responsive-fields,',
+		'.alemprator-card__body > .alemprator-card-grid {',
+		'  grid-column:1 / -1;',
+		'}',
+		'.alemprator-responsive-fields {',
+		'  display:grid;',
+		'  grid-template-columns:repeat(auto-fit, minmax(min(100%, 230px), 1fr));',
+		'  gap:10px 16px;',
+		'  align-items:start;',
+		'}',
+		'.alemprator-responsive-fields > .alemprator-notice,',
+		'.alemprator-responsive-fields > .alemprator-responsive-fields {',
+		'  grid-column:1 / -1;',
 		'}',
 		'.alemprator-inline-summary {',
 		'  display:flex;',
@@ -628,6 +766,254 @@ function modeNeedsDeferredApply(value) {
 	return false;
 }
 
+function normalizeInterfaceName(value, fallback) {
+	var normalized = String(value || '').trim();
+
+	if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(normalized))
+		normalized = '';
+
+	if (!normalized)
+		normalized = fallback || 'hotspot';
+
+	return normalized;
+}
+
+function deriveHotspotQuickSecondaryInterface(primaryInterface) {
+	var primary = normalizeInterfaceName(primaryInterface, 'hotspot');
+	var candidate = primary + '2';
+
+	if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(candidate))
+		candidate = 'hotspot2';
+
+	if (candidate == primary)
+		candidate = primary + '_2';
+
+	return normalizeInterfaceName(candidate, 'hotspot2');
+}
+
+function normalizeHotspotPolicy(value, fallback) {
+	var normalized = String(value || '').trim();
+	var allowed = [ 'standard', 'premium', 'guest', 'staff', 'trial' ];
+
+	if (!normalized)
+		return fallback || 'standard';
+
+	if (allowed.indexOf(normalized) == -1)
+		return fallback || 'standard';
+
+	return normalized;
+}
+
+function hotspotPolicyChoices() {
+	return [
+		E('option', { 'value': 'standard' }, _('Standard')),
+		E('option', { 'value': 'premium' }, _('Premium')),
+		E('option', { 'value': 'guest' }, _('Guest')),
+		E('option', { 'value': 'staff' }, _('Staff')),
+		E('option', { 'value': 'trial' }, _('Trial'))
+	];
+}
+
+function normalizePort(value, fallback) {
+	var port = parseInt(String(value || '').trim(), 10);
+
+	if (!(port >= 1 && port <= 65535))
+		return fallback || '1812';
+
+	return String(port);
+}
+
+function normalizePositiveNumber(value, fallback) {
+	var number = parseInt(String(value || '').trim(), 10);
+
+	if (!(number >= 1))
+		return fallback || '1';
+
+	return String(number);
+}
+
+function splitQuickList(value) {
+	function normalizeEntry(entry) {
+		var text = String(entry || '').trim();
+
+		text = text.replace(/^[A-Za-z][A-Za-z0-9+.-]*:\/\//, '');
+		text = text.replace(/^\/\//, '');
+		text = text.split(/[/?#]/)[0];
+		text = text.replace(/:[0-9]+$/, '');
+		return text.trim();
+	}
+
+	if (Array.isArray(value))
+		return value.map(normalizeEntry).filter(function(entry) { return entry !== ''; });
+
+	return String(value || '').split(/[\n,\s]+/).map(function(entry) {
+		return normalizeEntry(entry);
+	}).filter(function(entry) {
+		return entry !== '';
+	});
+}
+
+function quickListText(value) {
+	return splitQuickList(value).join('\n');
+}
+
+function validQuickDomain(value) {
+	return /^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$/.test(String(value || ''));
+}
+
+function ipv4ToInt(value) {
+	var parts;
+
+	if (!isIPv4(value))
+		return null;
+
+	parts = String(value).split('.').map(function(part) {
+		return parseInt(part, 10) || 0;
+	});
+
+	return (((parts[0] << 24) >>> 0) + ((parts[1] << 16) >>> 0) + ((parts[2] << 8) >>> 0) + (parts[3] >>> 0)) >>> 0;
+}
+
+function sameIpv4Subnet24(a, b) {
+	var left = String(a || '').split('.');
+	var right = String(b || '').split('.');
+
+	if (!isIPv4(a) || !isIPv4(b) || left.length != 4 || right.length != 4)
+		return false;
+
+	return left[0] == right[0] && left[1] == right[1] && left[2] == right[2];
+}
+
+function deriveHotspotPoolIp(gateway, host) {
+	var octets = String(gateway || '').trim().split('.');
+
+	if (octets.length == 4 && isIPv4(gateway))
+		return [ octets[0], octets[1], octets[2], String(host) ].join('.');
+
+	return host == 10 ? '192.168.10.10' : '192.168.10.199';
+}
+
+function deriveHotspotPoolStart(gateway) {
+	return deriveHotspotPoolIp(gateway, 10);
+}
+
+function deriveHotspotPoolEnd(gateway) {
+	return deriveHotspotPoolIp(gateway, 199);
+}
+
+function ipv4LastTwoOctets(value) {
+	var octets = String(value || '').trim().split('.');
+
+	if (octets.length == 4 && isIPv4(value))
+		return octets[2] + '.' + octets[3];
+
+	return '';
+}
+
+function stripNasIdIpSuffix(value) {
+	return String(value || '').trim().replace(/[-_][0-9]{1,3}\.[0-9]{1,3}$/, '');
+}
+
+function deriveHotspotQuickNasId(baseName, lanIpaddr) {
+	var suffix = ipv4LastTwoOctets(lanIpaddr);
+	var base = stripNasIdIpSuffix(baseName) || 'KT-KM14-102H-HOTSPOT';
+
+	return suffix ? (base + '-' + suffix) : base;
+}
+
+function normalizeHotspotLoginMode(value) {
+	return value == 'username' ? 'username' : 'both';
+}
+
+function hotspotLoginModeChoices() {
+	return [
+		E('option', { 'value': 'username' }, _('رقم كرت فقط')),
+		E('option', { 'value': 'both' }, _('اسم مستخدم وكلمة مرور'))
+	];
+}
+
+function normalizeBrowserCookieDays(value) {
+	var days = parseInt(value, 10);
+
+	if (!isFinite(days) || days < 1)
+		return '7';
+
+	if (days > 365)
+		return '365';
+
+	return String(days);
+}
+
+function normalizeRouterOsScheme(value) {
+	return value == 'http' ? 'http' : 'https';
+}
+
+function routerOsSchemeChoices() {
+	return [
+		E('option', { 'value': 'https' }, 'https'),
+		E('option', { 'value': 'http' }, 'http')
+	];
+}
+
+function validRateLimit(value) {
+	var text = String(value || '').trim();
+
+	return !text || /^[0-9]+[KMG]?\/[0-9]+[KMG]?$/i.test(text);
+}
+
+function normalizeSpeedOptionsText(value) {
+	return String(value || '').replace(/\\n/g, '\n').trim();
+}
+
+function validateHotspotQuickProfile(state, index) {
+	var suffix = String(index || 1);
+	var ssid = String(state['hotspotQuickSsid' + suffix] || '').trim();
+	var gateway = String(state['hotspotQuickGateway' + suffix] || '').trim();
+	var poolStart = deriveHotspotPoolStart(gateway);
+	var poolEnd = deriveHotspotPoolEnd(gateway);
+	var startInt;
+	var endInt;
+
+	if (!ssid)
+		return _('أدخل اسم شبكة الهوتسبوت رقم ') + suffix + _('.');
+
+	if (!isIPv4(gateway))
+		return _('أدخل عنوان بوابة IPv4 صحيح للشبكة رقم ') + suffix + _('.');
+
+	if (!isIPv4(poolStart) || !isIPv4(poolEnd))
+		return _('أدخل مدى عناوين صحيح للشبكة رقم ') + suffix + _('.');
+
+	if (!sameIpv4Subnet24(gateway, poolStart) || !sameIpv4Subnet24(gateway, poolEnd))
+		return _('يجب أن يكون مدى العناوين ضمن نفس الشبكة /24 للشبكة رقم ') + suffix + _('.');
+
+	startInt = ipv4ToInt(poolStart);
+	endInt = ipv4ToInt(poolEnd);
+
+	if (startInt == null || endInt == null || startInt > endInt)
+		return _('نهاية المدى يجب أن تكون أكبر أو مساوية للبداية للشبكة رقم ') + suffix + _('.');
+
+	return '';
+}
+
+function summarizeHotspotQuick(state) {
+	if (!state || !state.hotspotQuickEnabled)
+		return _('معطل');
+
+	if (state.hotspotQuickSecondaryEnabled === false)
+		return String(state.hotspotQuickSsid1 || 'Hotspot-1') + ' (' + String(state.hotspotQuickGateway1 || '192.168.10.1') + ')';
+
+	return String(state.hotspotQuickSsid1 || 'Hotspot-1') + ' (' + String(state.hotspotQuickGateway1 || '192.168.10.1') + ') | ' +
+		String(state.hotspotQuickSsid2 || 'Hotspot-2') + ' (' + String(state.hotspotQuickGateway2 || '192.168.20.1') + ')';
+}
+
+function enforceHotspotNoVlan(state) {
+	if (!state || !state.hotspotQuickEnabled)
+		return;
+
+	state.isVlan = false;
+	state.vlanId = '10';
+}
+
 function deriveVlanGateway(baseIp, vlanId) {
 	var octets = String(baseIp || '').split('.');
 	var derivedId = Math.min(Math.max(parseInt(vlanId, 10) || 10, 1), 254);
@@ -736,6 +1122,58 @@ function findFirewallZone(name) {
 	}
 
 	return null;
+}
+
+function cleanupHotspotWizardState() {
+	var firewallLanZone = findFirewallZone('lan');
+	var hotspotNetworks = [ 'hotspot', 'hotspot2' ];
+	var hotspotNetworkMap = {};
+	var hotspotTunnels = { tun0: true, tun1: true };
+
+	hotspotNetworks.forEach(function(networkName) {
+		hotspotNetworkMap[networkName] = true;
+	});
+
+	uci.remove('wireless', 'wizard_hotspot');
+	uci.remove('wireless', HOTSPOT_QUICK_IFACE_PRIMARY);
+	uci.remove('wireless', HOTSPOT_QUICK_IFACE_SECONDARY);
+
+	uci.sections('wireless', 'wifi-iface').forEach(function(section) {
+		var sid = section['.name'];
+		var sectionNetworks = normalizeList(section.network);
+
+		if (sectionNetworks.some(function(networkName) { return !!hotspotNetworkMap[networkName]; }))
+			uci.remove('wireless', sid);
+	});
+
+	hotspotNetworks.forEach(function(networkName) {
+		uci.remove('network', networkName);
+		uci.remove('network', networkName + '_dev');
+		uci.remove('dhcp', networkName);
+
+		if (firewallLanZone)
+			removeListValue('firewall', firewallLanZone, 'network', networkName);
+	});
+
+	uci.sections('chilli', 'chilli').forEach(function(section) {
+		var sid = section['.name'];
+		var dhcpif = normalizeInterfaceName(section.dhcpif || '', '');
+		var tundev = String(section.tundev || '').trim();
+
+		if (hotspotNetworkMap[dhcpif] || hotspotTunnels[tundev] || sid == 'hotspot_openwrt' || sid == 'hotspot_openwrt_secondary')
+			uci.remove('chilli', sid);
+	});
+
+	if (uci.get('hotspot_openwrt', 'main')) {
+		uci.set('hotspot_openwrt', 'main', 'enabled', '0');
+		uci.set('hotspot_openwrt', 'main', 'quick_setup_enabled', '0');
+		uci.set('hotspot_openwrt', 'main', 'quick_runtime_dual_enabled', '0');
+		uci.unset('hotspot_openwrt', 'main', 'wifi_iface');
+	}
+
+	uci.set('setup', 'default', 'hotspot_quick_enabled', '0');
+	uci.set('setup', 'default', 'hotspot_quick_secondary_enabled', '0');
+	uci.set('setup', 'default', 'hotspot_enabled_from_wizard', '0');
 }
 
 function findNetworkDeviceSectionByName(deviceName) {
@@ -1967,7 +2405,7 @@ function renderWizardCard(title, description, children) {
 
 	return E('div', { 'class': 'alemprator-card alemprator-card--section' }, [
 		E('div', { 'style': 'margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #e3ebf4;' }, headerChildren),
-		E('div', bodyChildren)
+		E('div', { 'class': 'alemprator-card__body' }, bodyChildren)
 	]);
 }
 
@@ -2093,7 +2531,8 @@ function disableFirstbootProvisioning() {
 	uci.remove('wireless', wirelessSection);
 	uci.remove('firewall', firewallSection);
 	uci.set('network', 'lan', 'proto', 'static');
-	uci.unset('dhcp', 'lan', 'ignore');
+	uci.set('dhcp', 'lan', 'ignore', '1');
+	uci.set('dhcp', 'lan', 'dynamicdhcp', '0');
 	uci.set('alemprator_firstboot', 'main', 'enabled', '0');
 	uci.set('alemprator_firstboot', 'main', 'configured_once', '1');
 	uci.set('alemprator_firstboot', 'main', 'auto_cleanup_armed', '0');
@@ -2111,6 +2550,9 @@ return view.extend({
 			L.resolveDefault(uci.load('alemprator_firstboot'), null),
 			L.resolveDefault(uci.load('alemprator_ota'), null),
 			uci.load('setup'),
+			L.resolveDefault(uci.load('hotspot_openwrt'), null),
+			L.resolveDefault(uci.load('hotspot_licensing'), null),
+			L.resolveDefault(uci.load('chilli'), null),
 			L.resolveDefault(uci.load('watchcat'), null),
 			uci.load('network'),
 			uci.load('wireless'),
@@ -2370,6 +2812,162 @@ return view.extend({
 		if (this.refs.otaWindowEnd)
 			this.refs.otaWindowEnd.value = String(this.state.otaWindowEnd == null ? 6 : this.state.otaWindowEnd);
 
+		if (this.refs.hotspotQuickEnabled)
+			this.refs.hotspotQuickEnabled.checked = !!this.state.hotspotQuickEnabled;
+
+		if (this.refs.hotspotQuickWanInterface)
+			this.refs.hotspotQuickWanInterface.value = this.state.hotspotQuickWanInterface || 'lan';
+
+		if (this.refs.hotspotQuickSubscriberInterface)
+			this.refs.hotspotQuickSubscriberInterface.value = this.state.hotspotQuickSubscriberInterface || 'hotspot';
+
+		if (this.refs.hotspotQuickSsid1)
+			this.refs.hotspotQuickSsid1.value = this.state.hotspotQuickSsid1 || 'Hotspot-1';
+
+		if (this.refs.hotspotQuickGateway1)
+			this.refs.hotspotQuickGateway1.value = this.state.hotspotQuickGateway1 || '192.168.10.1';
+
+		if (this.refs.hotspotQuickPoolStart1)
+			this.refs.hotspotQuickPoolStart1.value = this.state.hotspotQuickPoolStart1 || '192.168.10.10';
+
+		if (this.refs.hotspotQuickPoolEnd1)
+			this.refs.hotspotQuickPoolEnd1.value = this.state.hotspotQuickPoolEnd1 || '192.168.10.199';
+
+		if (this.refs.hotspotQuickPolicy1)
+			this.refs.hotspotQuickPolicy1.value = this.state.hotspotQuickPolicy1 || 'standard';
+
+		if (this.refs.hotspotQuickSecondaryEnabled)
+			this.refs.hotspotQuickSecondaryEnabled.checked = this.state.hotspotQuickSecondaryEnabled !== false;
+
+		if (this.refs.hotspotQuickSsid2)
+			this.refs.hotspotQuickSsid2.value = this.state.hotspotQuickSsid2 || 'Hotspot-2';
+
+		if (this.refs.hotspotQuickGateway2)
+			this.refs.hotspotQuickGateway2.value = this.state.hotspotQuickGateway2 || '192.168.20.1';
+
+		if (this.refs.hotspotQuickPoolStart2)
+			this.refs.hotspotQuickPoolStart2.value = this.state.hotspotQuickPoolStart2 || '192.168.20.10';
+
+		if (this.refs.hotspotQuickPoolEnd2)
+			this.refs.hotspotQuickPoolEnd2.value = this.state.hotspotQuickPoolEnd2 || '192.168.20.199';
+
+		if (this.refs.hotspotQuickPolicy2)
+			this.refs.hotspotQuickPolicy2.value = this.state.hotspotQuickPolicy2 || 'premium';
+
+		if (this.refs.hotspotQuickRadiusServer)
+			this.refs.hotspotQuickRadiusServer.value = this.state.hotspotQuickRadiusServer || '192.168.1.2';
+
+		if (this.refs.hotspotQuickRadiusServer2)
+			this.refs.hotspotQuickRadiusServer2.value = this.state.hotspotQuickRadiusServer2 || '';
+
+		if (this.refs.hotspotQuickRadiusSecret)
+			this.refs.hotspotQuickRadiusSecret.value = this.state.hotspotQuickRadiusSecret || '';
+
+		if (this.refs.hotspotQuickRadiusAuthPort)
+			this.refs.hotspotQuickRadiusAuthPort.value = this.state.hotspotQuickRadiusAuthPort || '1812';
+
+		if (this.refs.hotspotQuickRadiusAcctPort)
+			this.refs.hotspotQuickRadiusAcctPort.value = this.state.hotspotQuickRadiusAcctPort || '1813';
+
+		if (this.refs.hotspotQuickRadiusNasIp)
+			this.refs.hotspotQuickRadiusNasIp.value = this.state.hotspotQuickRadiusNasIp || '';
+
+		if (this.refs.hotspotQuickNasId)
+			this.refs.hotspotQuickNasId.value = this.state.hotspotQuickNasId || '';
+
+		if (this.refs.hotspotQuickAcctInterim)
+			this.refs.hotspotQuickAcctInterim.value = this.state.hotspotQuickAcctInterim || '60';
+
+		if (this.refs.hotspotQuickCoaEnabled)
+			this.refs.hotspotQuickCoaEnabled.checked = !!this.state.hotspotQuickCoaEnabled;
+
+		if (this.refs.hotspotQuickCoaPort)
+			this.refs.hotspotQuickCoaPort.value = this.state.hotspotQuickCoaPort || '3799';
+
+		if (this.refs.hotspotQuickTrialEnabled)
+			this.refs.hotspotQuickTrialEnabled.checked = !!this.state.hotspotQuickTrialEnabled;
+
+		if (this.refs.hotspotQuickTrialDuration)
+			this.refs.hotspotQuickTrialDuration.value = this.state.hotspotQuickTrialDuration || '30';
+
+		if (this.refs.hotspotQuickTrialUptimeLimit)
+			this.refs.hotspotQuickTrialUptimeLimit.value = this.state.hotspotQuickTrialUptimeLimit || '30';
+
+		if (this.refs.hotspotQuickMacAuthEnabled)
+			this.refs.hotspotQuickMacAuthEnabled.checked = !!this.state.hotspotQuickMacAuthEnabled;
+
+		if (this.refs.hotspotQuickMacAuthSuffix)
+			this.refs.hotspotQuickMacAuthSuffix.value = this.state.hotspotQuickMacAuthSuffix || '@mac';
+
+		if (this.refs.hotspotQuickMacAuthPassword)
+			this.refs.hotspotQuickMacAuthPassword.value = this.state.hotspotQuickMacAuthPassword || 'mac';
+
+		if (this.refs.hotspotQuickWalledGarden)
+			this.refs.hotspotQuickWalledGarden.value = this.state.hotspotQuickWalledGarden || '';
+
+		if (this.refs.hotspotQuickDomain)
+			this.refs.hotspotQuickDomain.value = this.state.hotspotQuickDomain || 'hotspot.local';
+
+		if (this.refs.hotspotQuickDns1)
+			this.refs.hotspotQuickDns1.value = this.state.hotspotQuickDns1 || '8.8.8.8';
+
+		if (this.refs.hotspotQuickDns2)
+			this.refs.hotspotQuickDns2.value = this.state.hotspotQuickDns2 || '82.114.163.31';
+
+		if (this.refs.hotspotQuickBridgeAgeingTime)
+			this.refs.hotspotQuickBridgeAgeingTime.value = this.state.hotspotQuickBridgeAgeingTime || '10';
+
+		if (this.refs.hotspotQuickLoginMode)
+			this.refs.hotspotQuickLoginMode.value = normalizeHotspotLoginMode(this.state.hotspotQuickLoginMode);
+
+		if (this.refs.hotspotQuickRateLimit)
+			this.refs.hotspotQuickRateLimit.value = this.state.hotspotQuickRateLimit || '2M/5M';
+
+		if (this.refs.hotspotQuickMacCookieEnabled)
+			this.refs.hotspotQuickMacCookieEnabled.checked = !!this.state.hotspotQuickMacCookieEnabled;
+
+		if (this.refs.hotspotQuickAvailableSpeeds)
+			this.refs.hotspotQuickAvailableSpeeds.value = this.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast';
+
+		if (this.refs.hotspotQuickSupportPhone)
+			this.refs.hotspotQuickSupportPhone.value = this.state.hotspotQuickSupportPhone || '';
+
+		if (this.refs.hotspotQuickNoticeText)
+			this.refs.hotspotQuickNoticeText.value = this.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا';
+
+		if (this.refs.hotspotQuickLiveStreamEnabled)
+			this.refs.hotspotQuickLiveStreamEnabled.checked = !!this.state.hotspotQuickLiveStreamEnabled;
+
+		if (this.refs.hotspotQuickLiveStreamUrl)
+			this.refs.hotspotQuickLiveStreamUrl.value = this.state.hotspotQuickLiveStreamUrl || '';
+
+		if (this.refs.hotspotQuickRestAreaEnabled)
+			this.refs.hotspotQuickRestAreaEnabled.checked = !!this.state.hotspotQuickRestAreaEnabled;
+
+		if (this.refs.hotspotQuickRestAreaUrl)
+			this.refs.hotspotQuickRestAreaUrl.value = this.state.hotspotQuickRestAreaUrl || '';
+
+		if (this.refs.hotspotQuickSpeedtestEnabled)
+			this.refs.hotspotQuickSpeedtestEnabled.checked = !!this.state.hotspotQuickSpeedtestEnabled;
+
+		if (this.refs.hotspotQuickBrowserCookieEnabled)
+			this.refs.hotspotQuickBrowserCookieEnabled.checked = this.state.hotspotQuickBrowserCookieEnabled !== false;
+
+		if (this.refs.hotspotQuickBrowserCookieDays)
+			this.refs.hotspotQuickBrowserCookieDays.value = normalizeBrowserCookieDays(this.state.hotspotQuickBrowserCookieDays || '7');
+
+		if (this.refs.hotspotQuickUsermanRestEnabled)
+			this.refs.hotspotQuickUsermanRestEnabled.checked = !!this.state.hotspotQuickUsermanRestEnabled;
+
+		if (this.refs.hotspotQuickUsermanRestScheme)
+			this.refs.hotspotQuickUsermanRestScheme.value = normalizeRouterOsScheme(this.state.hotspotQuickUsermanRestScheme);
+
+		if (this.refs.hotspotQuickUsermanRestUsername)
+			this.refs.hotspotQuickUsermanRestUsername.value = this.state.hotspotQuickUsermanRestUsername || 'hotspot-read';
+
+		if (this.refs.hotspotQuickUsermanRestPassword)
+			this.refs.hotspotQuickUsermanRestPassword.value = this.state.hotspotQuickUsermanRestPassword || '';
+
 		if (this.refs.adminPassword)
 			this.refs.adminPassword.value = '';
 
@@ -2403,7 +3001,7 @@ return view.extend({
 
 	reloadStateFromDevice: function() {
 		var self = this;
-		var configs = [ 'alemprator_firstboot', 'alemprator_ota', 'setup', 'watchcat', 'network', 'wireless', 'hotspot_openwrt' ];
+		var configs = [ 'alemprator_firstboot', 'alemprator_ota', 'setup', 'watchcat', 'network', 'wireless', 'hotspot_openwrt', 'hotspot_licensing' ];
 
 		if (!window.confirm(_('سيتم استبدال القيم الحالية داخل المعالج بإعدادات الجهاز الفعلية. هل تريد المتابعة؟')))
 			return Promise.resolve();
@@ -2424,6 +3022,9 @@ return view.extend({
 			L.resolveDefault(uci.load('alemprator_firstboot'), null),
 			L.resolveDefault(uci.load('alemprator_ota'), null),
 			uci.load('setup'),
+			L.resolveDefault(uci.load('hotspot_openwrt'), null),
+			L.resolveDefault(uci.load('hotspot_licensing'), null),
+			L.resolveDefault(uci.load('chilli'), null),
 			L.resolveDefault(uci.load('watchcat'), null),
 			uci.load('network'),
 			uci.load('wireless'),
@@ -2511,6 +3112,59 @@ return view.extend({
 		var inferredWidth5g = inferWifiWidthFromHtmode('5g', htmode5g);
 		var hasPrimaryApIface = !!(apIface2g || apIface5g);
 		var hasVlanApIface = !!(findSecondaryApIfaceSection(radios, '2g') || findSecondaryApIfaceSection(radios, '5g'));
+		var hotspotQuickEnabled = uci.get('setup', 'default', 'hotspot_quick_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'quick_setup_enabled') == '1';
+		var hotspotQuickWanInterface = normalizeInterfaceName(uci.get('setup', 'default', 'hotspot_quick_wan_interface') || uci.get('hotspot_openwrt', 'main', 'wan_interface') || 'lan', 'lan');
+		var hotspotQuickSubscriberInterface = normalizeInterfaceName(uci.get('setup', 'default', 'hotspot_quick_subscriber_interface') || uci.get('hotspot_openwrt', 'main', 'subscriber_interface') || 'hotspot', 'hotspot');
+		var hotspotQuickSsid1 = String(uci.get('setup', 'default', 'hotspot_quick_ssid_1') || uci.get('hotspot_openwrt', 'main', 'quick_ssid_primary') || 'Hotspot-1').trim();
+		var hotspotQuickGateway1 = String(uci.get('setup', 'default', 'hotspot_quick_gateway_1') || uci.get('hotspot_openwrt', 'main', 'quick_gateway_primary') || uci.get('hotspot_openwrt', 'main', 'hotspot_ip') || '192.168.10.1').trim();
+		var hotspotQuickPoolStart1 = String(uci.get('setup', 'default', 'hotspot_quick_pool_start_1') || uci.get('hotspot_openwrt', 'main', 'quick_pool_start_primary') || uci.get('hotspot_openwrt', 'main', 'pool_start') || '192.168.10.10').trim();
+		var hotspotQuickPoolEnd1 = String(uci.get('setup', 'default', 'hotspot_quick_pool_end_1') || uci.get('hotspot_openwrt', 'main', 'quick_pool_end_primary') || uci.get('hotspot_openwrt', 'main', 'pool_end') || '192.168.10.199').trim();
+		var hotspotQuickPolicy1 = normalizeHotspotPolicy(uci.get('setup', 'default', 'hotspot_quick_policy_1') || uci.get('hotspot_openwrt', 'main', 'quick_policy_primary'), 'standard');
+		var hotspotQuickSecondaryEnabled = uci.get('setup', 'default', 'hotspot_quick_secondary_enabled') != '0' && uci.get('hotspot_openwrt', 'main', 'quick_runtime_dual_enabled') != '0';
+		var hotspotQuickSsid2 = String(uci.get('setup', 'default', 'hotspot_quick_ssid_2') || uci.get('hotspot_openwrt', 'main', 'quick_ssid_secondary') || 'Hotspot-2').trim();
+		var hotspotQuickGateway2 = String(uci.get('setup', 'default', 'hotspot_quick_gateway_2') || uci.get('hotspot_openwrt', 'main', 'quick_gateway_secondary') || '192.168.20.1').trim();
+		var hotspotQuickPoolStart2 = String(uci.get('setup', 'default', 'hotspot_quick_pool_start_2') || uci.get('hotspot_openwrt', 'main', 'quick_pool_start_secondary') || '192.168.20.10').trim();
+		var hotspotQuickPoolEnd2 = String(uci.get('setup', 'default', 'hotspot_quick_pool_end_2') || uci.get('hotspot_openwrt', 'main', 'quick_pool_end_secondary') || '192.168.20.199').trim();
+		var hotspotQuickPolicy2 = normalizeHotspotPolicy(uci.get('setup', 'default', 'hotspot_quick_policy_2') || uci.get('hotspot_openwrt', 'main', 'quick_policy_secondary'), 'premium');
+		var hotspotQuickRadiusServer = String(uci.get('setup', 'default', 'hotspot_quick_radius_server') || uci.get('hotspot_openwrt', 'main', 'radius_server') || '192.168.1.2').trim();
+		var hotspotQuickRadiusServer2 = String(uci.get('setup', 'default', 'hotspot_quick_radius_server2') || uci.get('hotspot_openwrt', 'main', 'radius_server2') || '').trim();
+		var hotspotQuickRadiusSecret = uci.get('setup', 'default', 'hotspot_quick_radius_secret') || uci.get('hotspot_openwrt', 'main', 'radius_secret') || '';
+		var hotspotQuickRadiusAuthPort = normalizePort(uci.get('setup', 'default', 'hotspot_quick_radius_auth_port') || uci.get('hotspot_openwrt', 'main', 'radius_auth_port'), '1812');
+		var hotspotQuickRadiusAcctPort = normalizePort(uci.get('setup', 'default', 'hotspot_quick_radius_acct_port') || uci.get('hotspot_openwrt', 'main', 'radius_acct_port'), '1813');
+		var hotspotQuickRadiusNasIp = String(uci.get('setup', 'default', 'hotspot_quick_radius_nas_ip') || uci.get('hotspot_openwrt', 'main', 'radius_nas_ip') || '').trim();
+		var hotspotQuickNasId = deriveHotspotQuickNasId(uci.get('setup', 'default', 'hotspot_quick_nas_id') || uci.get('hotspot_openwrt', 'main', 'radius_nas_id') || '', lanIpaddr);
+		var hotspotQuickAcctInterim = normalizePositiveNumber(uci.get('setup', 'default', 'hotspot_quick_acct_interim') || uci.get('hotspot_openwrt', 'main', 'acct_interim'), '60');
+		var hotspotQuickCoaEnabled = uci.get('setup', 'default', 'hotspot_quick_coa_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'coa_enabled') == '1';
+		var hotspotQuickCoaPort = normalizePort(uci.get('setup', 'default', 'hotspot_quick_coa_port') || uci.get('hotspot_openwrt', 'main', 'coa_port'), '3799');
+		var hotspotQuickTrialEnabled = uci.get('setup', 'default', 'hotspot_quick_trial_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'trial_enabled') == '1';
+		var hotspotQuickTrialDuration = normalizePositiveNumber(uci.get('setup', 'default', 'hotspot_quick_trial_duration') || uci.get('hotspot_openwrt', 'main', 'trial_duration'), '30');
+		var hotspotQuickTrialUptimeLimit = normalizePositiveNumber(uci.get('setup', 'default', 'hotspot_quick_trial_uptime_limit') || uci.get('hotspot_openwrt', 'main', 'trial_uptime_limit'), '30');
+		var hotspotQuickMacAuthEnabled = uci.get('setup', 'default', 'hotspot_quick_mac_auth_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'mac_auth_enabled') == '1';
+		var hotspotQuickMacAuthSuffix = String(uci.get('setup', 'default', 'hotspot_quick_mac_auth_suffix') || uci.get('hotspot_openwrt', 'main', 'mac_auth_suffix') || '@mac').trim();
+		var hotspotQuickMacAuthPassword = uci.get('setup', 'default', 'hotspot_quick_mac_auth_password') || uci.get('hotspot_openwrt', 'main', 'mac_auth_password') || 'mac';
+		var hotspotQuickWalledGarden = quickListText(uci.get('setup', 'default', 'hotspot_quick_walled_garden') || uci.get('hotspot_openwrt', 'main', 'walled_garden') || '');
+		var hotspotQuickDomain = String(uci.get('setup', 'default', 'hotspot_quick_domain') || uci.get('hotspot_openwrt', 'main', 'domain') || 'hotspot.local').trim();
+		var hotspotQuickDnsList = uci.get('hotspot_openwrt', 'main', 'dns') || [];
+		var hotspotQuickDns1 = String(uci.get('setup', 'default', 'hotspot_quick_dns1') || hotspotQuickDnsList[0] || '8.8.8.8').trim();
+		var hotspotQuickDns2 = String(uci.get('setup', 'default', 'hotspot_quick_dns2') || hotspotQuickDnsList[1] || '82.114.163.31').trim();
+		var hotspotQuickBridgeAgeingTime = normalizePositiveNumber(uci.get('setup', 'default', 'hotspot_quick_bridge_ageing_time') || uci.get('hotspot_openwrt', 'main', 'bridge_ageing_time'), '10');
+		var hotspotQuickLoginMode = normalizeHotspotLoginMode(uci.get('setup', 'default', 'hotspot_quick_login_mode') || uci.get('hotspot_openwrt', 'main', 'login_mode'));
+		var hotspotQuickRateLimit = String(uci.get('setup', 'default', 'hotspot_quick_rate_limit') || uci.get('hotspot_openwrt', 'main', 'rate_limit_rx_tx') || '2M/5M').trim();
+		var hotspotQuickMacCookieEnabled = uci.get('setup', 'default', 'hotspot_quick_mac_cookie_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'mac_cookie_enabled') == '1';
+		var hotspotQuickAvailableSpeeds = normalizeSpeedOptionsText(uci.get('setup', 'default', 'hotspot_quick_available_speeds') || uci.get('hotspot_openwrt', 'main', 'available_speeds') || '1M/2M Standard\n2M/4M Fast');
+		var hotspotQuickSupportPhone = String(uci.get('setup', 'default', 'hotspot_quick_support_phone') || uci.get('hotspot_openwrt', 'main', 'support_phone') || '').trim();
+		var hotspotQuickNoticeText = String(uci.get('setup', 'default', 'hotspot_quick_notice_text') || uci.get('hotspot_openwrt', 'main', 'notice_text') || 'أهلاً بكم في شبكتنا').trim();
+		var hotspotQuickLiveStreamEnabled = uci.get('setup', 'default', 'hotspot_quick_live_stream_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'live_stream_enabled') == '1';
+		var hotspotQuickLiveStreamUrl = String(uci.get('setup', 'default', 'hotspot_quick_live_stream_url') || uci.get('hotspot_openwrt', 'main', 'live_stream_url') || '').trim();
+		var hotspotQuickRestAreaEnabled = uci.get('setup', 'default', 'hotspot_quick_rest_area_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'rest_area_enabled') == '1';
+		var hotspotQuickRestAreaUrl = String(uci.get('setup', 'default', 'hotspot_quick_rest_area_url') || uci.get('hotspot_openwrt', 'main', 'rest_area_url') || '').trim();
+		var hotspotQuickSpeedtestEnabled = uci.get('setup', 'default', 'hotspot_quick_speedtest_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'speedtest_enabled') == '1';
+		var hotspotQuickBrowserCookieEnabled = uci.get('setup', 'default', 'hotspot_quick_browser_cookie_enabled') != '0' && uci.get('hotspot_openwrt', 'main', 'browser_cookie_enabled') != '0';
+		var hotspotQuickBrowserCookieDays = normalizeBrowserCookieDays(uci.get('setup', 'default', 'hotspot_quick_browser_cookie_days') || uci.get('hotspot_openwrt', 'main', 'browser_cookie_days') || '7');
+		var hotspotQuickUsermanRestEnabled = uci.get('setup', 'default', 'hotspot_quick_userman_rest_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'userman_rest_enabled') == '1';
+		var hotspotQuickUsermanRestScheme = normalizeRouterOsScheme(uci.get('setup', 'default', 'hotspot_quick_userman_rest_scheme') || uci.get('hotspot_openwrt', 'main', 'userman_rest_scheme') || 'https');
+		var hotspotQuickUsermanRestUsername = String(uci.get('setup', 'default', 'hotspot_quick_userman_rest_username') || uci.get('hotspot_openwrt', 'main', 'userman_rest_username') || 'hotspot-read').trim();
+		var hotspotQuickUsermanRestPassword = uci.get('setup', 'default', 'hotspot_quick_userman_rest_password') || uci.get('hotspot_openwrt', 'main', 'userman_rest_password') || '';
 
 		if (apIface2g)
 			baseSsid = stripWifiSsidIpSuffix(apIface2g.ssid || '', wifiSsidIpSuffixState);
@@ -2566,7 +3220,7 @@ return view.extend({
 		return {
 			lanIpaddr: lanIpaddr,
 			lanNetmask: lanRuntime.netmask || uci.get('network', 'lan', 'netmask') || (firstbootEnabled ? firstbootLanNetmask : '') || uci.get('setup', 'default', 'lan_netmask') || '255.255.255.0',
-			mode: mode,
+			mode: hotspotQuickEnabled ? 'ap' : mode,
 			wifiSsid: baseSsid,
 			wifiSsid5gMode: ssid5gMode,
 			wifiSsid5g: ssid5gValue,
@@ -2580,7 +3234,59 @@ return view.extend({
 			meshId: meshIface ? (meshIface.mesh_id || '') : (uci.get('setup', 'default', 'mesh_id') || ''),
 			meshKey: meshIface ? (meshIface.key || '') : (uci.get('setup', 'default', 'mesh_key') || ''),
 			meshBand: inferMeshBand(radio2g, radio5g, meshIface),
-			isVlan: isVlanEnabled,
+			hotspotQuickEnabled: hotspotQuickEnabled,
+			hotspotQuickWanInterface: hotspotQuickWanInterface,
+			hotspotQuickSubscriberInterface: hotspotQuickSubscriberInterface,
+			hotspotQuickSsid1: hotspotQuickSsid1,
+			hotspotQuickGateway1: hotspotQuickGateway1,
+			hotspotQuickPoolStart1: hotspotQuickPoolStart1,
+			hotspotQuickPoolEnd1: hotspotQuickPoolEnd1,
+			hotspotQuickPolicy1: hotspotQuickPolicy1,
+			hotspotQuickSecondaryEnabled: hotspotQuickSecondaryEnabled,
+			hotspotQuickSsid2: hotspotQuickSsid2,
+			hotspotQuickGateway2: hotspotQuickGateway2,
+			hotspotQuickPoolStart2: hotspotQuickPoolStart2,
+			hotspotQuickPoolEnd2: hotspotQuickPoolEnd2,
+			hotspotQuickPolicy2: hotspotQuickPolicy2,
+			hotspotQuickRadiusServer: hotspotQuickRadiusServer,
+			hotspotQuickRadiusServer2: hotspotQuickRadiusServer2,
+			hotspotQuickRadiusSecret: hotspotQuickRadiusSecret,
+			hotspotQuickRadiusAuthPort: hotspotQuickRadiusAuthPort,
+			hotspotQuickRadiusAcctPort: hotspotQuickRadiusAcctPort,
+			hotspotQuickRadiusNasIp: hotspotQuickRadiusNasIp,
+			hotspotQuickNasId: hotspotQuickNasId,
+			hotspotQuickAcctInterim: hotspotQuickAcctInterim,
+			hotspotQuickCoaEnabled: hotspotQuickCoaEnabled,
+			hotspotQuickCoaPort: hotspotQuickCoaPort,
+			hotspotQuickTrialEnabled: hotspotQuickTrialEnabled,
+			hotspotQuickTrialDuration: hotspotQuickTrialDuration,
+			hotspotQuickTrialUptimeLimit: hotspotQuickTrialUptimeLimit,
+			hotspotQuickMacAuthEnabled: hotspotQuickMacAuthEnabled,
+			hotspotQuickMacAuthSuffix: hotspotQuickMacAuthSuffix,
+			hotspotQuickMacAuthPassword: hotspotQuickMacAuthPassword,
+			hotspotQuickWalledGarden: hotspotQuickWalledGarden,
+			hotspotQuickDomain: hotspotQuickDomain,
+			hotspotQuickDns1: hotspotQuickDns1,
+			hotspotQuickDns2: hotspotQuickDns2,
+			hotspotQuickBridgeAgeingTime: hotspotQuickBridgeAgeingTime,
+			hotspotQuickLoginMode: hotspotQuickLoginMode,
+			hotspotQuickRateLimit: hotspotQuickRateLimit,
+			hotspotQuickMacCookieEnabled: hotspotQuickMacCookieEnabled,
+			hotspotQuickAvailableSpeeds: hotspotQuickAvailableSpeeds,
+			hotspotQuickSupportPhone: hotspotQuickSupportPhone,
+			hotspotQuickNoticeText: hotspotQuickNoticeText,
+			hotspotQuickLiveStreamEnabled: hotspotQuickLiveStreamEnabled,
+			hotspotQuickLiveStreamUrl: hotspotQuickLiveStreamUrl,
+			hotspotQuickRestAreaEnabled: hotspotQuickRestAreaEnabled,
+			hotspotQuickRestAreaUrl: hotspotQuickRestAreaUrl,
+			hotspotQuickSpeedtestEnabled: hotspotQuickSpeedtestEnabled,
+			hotspotQuickBrowserCookieEnabled: hotspotQuickBrowserCookieEnabled,
+			hotspotQuickBrowserCookieDays: hotspotQuickBrowserCookieDays,
+			hotspotQuickUsermanRestEnabled: hotspotQuickUsermanRestEnabled,
+			hotspotQuickUsermanRestScheme: hotspotQuickUsermanRestScheme,
+			hotspotQuickUsermanRestUsername: hotspotQuickUsermanRestUsername,
+			hotspotQuickUsermanRestPassword: hotspotQuickUsermanRestPassword,
+			isVlan: hotspotQuickEnabled ? false : isVlanEnabled,
 			vlanId: inferVlanId(),
 			channel2g: (radio2g && uci.get('wireless', radio2g['.name'], 'channel')) || uci.get('setup', 'default', 'channel_2g') || 'auto',
 			channel5g: (radio5g && uci.get('wireless', radio5g['.name'], 'channel')) || uci.get('setup', 'default', 'channel_5g') || 'auto',
@@ -2608,7 +3314,7 @@ return view.extend({
 			adminPassword: '',
 			adminPasswordConfirm: '',
 			hotspotAvailable: !!(uci.get('hotspot_openwrt', 'main')),
-			hotspotEnabled: uci.get('hotspot_openwrt', 'main', 'enabled') === '1',
+			hotspotEnabled: uci.get('setup', 'default', 'hotspot_enabled_from_wizard') === '1',
 			hotspotSsid: (function() {
 				var sec = findNamedWifiIfaceSection('wizard_hotspot');
 				return sec ? String(sec.ssid || 'Hotspot') : 'Hotspot';
@@ -2654,6 +3360,58 @@ return view.extend({
 		this.state.rebootHours = this.refs.rebootHours ? this.refs.rebootHours.value.trim() : '24';
 		this.state.otaWindowStart = this.refs.otaWindowStart ? normalizeHour(this.refs.otaWindowStart.value, 2) : this.state.otaWindowStart;
 		this.state.otaWindowEnd = this.refs.otaWindowEnd ? normalizeHour(this.refs.otaWindowEnd.value, 6) : this.state.otaWindowEnd;
+		this.state.hotspotQuickEnabled = this.refs.hotspotQuickEnabled ? this.refs.hotspotQuickEnabled.checked : !!this.state.hotspotQuickEnabled;
+		this.state.hotspotQuickWanInterface = this.refs.hotspotQuickWanInterface ? this.refs.hotspotQuickWanInterface.value.trim() : (this.state.hotspotQuickWanInterface || 'lan');
+		this.state.hotspotQuickSubscriberInterface = this.refs.hotspotQuickSubscriberInterface ? this.refs.hotspotQuickSubscriberInterface.value.trim() : (this.state.hotspotQuickSubscriberInterface || 'hotspot');
+		this.state.hotspotQuickSsid1 = this.refs.hotspotQuickSsid1 ? this.refs.hotspotQuickSsid1.value.trim() : (this.state.hotspotQuickSsid1 || 'Hotspot-1');
+		this.state.hotspotQuickGateway1 = this.refs.hotspotQuickGateway1 ? this.refs.hotspotQuickGateway1.value.trim() : (this.state.hotspotQuickGateway1 || '192.168.10.1');
+		this.state.hotspotQuickPoolStart1 = this.refs.hotspotQuickPoolStart1 ? this.refs.hotspotQuickPoolStart1.value.trim() : deriveHotspotPoolStart(this.state.hotspotQuickGateway1);
+		this.state.hotspotQuickPoolEnd1 = this.refs.hotspotQuickPoolEnd1 ? this.refs.hotspotQuickPoolEnd1.value.trim() : deriveHotspotPoolEnd(this.state.hotspotQuickGateway1);
+		this.state.hotspotQuickPolicy1 = normalizeHotspotPolicy(this.refs.hotspotQuickPolicy1 ? this.refs.hotspotQuickPolicy1.value : this.state.hotspotQuickPolicy1, 'standard');
+		this.state.hotspotQuickSecondaryEnabled = this.refs.hotspotQuickSecondaryEnabled ? this.refs.hotspotQuickSecondaryEnabled.checked : (this.state.hotspotQuickSecondaryEnabled !== false);
+		this.state.hotspotQuickSsid2 = this.refs.hotspotQuickSsid2 ? this.refs.hotspotQuickSsid2.value.trim() : (this.state.hotspotQuickSsid2 || 'Hotspot-2');
+		this.state.hotspotQuickGateway2 = this.refs.hotspotQuickGateway2 ? this.refs.hotspotQuickGateway2.value.trim() : (this.state.hotspotQuickGateway2 || '192.168.20.1');
+		this.state.hotspotQuickPoolStart2 = this.refs.hotspotQuickPoolStart2 ? this.refs.hotspotQuickPoolStart2.value.trim() : deriveHotspotPoolStart(this.state.hotspotQuickGateway2);
+		this.state.hotspotQuickPoolEnd2 = this.refs.hotspotQuickPoolEnd2 ? this.refs.hotspotQuickPoolEnd2.value.trim() : deriveHotspotPoolEnd(this.state.hotspotQuickGateway2);
+		this.state.hotspotQuickPolicy2 = normalizeHotspotPolicy(this.refs.hotspotQuickPolicy2 ? this.refs.hotspotQuickPolicy2.value : this.state.hotspotQuickPolicy2, 'premium');
+		this.state.hotspotQuickRadiusServer = this.refs.hotspotQuickRadiusServer ? this.refs.hotspotQuickRadiusServer.value.trim() : (this.state.hotspotQuickRadiusServer || '192.168.1.2');
+		this.state.hotspotQuickRadiusServer2 = this.refs.hotspotQuickRadiusServer2 ? this.refs.hotspotQuickRadiusServer2.value.trim() : (this.state.hotspotQuickRadiusServer2 || '');
+		this.state.hotspotQuickRadiusSecret = this.refs.hotspotQuickRadiusSecret ? this.refs.hotspotQuickRadiusSecret.value : (this.state.hotspotQuickRadiusSecret || '');
+		this.state.hotspotQuickRadiusAuthPort = this.refs.hotspotQuickRadiusAuthPort ? this.refs.hotspotQuickRadiusAuthPort.value.trim() : (this.state.hotspotQuickRadiusAuthPort || '1812');
+		this.state.hotspotQuickRadiusAcctPort = this.refs.hotspotQuickRadiusAcctPort ? this.refs.hotspotQuickRadiusAcctPort.value.trim() : (this.state.hotspotQuickRadiusAcctPort || '1813');
+		this.state.hotspotQuickRadiusNasIp = this.refs.hotspotQuickRadiusNasIp ? this.refs.hotspotQuickRadiusNasIp.value.trim() : (this.state.hotspotQuickRadiusNasIp || '');
+		this.state.hotspotQuickNasId = deriveHotspotQuickNasId(this.state.hotspotQuickNasId, this.state.lanIpaddr);
+		this.state.hotspotQuickAcctInterim = this.refs.hotspotQuickAcctInterim ? this.refs.hotspotQuickAcctInterim.value.trim() : (this.state.hotspotQuickAcctInterim || '60');
+		this.state.hotspotQuickCoaEnabled = this.refs.hotspotQuickCoaEnabled ? this.refs.hotspotQuickCoaEnabled.checked : !!this.state.hotspotQuickCoaEnabled;
+		this.state.hotspotQuickCoaPort = this.refs.hotspotQuickCoaPort ? this.refs.hotspotQuickCoaPort.value.trim() : (this.state.hotspotQuickCoaPort || '3799');
+		this.state.hotspotQuickTrialEnabled = this.refs.hotspotQuickTrialEnabled ? this.refs.hotspotQuickTrialEnabled.checked : !!this.state.hotspotQuickTrialEnabled;
+		this.state.hotspotQuickTrialDuration = this.refs.hotspotQuickTrialDuration ? this.refs.hotspotQuickTrialDuration.value.trim() : (this.state.hotspotQuickTrialDuration || '30');
+		this.state.hotspotQuickTrialUptimeLimit = this.refs.hotspotQuickTrialUptimeLimit ? this.refs.hotspotQuickTrialUptimeLimit.value.trim() : (this.state.hotspotQuickTrialUptimeLimit || '30');
+		this.state.hotspotQuickMacAuthEnabled = this.refs.hotspotQuickMacAuthEnabled ? this.refs.hotspotQuickMacAuthEnabled.checked : !!this.state.hotspotQuickMacAuthEnabled;
+		this.state.hotspotQuickMacAuthSuffix = this.refs.hotspotQuickMacAuthSuffix ? this.refs.hotspotQuickMacAuthSuffix.value.trim() : (this.state.hotspotQuickMacAuthSuffix || '@mac');
+		this.state.hotspotQuickMacAuthPassword = this.refs.hotspotQuickMacAuthPassword ? this.refs.hotspotQuickMacAuthPassword.value : (this.state.hotspotQuickMacAuthPassword || 'mac');
+		this.state.hotspotQuickWalledGarden = this.refs.hotspotQuickWalledGarden ? this.refs.hotspotQuickWalledGarden.value.trim() : (this.state.hotspotQuickWalledGarden || '');
+		this.state.hotspotQuickDomain = this.refs.hotspotQuickDomain ? this.refs.hotspotQuickDomain.value.trim() : (this.state.hotspotQuickDomain || 'hotspot.local');
+		this.state.hotspotQuickDns1 = this.refs.hotspotQuickDns1 ? this.refs.hotspotQuickDns1.value.trim() : (this.state.hotspotQuickDns1 || '8.8.8.8');
+		this.state.hotspotQuickDns2 = this.refs.hotspotQuickDns2 ? this.refs.hotspotQuickDns2.value.trim() : (this.state.hotspotQuickDns2 || '82.114.163.31');
+		this.state.hotspotQuickBridgeAgeingTime = normalizePositiveNumber(this.refs.hotspotQuickBridgeAgeingTime ? this.refs.hotspotQuickBridgeAgeingTime.value.trim() : (this.state.hotspotQuickBridgeAgeingTime || '10'), '10');
+		this.state.hotspotQuickLoginMode = normalizeHotspotLoginMode(this.refs.hotspotQuickLoginMode ? this.refs.hotspotQuickLoginMode.value : this.state.hotspotQuickLoginMode);
+		this.state.hotspotQuickRateLimit = this.refs.hotspotQuickRateLimit ? this.refs.hotspotQuickRateLimit.value.trim() : (this.state.hotspotQuickRateLimit || '2M/5M');
+		this.state.hotspotQuickMacCookieEnabled = this.refs.hotspotQuickMacCookieEnabled ? this.refs.hotspotQuickMacCookieEnabled.checked : !!this.state.hotspotQuickMacCookieEnabled;
+		this.state.hotspotQuickAvailableSpeeds = this.refs.hotspotQuickAvailableSpeeds ? this.refs.hotspotQuickAvailableSpeeds.value.trim() : (this.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast');
+		this.state.hotspotQuickSupportPhone = this.refs.hotspotQuickSupportPhone ? this.refs.hotspotQuickSupportPhone.value.trim() : (this.state.hotspotQuickSupportPhone || '');
+		this.state.hotspotQuickNoticeText = this.refs.hotspotQuickNoticeText ? this.refs.hotspotQuickNoticeText.value.trim() : (this.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا');
+		this.state.hotspotQuickLiveStreamEnabled = this.refs.hotspotQuickLiveStreamEnabled ? this.refs.hotspotQuickLiveStreamEnabled.checked : !!this.state.hotspotQuickLiveStreamEnabled;
+		this.state.hotspotQuickLiveStreamUrl = this.refs.hotspotQuickLiveStreamUrl ? this.refs.hotspotQuickLiveStreamUrl.value.trim() : (this.state.hotspotQuickLiveStreamUrl || '');
+		this.state.hotspotQuickRestAreaEnabled = this.refs.hotspotQuickRestAreaEnabled ? this.refs.hotspotQuickRestAreaEnabled.checked : !!this.state.hotspotQuickRestAreaEnabled;
+		this.state.hotspotQuickRestAreaUrl = this.refs.hotspotQuickRestAreaUrl ? this.refs.hotspotQuickRestAreaUrl.value.trim() : (this.state.hotspotQuickRestAreaUrl || '');
+		this.state.hotspotQuickSpeedtestEnabled = this.refs.hotspotQuickSpeedtestEnabled ? this.refs.hotspotQuickSpeedtestEnabled.checked : !!this.state.hotspotQuickSpeedtestEnabled;
+		this.state.hotspotQuickBrowserCookieEnabled = this.refs.hotspotQuickBrowserCookieEnabled ? this.refs.hotspotQuickBrowserCookieEnabled.checked : (this.state.hotspotQuickBrowserCookieEnabled !== false);
+		this.state.hotspotQuickBrowserCookieDays = normalizeBrowserCookieDays(this.refs.hotspotQuickBrowserCookieDays ? this.refs.hotspotQuickBrowserCookieDays.value.trim() : (this.state.hotspotQuickBrowserCookieDays || '7'));
+		this.state.hotspotQuickUsermanRestEnabled = this.refs.hotspotQuickUsermanRestEnabled ? this.refs.hotspotQuickUsermanRestEnabled.checked : !!this.state.hotspotQuickUsermanRestEnabled;
+		this.state.hotspotQuickUsermanRestScheme = normalizeRouterOsScheme(this.refs.hotspotQuickUsermanRestScheme ? this.refs.hotspotQuickUsermanRestScheme.value : this.state.hotspotQuickUsermanRestScheme);
+		this.state.hotspotQuickUsermanRestUsername = this.refs.hotspotQuickUsermanRestUsername ? this.refs.hotspotQuickUsermanRestUsername.value.trim() : (this.state.hotspotQuickUsermanRestUsername || 'hotspot-read');
+		this.state.hotspotQuickUsermanRestPassword = this.refs.hotspotQuickUsermanRestPassword ? this.refs.hotspotQuickUsermanRestPassword.value : (this.state.hotspotQuickUsermanRestPassword || '');
 		this.state.adminPassword = this.refs.adminPassword ? this.refs.adminPassword.value : '';
 		this.state.adminPasswordConfirm = this.refs.adminPasswordConfirm ? this.refs.adminPasswordConfirm.value : '';
 		this.state.hotspotEnabled = this.refs.hotspotEnabled ? this.refs.hotspotEnabled.checked : false;
@@ -2715,9 +3473,8 @@ return view.extend({
 	describeSecondaryNetworkPlan: function() {
 		var vlanId = this.state.vlanId || '10';
 		var vlanBinding = describeSecondaryVlanBinding(vlanId);
-		
-			var secondary2g = previewSecondarySsid(this.state, '2g');
-			var secondary5g = previewSecondarySsid(this.state, '5g');
+		var secondary2g = previewSecondarySsid(this.state, '2g');
+		var secondary5g = previewSecondarySsid(this.state, '5g');
 		var remainingBands = getRemainingLocalBands(this.radios || [], this.state);
 		var remainingCount = remainingBands.length;
 		var onlyBand = remainingCount ? remainingBands[0] : null;
@@ -2760,9 +3517,18 @@ return view.extend({
 
 		this.collectState();
 		this.syncRadioModeWidthUi();
+		enforceHotspotNoVlan(this.state);
+		if (this.state.hotspotQuickEnabled) {
+			this.state.mode = 'ap';
+			if (this.refs.mode)
+				this.refs.mode.value = 'ap';
+		}
 		vlanBinding = describeSecondaryVlanBinding(this.state.vlanId);
 		meshBandIs5g = (this.state.meshBand == '5g');
 		meshChannel = meshBandIs5g ? this.state.channel5g : this.state.channel2g;
+
+		if (this.refs.isVlan)
+			this.refs.isVlan.checked = !!this.state.isVlan;
 
 		for (i = 0; i < this.stepPanels.length; i++) {
 			this.stepPanels[i].style.display = (i == this.stepIndex) ? '' : 'none';
@@ -2784,6 +3550,14 @@ return view.extend({
 		setElementVisible(this.refs.saveButton, this.stepIndex === lastStep);
 		setElementVisible(this.refs.uplinkSettingsWrapper, this.state.mode == 'sta_wds');
 		setElementVisible(this.refs.meshSettingsWrapper, this.state.mode == 'mesh');
+		setElementVisible(this.refs.hotspotQuickDetailsWrapper, !!this.state.hotspotQuickEnabled);
+		setElementVisible(this.refs.hotspotQuickSecondaryWrapper, !!(this.state.hotspotQuickEnabled && this.state.hotspotQuickSecondaryEnabled));
+		if (this.refs.hotspotQuickCard)
+			setClassState(this.refs.hotspotQuickCard, 'is-wide', !!this.state.hotspotQuickEnabled);
+		if (this.refs.vlanSettingsCard)
+			setElementVisible(this.refs.vlanSettingsCard, !this.state.hotspotQuickEnabled);
+		if (this.refs.mode)
+			this.refs.mode.disabled = !!this.state.hotspotQuickEnabled;
 		setElementVisible(this.refs.vlanIdWrapper, this.refs.isVlan.checked);
 		if (this.refs.vlanSsid2gRow)
 			setElementVisible(this.refs.vlanSsid2gRow, this.refs.isVlan.checked);
@@ -2792,11 +3566,28 @@ return view.extend({
 		if (this.refs.vlanSsidIpSuffixRow)
 			setElementVisible(this.refs.vlanSsidIpSuffixRow, true);
 		setElementVisible(this.refs.vlanPreviewWrapper, this.refs.isVlan.checked);
+		if (this.refs.hotspotVlanLockNotice)
+			setElementVisible(this.refs.hotspotVlanLockNotice, !!this.state.hotspotQuickEnabled);
+
+		if (this.refs.isVlan)
+			this.refs.isVlan.disabled = !!this.state.hotspotQuickEnabled;
+		if (this.refs.vlanId)
+			this.refs.vlanId.disabled = !!this.state.hotspotQuickEnabled;
+		if (this.refs.wifiSsidVlan2g)
+			this.refs.wifiSsidVlan2g.disabled = !!this.state.hotspotQuickEnabled;
+		if (this.refs.wifiSsidVlan5g)
+			this.refs.wifiSsidVlan5g.disabled = !!this.state.hotspotQuickEnabled;
+		if (this.refs.wifiSsidVlanIpSuffix)
+			this.refs.wifiSsidVlanIpSuffix.disabled = !!this.state.hotspotQuickEnabled;
+		if (this.refs.wifiSsidIpSuffixPrimary)
+			this.refs.wifiSsidIpSuffixPrimary.disabled = !!this.state.hotspotQuickEnabled;
 		setElementVisible(this.refs.resetHoldWrapper, !this.refs.resetDisabled.checked);
 		setElementVisible(this.refs.rebootHoursWrapper, this.refs.rebootEnabled.checked);
 		var apVlanOnlyMode = (this.state.mode == 'ap' && this.state.isVlan);
 		if (this.refs.primaryWifiSection)
-			setElementVisible(this.refs.primaryWifiSection, !apVlanOnlyMode);
+			setElementVisible(this.refs.primaryWifiSection, !apVlanOnlyMode && !this.state.hotspotQuickEnabled);
+		if (this.refs.wifiSecurityCard)
+			setElementVisible(this.refs.wifiSecurityCard, !this.state.hotspotQuickEnabled);
 		if (this.refs.apVlanWarning)
 			setElementVisible(this.refs.apVlanWarning, apVlanOnlyMode);
 		var hasLocal5g = (getRemainingLocalBands(this.radios || [], this.state).indexOf('5g') != -1);
@@ -2812,7 +3603,9 @@ return view.extend({
 		if (this.refs.heroCurrentMode)
 			this.refs.heroCurrentMode.textContent = modeTitle(this.state.mode);
 		if (this.refs.heroCurrentSecondary)
-			this.refs.heroCurrentSecondary.textContent = describeHeroSecondarySummary(this.state, this.radios || []);
+			this.refs.heroCurrentSecondary.textContent = this.state.hotspotQuickEnabled
+				? _('هوتسبوت سريع: شبكتان')
+				: describeHeroSecondarySummary(this.state, this.radios || []);
 		if (this.refs.heroSetupSummary)
 			this.refs.heroSetupSummary.textContent = describeFirstbootSummary(this.state);
 		if (this.refs.wifiNameHelp)
@@ -2945,7 +3738,7 @@ return view.extend({
 			}
 		}
 
-		if (STEP_KEYS[index] == 'lan') {
+		if (STEP_KEYS[index] == 'lan' || STEP_KEYS[index] == 'options') {
 			if (!isIPv4(this.state.lanIpaddr)) {
 				notify(_('أدخل عنوان LAN IPv4 صالحًا.'));
 				return false;
@@ -2957,10 +3750,124 @@ return view.extend({
 			}
 		}
 
-		if (STEP_KEYS[index] == 'mode') {
+		if (STEP_KEYS[index] == 'mode' || STEP_KEYS[index] == 'options') {
 			if (normalizeMode(this.state.mode) != this.state.mode) {
 				notify(_('اختر وضع تشغيل صالحًا.'));
 				return false;
+			}
+
+			if (this.state.hotspotQuickEnabled && this.state.mode != 'ap') {
+				notify(_('وضع الهوتسبوت السريع يعمل فقط مع نقطة الوصول AP.'));
+				return false;
+			}
+
+			if (this.state.hotspotQuickEnabled && this.state.isVlan) {
+				notify(_('لا يمكن تفعيل VLAN مع الهوتسبوت السريع.'));
+				return false;
+			}
+
+			if (this.state.hotspotQuickEnabled) {
+				if (!isIPv4(this.state.hotspotQuickRadiusServer)) {
+					notify(_('أدخل عنوان IPv4 صالحاً لخادم RADIUS في الهوتسبوت السريع.'));
+					return false;
+				}
+
+				if (this.state.hotspotQuickRadiusServer2 && !isIPv4(this.state.hotspotQuickRadiusServer2)) {
+					notify(_('أدخل عنوان IPv4 صالحاً لخادم RADIUS الاحتياطي أو اتركه فارغاً.'));
+					return false;
+				}
+
+				if (!this.state.hotspotQuickRadiusSecret) {
+					notify(_('كلمة سر RADIUS مطلوبة للهوتسبوت السريع.'));
+					return false;
+				}
+
+				if (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickRadiusAuthPort) || +this.state.hotspotQuickRadiusAuthPort > 65535) {
+					notify(_('أدخل منفذ RADIUS Auth صحيحاً بين 1 و65535.'));
+					return false;
+				}
+
+				if (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickRadiusAcctPort) || +this.state.hotspotQuickRadiusAcctPort > 65535) {
+					notify(_('أدخل منفذ RADIUS Accounting صحيحاً بين 1 و65535.'));
+					return false;
+				}
+
+				if (this.state.hotspotQuickRadiusNasIp && !isIPv4(this.state.hotspotQuickRadiusNasIp)) {
+					notify(_('أدخل NAS IP صحيحاً أو اتركه فارغاً.'));
+					return false;
+				}
+
+				if (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickAcctInterim)) {
+					notify(_('أدخل Accounting Interim صحيحاً بالثواني.'));
+					return false;
+				}
+
+				if (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickCoaPort) || +this.state.hotspotQuickCoaPort > 65535) {
+					notify(_('أدخل منفذ CoA صحيحاً بين 1 و65535.'));
+					return false;
+				}
+
+				if (this.state.hotspotQuickTrialEnabled && (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickTrialDuration) || !/^[1-9][0-9]*$/.test(this.state.hotspotQuickTrialUptimeLimit))) {
+					notify(_('أدخل مدة Trial وحد وقت Trial بالدقائق كأرقام صحيحة.'));
+					return false;
+				}
+
+				if (this.state.hotspotQuickMacAuthEnabled && !this.state.hotspotQuickMacAuthPassword) {
+					notify(_('أدخل كلمة مرور MAC Authentication أو عطّل الخيار.'));
+					return false;
+				}
+
+				if (!validQuickDomain(this.state.hotspotQuickDomain)) {
+					notify(_('أدخل DNS Domain صحيحاً بدون http:// أو مسارات.'));
+					return false;
+				}
+
+				if (!isIPv4(this.state.hotspotQuickDns1) || (this.state.hotspotQuickDns2 && !isIPv4(this.state.hotspotQuickDns2))) {
+					notify(_('أدخل DNS Server صحيحاً.'));
+					return false;
+				}
+
+				if (!validRateLimit(this.state.hotspotQuickRateLimit)) {
+					notify(_('أدخل Rate Limit بصيغة صحيحة مثل 2M/5M أو اتركه فارغاً.'));
+					return false;
+				}
+
+				if (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickBrowserCookieDays) || +this.state.hotspotQuickBrowserCookieDays > 365) {
+					notify(_('مدة كوكي المتصفح يجب أن تكون من 1 إلى 365 يوماً.'));
+					return false;
+				}
+
+				if (this.state.hotspotQuickUsermanRestEnabled && !this.state.hotspotQuickUsermanRestUsername) {
+					notify(_('أدخل RouterOS API User أو عطّل قراءة رصيد User Manager.'));
+					return false;
+				}
+
+				if (this.state.hotspotQuickUsermanRestEnabled && !this.state.hotspotQuickUsermanRestPassword) {
+					notify(_('أدخل RouterOS API Password أو عطّل قراءة رصيد User Manager.'));
+					return false;
+				}
+
+				var walledGardenDomains = splitQuickList(this.state.hotspotQuickWalledGarden);
+				for (var wgIndex = 0; wgIndex < walledGardenDomains.length; wgIndex++) {
+					if (!validQuickDomain(walledGardenDomains[wgIndex])) {
+						notify(_('أدخل نطاقات Walled Garden صحيحة بدون http:// أو مسارات.'));
+						return false;
+					}
+				}
+
+				var quickModeProfileError = validateHotspotQuickProfile(this.state, 1);
+				if (!quickModeProfileError && this.state.hotspotQuickSecondaryEnabled)
+					quickModeProfileError = validateHotspotQuickProfile(this.state, 2);
+
+				if (quickModeProfileError) {
+					notify(quickModeProfileError);
+					return false;
+				}
+
+				if (this.state.hotspotQuickSecondaryEnabled && sameIpv4Subnet24(this.state.hotspotQuickGateway1, this.state.hotspotQuickGateway2)) {
+					notify(_('يجب أن تكون الشبكة الأولى والثانية في نطاقين مختلفين.'));
+					return false;
+				}
 			}
 
 			var uplinkRadio = getRadioByBand(this.radios || [], this.state.uplinkBand);
@@ -2968,12 +3875,12 @@ return view.extend({
 			var hasLocal5g = (getRemainingLocalBands(this.radios || [], this.state).indexOf('5g') != -1);
 			var apVlanOnlyMode = (this.state.mode == 'ap' && this.state.isVlan);
 
-			if (!apVlanOnlyMode && !this.state.wifiSsid) {
+			if (!this.state.hotspotQuickEnabled && !apVlanOnlyMode && !this.state.wifiSsid) {
 				notify(_('أدخل اسم الشبكة اللاسلكية الأساسي.'));
 				return false;
 			}
 
-			if (!apVlanOnlyMode && hasLocal5g && this.state.wifiSsid5gMode == 'custom' && !this.state.wifiSsid5g) {
+			if (!this.state.hotspotQuickEnabled && !apVlanOnlyMode && hasLocal5g && this.state.wifiSsid5gMode == 'custom' && !this.state.wifiSsid5g) {
 				notify(_('أدخل اسما مخصصا لشبكة 5GHz أو اختر التسمية التلقائية.'));
 				return false;
 			}
@@ -3059,7 +3966,7 @@ return view.extend({
 			}
 		}
 
-		if (STEP_KEYS[index] == 'vlan') {
+		if (STEP_KEYS[index] == 'vlan' || STEP_KEYS[index] == 'options') {
 			if (this.refs.wifiMode2g)
 				this.state.wifiMode2g = normalizeWifiModeForBand('2g', this.state.wifiMode2g);
 
@@ -3091,7 +3998,61 @@ return view.extend({
 			}
 		}
 
-		if (STEP_KEYS[index] == 'advanced') {
+		if (STEP_KEYS[index] == 'advanced' || STEP_KEYS[index] == 'maintenance') {
+			if (this.state.hotspotQuickEnabled) {
+				var blockedSubscriberIfaces = [ 'lan', 'wan', 'wan6', 'loopback', 'wizardvlan' ];
+				var quickSubscriber = normalizeInterfaceName(this.state.hotspotQuickSubscriberInterface, 'hotspot');
+				var quickSubscriberSecondary = deriveHotspotQuickSecondaryInterface(quickSubscriber);
+				var quickWan = normalizeInterfaceName(this.state.hotspotQuickWanInterface, 'lan');
+
+				if (this.state.mode != 'ap') {
+					notify(_('الهوتسبوت السريع يتطلب وضع نقطة الوصول AP فقط.'));
+					return false;
+				}
+
+				if (blockedSubscriberIfaces.indexOf(quickSubscriber) > -1) {
+					notify(_('واجهة مشتركي الهوتسبوت غير صالحة. استخدم واجهة مستقلة مثل hotspot.'));
+					return false;
+				}
+
+				if (blockedSubscriberIfaces.indexOf(quickSubscriberSecondary) > -1) {
+					notify(_('تم اشتقاق واجهة ثانية غير صالحة. غيّر اسم واجهة المشتركين الأساسية.'));
+					return false;
+				}
+
+				if (quickSubscriber == quickWan) {
+					notify(_('لا يمكن أن تكون واجهة المشتركين هي نفس واجهة الإنترنت في الهوتسبوت السريع.'));
+					return false;
+				}
+
+				if (quickSubscriberSecondary == quickWan) {
+					notify(_('الواجهة الثانية للهوتسبوت السريع لا يمكن أن تساوي واجهة الإنترنت. غيّر اسم واجهة المشتركين الأساسية.'));
+					return false;
+				}
+
+				var quickProfileError = validateHotspotQuickProfile(this.state, 1) || (this.state.hotspotQuickSecondaryEnabled ? validateHotspotQuickProfile(this.state, 2) : '');
+
+				if (quickProfileError) {
+					notify(quickProfileError);
+					return false;
+				}
+
+				if (this.state.hotspotQuickSecondaryEnabled && String(this.state.hotspotQuickSsid1 || '').trim() == String(this.state.hotspotQuickSsid2 || '').trim()) {
+					notify(_('يجب أن يكون اسم الشبكة الأولى مختلفًا عن الثانية في الهوتسبوت السريع.'));
+					return false;
+				}
+
+				if (this.state.hotspotQuickSecondaryEnabled && String(this.state.hotspotQuickGateway1 || '').trim() == String(this.state.hotspotQuickGateway2 || '').trim()) {
+					notify(_('يجب أن يكون عنوان الخروج مختلفًا بين الشبكتين في الهوتسبوت السريع.'));
+					return false;
+				}
+
+				if (this.state.isVlan) {
+					notify(_('الهوتسبوت السريع يرفض VLAN تلقائيًا. عطّل VLAN للمتابعة.'));
+					return false;
+				}
+			}
+
 			if (this.state.rebootEnabled && !/^[1-9][0-9]*$/.test(this.state.rebootHours)) {
 				notify(_('أدخل مدة إعادة التشغيل الدوري بعدد ساعات صحيح أكبر من صفر.'));
 				return false;
@@ -3158,6 +4119,9 @@ return view.extend({
 		if (!state.hotspotAvailable || !uci.get('hotspot_openwrt', 'main'))
 			return;
 
+		if (state.hotspotQuickEnabled)
+			return;
+
 		ensureNamedSection('hotspot_openwrt', 'main', 'main');
 		uci.set('hotspot_openwrt', 'main', 'enabled', state.hotspotEnabled ? '1' : '0');
 
@@ -3222,6 +4186,81 @@ return view.extend({
 
 		applyRadioHtmode(radio2g, '2g', state);
 		applyRadioHtmode(radio5g, '5g', state);
+
+		if (state.hotspotQuickEnabled) {
+			var hotspotNetworkPrimary = normalizeInterfaceName(state.hotspotQuickSubscriberInterface, 'hotspot');
+			var hotspotNetworkSecondary = deriveHotspotQuickSecondaryInterface(hotspotNetworkPrimary);
+			var primaryRadio = radio2g || radio5g;
+			var secondaryRadio = radio5g || radio2g || primaryRadio;
+			var hotspotPolicyPrimary = getLocalApPolicy({ mode: 'ap', isVlan: false }, hotspotNetworkPrimary);
+			var hotspotPolicySecondary = getLocalApPolicy({ mode: 'ap', isVlan: false }, hotspotNetworkSecondary);
+
+			uci.remove('wireless', 'wizard_uplink');
+			uci.remove('wireless', 'wizard_uplink_ap');
+			uci.remove('wireless', 'wizard_mesh');
+
+			if (secondaryIface2g)
+				uci.remove('wireless', secondaryIface2g);
+			if (secondaryIface5g)
+				uci.remove('wireless', secondaryIface5g);
+
+			if (primaryRadio) {
+				ensureNamedWifiIface(HOTSPOT_QUICK_IFACE_PRIMARY);
+				configureApIface(
+					HOTSPOT_QUICK_IFACE_PRIMARY,
+					wifiDeviceName(primaryRadio),
+					hotspotNetworkPrimary,
+					String(state.hotspotQuickSsid1 || 'Hotspot-1').trim(),
+					state.wifiKey,
+					hotspotPolicyPrimary
+				);
+			}
+
+			if (state.hotspotQuickSecondaryEnabled && secondaryRadio) {
+				ensureNamedWifiIface(HOTSPOT_QUICK_IFACE_SECONDARY);
+				configureApIface(
+					HOTSPOT_QUICK_IFACE_SECONDARY,
+					wifiDeviceName(secondaryRadio),
+					hotspotNetworkSecondary,
+					String(state.hotspotQuickSsid2 || 'Hotspot-2').trim(),
+					state.wifiKey,
+					hotspotPolicySecondary
+				);
+			}
+			else {
+				uci.remove('wireless', HOTSPOT_QUICK_IFACE_SECONDARY);
+			}
+
+			uci.sections('wireless', 'wifi-iface').forEach(function(section) {
+				var sid = section['.name'];
+				var sectionNetworks = normalizeList(section.network);
+
+				if (sid == HOTSPOT_QUICK_IFACE_PRIMARY || sid == HOTSPOT_QUICK_IFACE_SECONDARY)
+					return;
+
+				if (section.mode != null && section.mode != 'ap')
+					return;
+
+				if (sectionNetworks.indexOf('wizardvlan') > -1) {
+					uci.remove('wireless', sid);
+					return;
+				}
+
+				if (sectionNetworks.indexOf('lan') > -1)
+					uci.set('wireless', sid, 'disabled', '1');
+			});
+
+			if (radio2g)
+				uci.set('wireless', radio2g['.name'], 'channel', state.channel2g || 'auto');
+
+			if (radio5g)
+				uci.set('wireless', radio5g['.name'], 'channel', state.channel5g || 'auto');
+
+			return;
+		}
+
+		uci.remove('wireless', HOTSPOT_QUICK_IFACE_PRIMARY);
+		uci.remove('wireless', HOTSPOT_QUICK_IFACE_SECONDARY);
 
 		if (requestedMode == 'sta_wds') {
 			uplinkRadio = getRadioByBand(radios, state.uplinkBand);
@@ -3404,50 +4443,70 @@ return view.extend({
 			}
 		}
 
-		uci.sections('wireless', 'wifi-iface').forEach(function(section) {
-			var sid = section['.name'];
-			var sectionNetworks = normalizeList(section.network);
-			var isLocalRadio = localRadios.some(function(radio) {
-				return section.device == radio['.name'];
-			});
+                uci.sections('wireless', 'wifi-iface').forEach(function(section) {
+                        var sid = section['.name'];
+                        var sectionNetworks = normalizeList(section.network);
+                        var isLocalRadio = localRadios.some(function(radio) {
+                                return section.device == radio['.name'];
+                        });
 
-			uci.set('wireless', sid, 'disassoc_low_ack', '0');
+                        if (section.mode == null || section.mode == 'ap')
+                                uci.set('wireless', sid, 'disassoc_low_ack', '0');
 
-			if (!isLocalRadio)
-				return;
+                        if (!isLocalRadio)
+                                return;
 
-			if (section.mode != null && section.mode != 'ap')
-				return;
+                        if (section.mode != null && section.mode != 'ap')
+                                return;
 
-			if (vlanOnlyAp && sectionNetworks.indexOf('lan') > -1) {
-				uci.remove('wireless', sid);
-				return;
-			}
+                        if (sid === 'wizard_hotspot') {
+                                return; // managed by applyHotspotSettings
+                        }
 
-			if (sectionNetworks.indexOf('lan') > -1) {
-				if (lanPolicy.enableWds)
-					uci.set('wireless', sid, 'wds', '1');
-				else
-					uci.unset('wireless', sid, 'wds');
+                        // Remove AP interfaces that are unmanaged (ghost SSIDs)
+                        if (!managedSids[sid]) {
+                                uci.remove('wireless', sid);
+                                return;
+                        }
 
-				applyWifiIfaceFlag('wireless', sid, 'hidden', lanPolicy.hidden);
-				applyWifiIfaceFlag('wireless', sid, 'isolate', lanPolicy.isolate);
-			}
-			else if (sectionNetworks.indexOf('wizardvlan') > -1) {
-				if (vlanPolicy.enableWds)
-					uci.set('wireless', sid, 'wds', '1');
-				else
-					uci.unset('wireless', sid, 'wds');
+                        if (sectionNetworks.indexOf('lan') > -1) {
+                                if (vlanOnlyAp) {
+                                        uci.remove('wireless', sid);
+                                        return;
+                                }
 
-				applyWifiIfaceFlag('wireless', sid, 'hidden', vlanPolicy.hidden);
-				applyWifiIfaceFlag('wireless', sid, 'isolate', vlanPolicy.isolate);
-			}
-		});
+                                if (lanPolicy.enableWds)
+                                        uci.set('wireless', sid, 'wds', '1');
+                                else
+                                        uci.unset('wireless', sid, 'wds');
+
+                                applyWifiIfaceFlag('wireless', sid, 'hidden', lanPolicy.hidden);
+                                applyWifiIfaceFlag('wireless', sid, 'isolate', lanPolicy.isolate);
+                                uci.set('wireless', sid, 'disabled', '0');
+                        }
+                        else if (sectionNetworks.indexOf('wizardvlan') > -1) {
+                                if (vlanPolicy.enableWds)
+                                        uci.set('wireless', sid, 'wds', '1');
+                                else
+                                        uci.unset('wireless', sid, 'wds');
+
+                                applyWifiIfaceFlag('wireless', sid, 'hidden', vlanPolicy.hidden);
+                                applyWifiIfaceFlag('wireless', sid, 'isolate', vlanPolicy.isolate);
+                                uci.set('wireless', sid, 'disabled', '0');
+                        }
+                        else {
+                                // Enable strictly managed interfaces that aren't lan/vlan (like hotspot) instead of disabling
+                                uci.set('wireless', sid, 'disabled', '0');
+                        }
+                });
 
 	},
 
 	applyVlanSettings: function(state) {
 		var firewallLanZone = findFirewallZone('lan');
+
+		if (state.hotspotQuickEnabled)
+			state.isVlan = false;
 
 		uci.set('network', 'lan', 'ageing_time', '10');
 		ensureBridgeAgingTime('br-lan', 10);
@@ -3518,6 +4577,46 @@ return view.extend({
 		}
 	},
 
+	testHotspotQuickRadius: function() {
+		var self = this;
+
+		this.collectState();
+
+		if (!isIPv4(this.state.hotspotQuickRadiusServer)) {
+			notify(_('أدخل عنوان IPv4 صالحاً لخادم RADIUS أولاً.'));
+			return Promise.resolve();
+		}
+
+		if (!this.state.hotspotQuickRadiusSecret) {
+			notify(_('كلمة سر RADIUS مطلوبة قبل الاختبار.'));
+			return Promise.resolve();
+		}
+
+		if (this.refs.hotspotQuickRadiusTestButton)
+			this.refs.hotspotQuickRadiusTestButton.disabled = true;
+
+		if (this.refs.hotspotQuickRadiusTestStatus)
+			this.refs.hotspotQuickRadiusTestStatus.textContent = _('جارٍ الاختبار...');
+
+		return L.resolveDefault(fs.exec_direct(HOTSPOT_TEST_RADIUS_CMD, [
+			this.state.hotspotQuickRadiusServer,
+			this.state.hotspotQuickRadiusAuthPort || '1812',
+			this.state.hotspotQuickRadiusAcctPort || '1813',
+			this.state.hotspotQuickCoaEnabled ? (this.state.hotspotQuickCoaPort || '3799') : '0'
+		], 'json'), null).then(function(result) {
+			var message = result && result.message ? result.message : _('تعذر قراءة نتيجة الاختبار.');
+
+			if (self.refs.hotspotQuickRadiusTestStatus)
+				self.refs.hotspotQuickRadiusTestStatus.textContent = message;
+
+			if (!result || !result.ok)
+				notify(message);
+		}).finally(function() {
+			if (self.refs.hotspotQuickRadiusTestButton)
+				self.refs.hotspotQuickRadiusTestButton.disabled = false;
+		});
+	},
+
 	normalizeAnonymousWifiIfaces: function() {
 		var wifiIfaces = uci.sections('wireless', 'wifi-iface');
 		var usedNames = {};
@@ -3570,14 +4669,35 @@ return view.extend({
 		if (!this.validateStep(this.stepIndex))
 			return;
 
+		if (this.stepIndex !== 0 && !this.validateStep(0)) {
+			this.stepIndex = 0;
+			this.updateStepUi();
+			return;
+		}
+
 		this.collectState();
+		enforceHotspotNoVlan(this.state);
+
+		if (this.state.hotspotQuickEnabled)
+			this.state.mode = 'ap';
 
 		this.refs.saveButton.disabled = true;
-		this.refs.saveButton.textContent = _('جارٍ التطبيق...');
+		this.refs.saveButton.textContent = (this.state.hotspotQuickEnabled || this.state.hotspotEnabled) ? _('جارٍ فحص الترخيص...') : _('جارٍ التطبيق...');
 
-		this.normalizeAnonymousWifiIfaces().then(function(migrated) {
+		confirmHotspotLicenseBeforeSetupApply(this.state).then(function(allowed) {
+			if (!allowed)
+				throw new Error(_('تم إلغاء التطبيق بناءً على حالة الترخيص.'));
+
+			self.refs.saveButton.textContent = _('جارٍ التطبيق...');
+			return self.normalizeAnonymousWifiIfaces();
+		}).then(function(migrated) {
 			migratedAnonymousWifi = !!migrated;
 			self.radios = uci.sections('wireless', 'wifi-device');
+			self.state.hotspotQuickWanInterface = normalizeInterfaceName(self.state.hotspotQuickWanInterface, 'lan');
+			self.state.hotspotQuickSubscriberInterface = normalizeInterfaceName(self.state.hotspotQuickSubscriberInterface, 'hotspot');
+			self.state.hotspotQuickSubscriberInterface2 = deriveHotspotQuickSecondaryInterface(self.state.hotspotQuickSubscriberInterface);
+			self.state.hotspotQuickPolicy1 = normalizeHotspotPolicy(self.state.hotspotQuickPolicy1, 'standard');
+			self.state.hotspotQuickPolicy2 = normalizeHotspotPolicy(self.state.hotspotQuickPolicy2, 'premium');
 
 			ensureNamedSection('setup', 'default', 'setup');
 
@@ -3599,6 +4719,59 @@ return view.extend({
 			uci.set('setup', 'default', 'mesh_id', self.state.meshId);
 			uci.set('setup', 'default', 'mesh_key', self.state.meshKey);
 			uci.set('setup', 'default', 'mesh_band', self.state.meshBand);
+			uci.set('setup', 'default', 'hotspot_quick_enabled', self.state.hotspotQuickEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_wan_interface', self.state.hotspotQuickWanInterface);
+			uci.set('setup', 'default', 'hotspot_quick_subscriber_interface', self.state.hotspotQuickSubscriberInterface);
+			uci.set('setup', 'default', 'hotspot_quick_subscriber_interface_2', self.state.hotspotQuickSubscriberInterface2 || 'hotspot2');
+			uci.set('setup', 'default', 'hotspot_quick_ssid_1', self.state.hotspotQuickSsid1 || 'Hotspot-1');
+			uci.set('setup', 'default', 'hotspot_quick_gateway_1', self.state.hotspotQuickGateway1 || '192.168.10.1');
+			uci.set('setup', 'default', 'hotspot_quick_pool_start_1', self.state.hotspotQuickPoolStart1 || '192.168.10.10');
+			uci.set('setup', 'default', 'hotspot_quick_pool_end_1', self.state.hotspotQuickPoolEnd1 || '192.168.10.199');
+			uci.set('setup', 'default', 'hotspot_quick_policy_1', self.state.hotspotQuickPolicy1);
+			uci.set('setup', 'default', 'hotspot_quick_secondary_enabled', self.state.hotspotQuickSecondaryEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_ssid_2', self.state.hotspotQuickSsid2 || 'Hotspot-2');
+			uci.set('setup', 'default', 'hotspot_quick_gateway_2', self.state.hotspotQuickGateway2 || '192.168.20.1');
+			uci.set('setup', 'default', 'hotspot_quick_pool_start_2', self.state.hotspotQuickPoolStart2 || '192.168.20.10');
+			uci.set('setup', 'default', 'hotspot_quick_pool_end_2', self.state.hotspotQuickPoolEnd2 || '192.168.20.199');
+			uci.set('setup', 'default', 'hotspot_quick_policy_2', self.state.hotspotQuickPolicy2);
+			uci.set('setup', 'default', 'hotspot_quick_radius_server', self.state.hotspotQuickRadiusServer || '192.168.1.2');
+			uci.set('setup', 'default', 'hotspot_quick_radius_server2', self.state.hotspotQuickRadiusServer2 || '');
+			uci.set('setup', 'default', 'hotspot_quick_radius_secret', self.state.hotspotQuickRadiusSecret || '');
+			uci.set('setup', 'default', 'hotspot_quick_radius_auth_port', normalizePort(self.state.hotspotQuickRadiusAuthPort, '1812'));
+			uci.set('setup', 'default', 'hotspot_quick_radius_acct_port', normalizePort(self.state.hotspotQuickRadiusAcctPort, '1813'));
+			uci.set('setup', 'default', 'hotspot_quick_radius_nas_ip', self.state.hotspotQuickRadiusNasIp || '');
+			uci.set('setup', 'default', 'hotspot_quick_nas_id', self.state.hotspotQuickNasId || '');
+			uci.set('setup', 'default', 'hotspot_quick_acct_interim', normalizePositiveNumber(self.state.hotspotQuickAcctInterim, '60'));
+			uci.set('setup', 'default', 'hotspot_quick_coa_enabled', self.state.hotspotQuickCoaEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_coa_port', normalizePort(self.state.hotspotQuickCoaPort, '3799'));
+			uci.set('setup', 'default', 'hotspot_quick_trial_enabled', self.state.hotspotQuickTrialEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_trial_duration', normalizePositiveNumber(self.state.hotspotQuickTrialDuration, '30'));
+			uci.set('setup', 'default', 'hotspot_quick_trial_uptime_limit', normalizePositiveNumber(self.state.hotspotQuickTrialUptimeLimit, '30'));
+			uci.set('setup', 'default', 'hotspot_quick_mac_auth_enabled', self.state.hotspotQuickMacAuthEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_mac_auth_suffix', self.state.hotspotQuickMacAuthSuffix || '@mac');
+			uci.set('setup', 'default', 'hotspot_quick_mac_auth_password', self.state.hotspotQuickMacAuthPassword || 'mac');
+			uci.set('setup', 'default', 'hotspot_quick_walled_garden', splitQuickList(self.state.hotspotQuickWalledGarden).join(' '));
+			uci.set('setup', 'default', 'hotspot_quick_domain', self.state.hotspotQuickDomain || 'hotspot.local');
+			uci.set('setup', 'default', 'hotspot_quick_dns1', self.state.hotspotQuickDns1 || '8.8.8.8');
+			uci.set('setup', 'default', 'hotspot_quick_dns2', self.state.hotspotQuickDns2 || '82.114.163.31');
+			uci.set('setup', 'default', 'hotspot_quick_bridge_ageing_time', normalizePositiveNumber(self.state.hotspotQuickBridgeAgeingTime || '10', '10'));
+			uci.set('setup', 'default', 'hotspot_quick_login_mode', normalizeHotspotLoginMode(self.state.hotspotQuickLoginMode));
+			uci.set('setup', 'default', 'hotspot_quick_rate_limit', self.state.hotspotQuickRateLimit || '2M/5M');
+			uci.set('setup', 'default', 'hotspot_quick_mac_cookie_enabled', self.state.hotspotQuickMacCookieEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_available_speeds', self.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast');
+			uci.set('setup', 'default', 'hotspot_quick_support_phone', self.state.hotspotQuickSupportPhone || '');
+			uci.set('setup', 'default', 'hotspot_quick_notice_text', self.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا');
+			uci.set('setup', 'default', 'hotspot_quick_live_stream_enabled', self.state.hotspotQuickLiveStreamEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_live_stream_url', self.state.hotspotQuickLiveStreamUrl || '');
+			uci.set('setup', 'default', 'hotspot_quick_rest_area_enabled', self.state.hotspotQuickRestAreaEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_rest_area_url', self.state.hotspotQuickRestAreaUrl || '');
+			uci.set('setup', 'default', 'hotspot_quick_speedtest_enabled', self.state.hotspotQuickSpeedtestEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_browser_cookie_enabled', self.state.hotspotQuickBrowserCookieEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_browser_cookie_days', normalizeBrowserCookieDays(self.state.hotspotQuickBrowserCookieDays || '7'));
+			uci.set('setup', 'default', 'hotspot_quick_userman_rest_enabled', self.state.hotspotQuickUsermanRestEnabled ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_userman_rest_scheme', normalizeRouterOsScheme(self.state.hotspotQuickUsermanRestScheme));
+			uci.set('setup', 'default', 'hotspot_quick_userman_rest_username', self.state.hotspotQuickUsermanRestUsername || 'hotspot-read');
+			uci.set('setup', 'default', 'hotspot_quick_userman_rest_password', self.state.hotspotQuickUsermanRestPassword || '');
 			uci.set('setup', 'default', 'is_vlan', self.state.isVlan ? '1' : '0');
 			uci.set('setup', 'default', 'vlan_id', self.state.vlanId || '10');
 			uci.set('setup', 'default', 'channel_2g', self.state.channel2g || 'auto');
@@ -3628,14 +4801,151 @@ return view.extend({
 				uci.unset('network', 'lan', 'gateway');
 
 			disableFirstbootProvisioning();
+
+			if (self.state.hotspotQuickEnabled) {
+				var quickSubscriber = self.state.hotspotQuickSubscriberInterface;
+				var quickDeviceSection = quickSubscriber + '_dev';
+				var quickDeviceName = (quickSubscriber == 'hotspot') ? 'br-hotspot' : ('br-' + quickSubscriber);
+				var quickSubscriberSecondary = self.state.hotspotQuickSubscriberInterface2 || deriveHotspotQuickSecondaryInterface(quickSubscriber);
+				var quickDeviceSectionSecondary = quickSubscriberSecondary + '_dev';
+				var quickDeviceNameSecondary = (quickSubscriberSecondary == 'hotspot') ? 'br-hotspot' : ('br-' + quickSubscriberSecondary);
+
+				ensureNamedSection('network', quickDeviceSection, 'device');
+				uci.set('network', quickDeviceSection, 'name', quickDeviceName);
+				uci.set('network', quickDeviceSection, 'type', 'bridge');
+				uci.set('network', quickDeviceSection, 'bridge_empty', '1');
+				uci.set('network', quickDeviceSection, 'ipv6', '0');
+
+				ensureNamedSection('network', quickSubscriber, 'interface');
+				uci.set('network', quickSubscriber, 'proto', 'none');
+				uci.set('network', quickSubscriber, 'device', quickDeviceName);
+				uci.unset('network', quickSubscriber, 'ipaddr');
+				uci.unset('network', quickSubscriber, 'netmask');
+				uci.unset('network', quickSubscriber, 'gateway');
+
+				if (self.state.hotspotQuickSecondaryEnabled) {
+					ensureNamedSection('network', quickDeviceSectionSecondary, 'device');
+					uci.set('network', quickDeviceSectionSecondary, 'name', quickDeviceNameSecondary);
+					uci.set('network', quickDeviceSectionSecondary, 'type', 'bridge');
+					uci.set('network', quickDeviceSectionSecondary, 'bridge_empty', '1');
+					uci.set('network', quickDeviceSectionSecondary, 'ipv6', '0');
+
+					ensureNamedSection('network', quickSubscriberSecondary, 'interface');
+					uci.set('network', quickSubscriberSecondary, 'proto', 'none');
+					uci.set('network', quickSubscriberSecondary, 'device', quickDeviceNameSecondary);
+					uci.unset('network', quickSubscriberSecondary, 'ipaddr');
+					uci.unset('network', quickSubscriberSecondary, 'netmask');
+					uci.unset('network', quickSubscriberSecondary, 'gateway');
+				}
+				else {
+					uci.remove('network', quickDeviceSectionSecondary);
+					uci.remove('network', quickSubscriberSecondary);
+				}
+
+				ensureNamedSection('hotspot_openwrt', 'main', 'hotspot');
+				uci.set('hotspot_openwrt', 'main', 'enabled', '1');
+				uci.set('hotspot_openwrt', 'main', 'wan_interface', self.state.hotspotQuickWanInterface);
+				uci.set('hotspot_openwrt', 'main', 'subscriber_interface', self.state.hotspotQuickSubscriberInterface);
+				uci.set('hotspot_openwrt', 'main', 'wifi_iface', '');
+				uci.set('hotspot_openwrt', 'main', 'hotspot_ip', self.state.hotspotQuickGateway1 || '192.168.10.1');
+				uci.set('hotspot_openwrt', 'main', 'hotspot_cidr', '24');
+				uci.set('hotspot_openwrt', 'main', 'pool_start', self.state.hotspotQuickPoolStart1 || '192.168.10.10');
+				uci.set('hotspot_openwrt', 'main', 'pool_end', self.state.hotspotQuickPoolEnd1 || '192.168.10.199');
+				uci.set('hotspot_openwrt', 'main', 'bridge_ageing_time', normalizePositiveNumber(self.state.hotspotQuickBridgeAgeingTime || '10', '10'));
+				uci.set('hotspot_openwrt', 'main', 'network_name', self.state.hotspotQuickSsid1 || 'Hotspot-1');
+				uci.set('hotspot_openwrt', 'main', 'domain', self.state.hotspotQuickDomain || 'hotspot.local');
+				uci.set('hotspot_openwrt', 'main', 'dns', [ self.state.hotspotQuickDns1 || '8.8.8.8', self.state.hotspotQuickDns2 || '82.114.163.31' ]);
+				uci.set('hotspot_openwrt', 'main', 'login_mode', normalizeHotspotLoginMode(self.state.hotspotQuickLoginMode));
+				uci.set('hotspot_openwrt', 'main', 'rate_limit_rx_tx', self.state.hotspotQuickRateLimit || '2M/5M');
+				uci.set('hotspot_openwrt', 'main', 'mac_cookie_enabled', self.state.hotspotQuickMacCookieEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'available_speeds', self.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast');
+				uci.set('hotspot_openwrt', 'main', 'support_phone', self.state.hotspotQuickSupportPhone || '');
+				uci.set('hotspot_openwrt', 'main', 'notice_text', self.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا');
+				uci.set('hotspot_openwrt', 'main', 'live_stream_enabled', self.state.hotspotQuickLiveStreamEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'live_stream_url', self.state.hotspotQuickLiveStreamUrl || '');
+				uci.set('hotspot_openwrt', 'main', 'rest_area_enabled', self.state.hotspotQuickRestAreaEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'rest_area_url', self.state.hotspotQuickRestAreaUrl || '');
+				uci.set('hotspot_openwrt', 'main', 'speedtest_enabled', self.state.hotspotQuickSpeedtestEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'browser_cookie_enabled', self.state.hotspotQuickBrowserCookieEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'browser_cookie_days', normalizeBrowserCookieDays(self.state.hotspotQuickBrowserCookieDays || '7'));
+				uci.set('hotspot_openwrt', 'main', 'userman_rest_enabled', self.state.hotspotQuickUsermanRestEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'userman_rest_scheme', normalizeRouterOsScheme(self.state.hotspotQuickUsermanRestScheme));
+				uci.set('hotspot_openwrt', 'main', 'userman_rest_host', self.state.hotspotQuickRadiusServer || '192.168.1.2');
+				uci.set('hotspot_openwrt', 'main', 'userman_rest_port', normalizeRouterOsScheme(self.state.hotspotQuickUsermanRestScheme) == 'http' ? '80' : '443');
+				uci.set('hotspot_openwrt', 'main', 'userman_rest_username', self.state.hotspotQuickUsermanRestUsername || 'hotspot-read');
+				uci.set('hotspot_openwrt', 'main', 'userman_rest_password', self.state.hotspotQuickUsermanRestPassword || '');
+				uci.set('hotspot_openwrt', 'main', 'userman_rest_insecure_ssl', '1');
+				uci.set('hotspot_openwrt', 'main', 'userman_rest_user_field', 'name');
+				uci.set('hotspot_openwrt', 'main', 'userman_rest_timeout', '5');
+				uci.set('hotspot_openwrt', 'main', 'captive_notify', '1');
+				uci.set('hotspot_openwrt', 'main', 'quick_setup_enabled', '1');
+				uci.set('hotspot_openwrt', 'main', 'quick_no_vlan', '1');
+				uci.set('hotspot_openwrt', 'main', 'quick_wan_interface', self.state.hotspotQuickWanInterface);
+				uci.set('hotspot_openwrt', 'main', 'quick_subscriber_interface', self.state.hotspotQuickSubscriberInterface);
+				uci.set('hotspot_openwrt', 'main', 'quick_subscriber_interface_secondary', quickSubscriberSecondary);
+				uci.set('hotspot_openwrt', 'main', 'quick_runtime_dual_enabled', self.state.hotspotQuickSecondaryEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'quick_ssid_primary', self.state.hotspotQuickSsid1 || 'Hotspot-1');
+				uci.set('hotspot_openwrt', 'main', 'quick_gateway_primary', self.state.hotspotQuickGateway1 || '192.168.10.1');
+				uci.set('hotspot_openwrt', 'main', 'quick_pool_start_primary', self.state.hotspotQuickPoolStart1 || '192.168.10.10');
+				uci.set('hotspot_openwrt', 'main', 'quick_pool_end_primary', self.state.hotspotQuickPoolEnd1 || '192.168.10.199');
+				uci.set('hotspot_openwrt', 'main', 'quick_policy_primary', self.state.hotspotQuickPolicy1);
+				uci.set('hotspot_openwrt', 'main', 'quick_ssid_secondary', self.state.hotspotQuickSsid2 || 'Hotspot-2');
+				uci.set('hotspot_openwrt', 'main', 'quick_gateway_secondary', self.state.hotspotQuickGateway2 || '192.168.20.1');
+				uci.set('hotspot_openwrt', 'main', 'quick_pool_start_secondary', self.state.hotspotQuickPoolStart2 || '192.168.20.10');
+				uci.set('hotspot_openwrt', 'main', 'quick_pool_end_secondary', self.state.hotspotQuickPoolEnd2 || '192.168.20.199');
+				uci.set('hotspot_openwrt', 'main', 'quick_policy_secondary', self.state.hotspotQuickPolicy2);
+				uci.set('hotspot_openwrt', 'main', 'radius_server', self.state.hotspotQuickRadiusServer || '192.168.1.2');
+				if (self.state.hotspotQuickRadiusServer2)
+					uci.set('hotspot_openwrt', 'main', 'radius_server2', self.state.hotspotQuickRadiusServer2);
+				else
+					uci.unset('hotspot_openwrt', 'main', 'radius_server2');
+				uci.set('hotspot_openwrt', 'main', 'radius_secret', self.state.hotspotQuickRadiusSecret || '');
+				uci.set('hotspot_openwrt', 'main', 'radius_auth_port', normalizePort(self.state.hotspotQuickRadiusAuthPort, '1812'));
+				uci.set('hotspot_openwrt', 'main', 'radius_acct_port', normalizePort(self.state.hotspotQuickRadiusAcctPort, '1813'));
+				if (self.state.hotspotQuickRadiusNasIp)
+					uci.set('hotspot_openwrt', 'main', 'radius_nas_ip', self.state.hotspotQuickRadiusNasIp);
+				else
+					uci.unset('hotspot_openwrt', 'main', 'radius_nas_ip');
+				if (self.state.hotspotQuickNasId)
+					uci.set('hotspot_openwrt', 'main', 'radius_nas_id', self.state.hotspotQuickNasId);
+				else
+					uci.unset('hotspot_openwrt', 'main', 'radius_nas_id');
+				uci.set('hotspot_openwrt', 'main', 'acct_interim', normalizePositiveNumber(self.state.hotspotQuickAcctInterim, '60'));
+				uci.set('hotspot_openwrt', 'main', 'coa_enabled', self.state.hotspotQuickCoaEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'coa_port', normalizePort(self.state.hotspotQuickCoaPort, '3799'));
+				uci.set('hotspot_openwrt', 'main', 'trial_enabled', self.state.hotspotQuickTrialEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'trial_duration', normalizePositiveNumber(self.state.hotspotQuickTrialDuration, '30'));
+				uci.set('hotspot_openwrt', 'main', 'trial_uptime_limit', normalizePositiveNumber(self.state.hotspotQuickTrialUptimeLimit, '30'));
+				uci.set('hotspot_openwrt', 'main', 'mac_auth_enabled', self.state.hotspotQuickMacAuthEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'mac_auth_suffix', self.state.hotspotQuickMacAuthSuffix || '@mac');
+				uci.set('hotspot_openwrt', 'main', 'mac_auth_password', self.state.hotspotQuickMacAuthPassword || 'mac');
+				var quickWalledGarden = splitQuickList(self.state.hotspotQuickWalledGarden);
+				if (quickWalledGarden.length)
+					uci.set('hotspot_openwrt', 'main', 'walled_garden', quickWalledGarden);
+				else
+					uci.unset('hotspot_openwrt', 'main', 'walled_garden');
+			}
+			else if (uci.get('hotspot_openwrt', 'main')) {
+				uci.set('hotspot_openwrt', 'main', 'quick_setup_enabled', '0');
+				uci.set('hotspot_openwrt', 'main', 'quick_runtime_dual_enabled', '0');
+			}
+
 			self.applyVlanSettings(self.state);
 			self.applyWifiSettings(self.state, self.radios);
 			self.applyPeriodicRebootSettings(self.state);
 			self.applyHotspotSettings(self.state, self.radios);
 
+			if (!self.state.hotspotQuickEnabled && !self.state.hotspotEnabled)
+				cleanupHotspotWizardState();
+
 			return uci.save();
 		}).then(function() {
 			return ui.changes.apply();
+		}).then(function() {
+			if (!self.state.hotspotQuickEnabled && !self.state.hotspotEnabled)
+				return L.resolveDefault(fs.exec(HOTSPOT_CLEANUP_CMD, [ '--force', '--reload' ]), null).then(function() {
+					return L.resolveDefault(fs.exec(HOTSPOT_INIT_CMD, [ 'stop' ]), null);
+				});
 		}).then(function() {
 			if (self.state.hotspotAvailable && self.state.hotspotEnabled) {
 				return L.resolveDefault(fs.exec('/usr/libexec/hotspot-openwrt/apply', []), null).then(function(res) {
@@ -3645,23 +4955,32 @@ return view.extend({
 			}
 		}).then(function() {
 			var changedIp = self.state.lanIpaddr != oldLanIpaddr;
+			var hotspotApplyPromise = self.state.hotspotQuickEnabled
+				? L.resolveDefault(fs.exec_direct(HOTSPOT_APPLY_CMD, [], 'json'), null)
+				: Promise.resolve(null);
 
-			if (!self.state.adminPassword) {
-				return {
-					changedIp: changedIp,
-					passwordChanged: null
-				};
-			}
+			return hotspotApplyPromise.then(function(hotspotApplyResult) {
+				if (!self.state.adminPassword) {
+					return {
+						changedIp: changedIp,
+						passwordChanged: null,
+						hotspotApplyResult: hotspotApplyResult
+					};
+				}
 
-			return L.resolveDefault(callSetPassword('root', self.state.adminPassword), false).then(function(success) {
-				return {
-					changedIp: changedIp,
-					passwordChanged: !!success
-				};
+				return L.resolveDefault(callSetPassword('root', self.state.adminPassword), false).then(function(success) {
+					return {
+						changedIp: changedIp,
+						passwordChanged: !!success,
+						hotspotApplyResult: hotspotApplyResult
+					};
+				});
 			});
 		}).then(function(result) {
-			var modeMessage = describeAppliedModeResult(self.state, self.radios || []);
-			var secondaryNetworkMessage = describeAppliedSecondaryNetworkResult(self.state, self.radios || []);
+			var modeMessage = self.state.hotspotQuickEnabled
+				? _('تم تفعيل مسار الهوتسبوت السريع على وضع نقطة الوصول.')
+				: describeAppliedModeResult(self.state, self.radios || []);
+			var secondaryNetworkMessage = self.state.hotspotQuickEnabled ? null : describeAppliedSecondaryNetworkResult(self.state, self.radios || []);
 			var reconnectMessage = describeReconnectHint(self.state, self.radios || [], oldSsid);
 
 			self.refs.saveButton.disabled = false;
@@ -3678,6 +4997,15 @@ return view.extend({
 				notify(_('تم تغيير كلمة مرور الجهاز بنجاح.'));
 			else if (result.passwordChanged === false)
 				notify(_('تم تطبيق الإعدادات، لكن تعذر تغيير كلمة مرور الجهاز.'));
+
+			if (self.state.hotspotQuickEnabled) {
+				if (result.hotspotApplyResult && result.hotspotApplyResult.ok === true)
+					notify(_('تم تطبيق الهوتسبوت السريع بنجاح.'));
+				else if (result.hotspotApplyResult && result.hotspotApplyResult.ok === false)
+					notify(_('تم حفظ إعدادات الهوتسبوت السريع لكن الخدمة أعادت رسالة خطأ: ') + String(result.hotspotApplyResult.message || _('غير معروفة')));
+				else
+					notify(_('تم حفظ إعدادات الهوتسبوت السريع. تأكد من حالة الخدمة من صفحة الهوتسبوت.'));
+			}
 
 			if (modeMessage)
 				notify(modeMessage);
@@ -3716,10 +5044,11 @@ return view.extend({
 		var actions = E('div', { 'class': 'alemprator-setup-actions' });
 		var panel = E('div', { 'class': 'alemprator-setup-shell' });
 		var wizardIntro;
-		var stepTitles = [ _('الخطوة 1: الشبكة المحلية'), _('الخطوة 2: وضع التشغيل والواي فاي وشبكة VLAN'), _('الخطوة 3: الهوتسبوت'), _('الخطوة 4: القنوات'), _('الخطوة 5: الإعدادات المتقدمة') ];
+		var stepTitles = [ _('صفحة الخيارات'), _('صفحة الصيانة') ];
 		var stepPanels = [];
 		var stepBadges = [];
 		var stepChips = [];
+		var radioSettingsCard;
 		var i;
 
 		this.radios = radios;
@@ -3876,6 +5205,77 @@ return view.extend({
 		this.refs.rebootEnabled = E('input', { 'type': 'checkbox' });
 		this.refs.rebootEnabled.checked = this.state.rebootEnabled;
 		this.refs.rebootHours = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'step': '1', 'value': this.state.rebootHours, 'style': 'max-width:140px;' });
+		this.refs.hotspotQuickEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickEnabled.checked = !!this.state.hotspotQuickEnabled;
+		this.refs.hotspotQuickWanInterface = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickWanInterface || 'lan', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickSubscriberInterface = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickSubscriberInterface || 'hotspot', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickSsid1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickSsid1 || 'Hotspot-1', 'style': 'max-width:280px;' });
+		this.refs.hotspotQuickGateway1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickGateway1 || '192.168.10.1', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPoolStart1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolStart1 || '192.168.10.10', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPoolEnd1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolEnd1 || '192.168.10.199', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPolicy1 = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' }, hotspotPolicyChoices());
+		this.refs.hotspotQuickPolicy1.value = this.state.hotspotQuickPolicy1 || 'standard';
+		this.refs.hotspotQuickSecondaryEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickSecondaryEnabled.checked = this.state.hotspotQuickSecondaryEnabled !== false;
+		this.refs.hotspotQuickSsid2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickSsid2 || 'Hotspot-2', 'style': 'max-width:280px;' });
+		this.refs.hotspotQuickGateway2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickGateway2 || '192.168.20.1', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPoolStart2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolStart2 || '192.168.20.10', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPoolEnd2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolEnd2 || '192.168.20.199', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickPolicy2 = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' }, hotspotPolicyChoices());
+		this.refs.hotspotQuickPolicy2.value = this.state.hotspotQuickPolicy2 || 'premium';
+		this.refs.hotspotQuickRadiusServer = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickRadiusServer || '192.168.1.2', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickRadiusServer2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickRadiusServer2 || '', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickRadiusSecret = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.hotspotQuickRadiusSecret || '', 'style': 'max-width:220px;', 'autocomplete': 'new-password' });
+		this.refs.hotspotQuickRadiusSecretToggle = E('button', { 'class': 'cbi-button cbi-button-neutral', 'type': 'button', 'style': 'margin-inline-start:8px;' }, _('إظهار'));
+		this.refs.hotspotQuickRadiusAuthPort = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '65535', 'value': this.state.hotspotQuickRadiusAuthPort || '1812', 'style': 'max-width:140px;' });
+		this.refs.hotspotQuickRadiusAcctPort = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '65535', 'value': this.state.hotspotQuickRadiusAcctPort || '1813', 'style': 'max-width:140px;' });
+		this.refs.hotspotQuickRadiusNasIp = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickRadiusNasIp || '', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickNasId = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickNasId || '', 'style': 'max-width:280px;' });
+		this.refs.hotspotQuickAcctInterim = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': this.state.hotspotQuickAcctInterim || '60', 'style': 'max-width:140px;' });
+		this.refs.hotspotQuickCoaEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickCoaEnabled.checked = !!this.state.hotspotQuickCoaEnabled;
+		this.refs.hotspotQuickCoaPort = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '65535', 'value': this.state.hotspotQuickCoaPort || '3799', 'style': 'max-width:140px;' });
+		this.refs.hotspotQuickTrialEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickTrialEnabled.checked = !!this.state.hotspotQuickTrialEnabled;
+		this.refs.hotspotQuickTrialDuration = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': this.state.hotspotQuickTrialDuration || '30', 'style': 'max-width:140px;' });
+		this.refs.hotspotQuickTrialUptimeLimit = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': this.state.hotspotQuickTrialUptimeLimit || '30', 'style': 'max-width:140px;' });
+		this.refs.hotspotQuickMacAuthEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickMacAuthEnabled.checked = !!this.state.hotspotQuickMacAuthEnabled;
+		this.refs.hotspotQuickMacAuthSuffix = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickMacAuthSuffix || '@mac', 'style': 'max-width:160px;' });
+		this.refs.hotspotQuickMacAuthPassword = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.hotspotQuickMacAuthPassword || 'mac', 'style': 'max-width:180px;', 'autocomplete': 'new-password' });
+		this.refs.hotspotQuickWalledGarden = E('textarea', { 'class': 'cbi-input-textarea', 'rows': '4', 'style': 'width:100%; max-width:420px;' }, this.state.hotspotQuickWalledGarden || '');
+		this.refs.hotspotQuickDomain = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickDomain || 'hotspot.local', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickDns1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickDns1 || '8.8.8.8', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickDns2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickDns2 || '82.114.163.31', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickBridgeAgeingTime = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': this.state.hotspotQuickBridgeAgeingTime || '10', 'style': 'max-width:120px;' });
+		this.refs.hotspotQuickLoginMode = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:260px;' }, hotspotLoginModeChoices());
+		this.refs.hotspotQuickLoginMode.value = normalizeHotspotLoginMode(this.state.hotspotQuickLoginMode);
+		this.refs.hotspotQuickRateLimit = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickRateLimit || '2M/5M', 'style': 'max-width:180px;' });
+		this.refs.hotspotQuickMacCookieEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickMacCookieEnabled.checked = !!this.state.hotspotQuickMacCookieEnabled;
+		this.refs.hotspotQuickAvailableSpeeds = E('textarea', { 'class': 'cbi-input-textarea', 'rows': '3', 'style': 'width:100%; max-width:420px;' }, this.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast');
+		this.refs.hotspotQuickSupportPhone = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickSupportPhone || '', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickNoticeText = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا', 'style': 'max-width:420px;' });
+		this.refs.hotspotQuickLiveStreamEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickLiveStreamEnabled.checked = !!this.state.hotspotQuickLiveStreamEnabled;
+		this.refs.hotspotQuickLiveStreamUrl = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickLiveStreamUrl || '', 'style': 'max-width:420px;' });
+		this.refs.hotspotQuickRestAreaEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickRestAreaEnabled.checked = !!this.state.hotspotQuickRestAreaEnabled;
+		this.refs.hotspotQuickRestAreaUrl = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickRestAreaUrl || '', 'style': 'max-width:420px;' });
+		this.refs.hotspotQuickSpeedtestEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickSpeedtestEnabled.checked = !!this.state.hotspotQuickSpeedtestEnabled;
+		this.refs.hotspotQuickBrowserCookieEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickBrowserCookieEnabled.checked = this.state.hotspotQuickBrowserCookieEnabled !== false;
+		this.refs.hotspotQuickBrowserCookieDays = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '365', 'value': normalizeBrowserCookieDays(this.state.hotspotQuickBrowserCookieDays || '7'), 'style': 'max-width:140px;' });
+		this.refs.hotspotQuickUsermanRestEnabled = E('input', { 'type': 'checkbox' });
+		this.refs.hotspotQuickUsermanRestEnabled.checked = !!this.state.hotspotQuickUsermanRestEnabled;
+		this.refs.hotspotQuickUsermanRestScheme = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:140px;' }, routerOsSchemeChoices());
+		this.refs.hotspotQuickUsermanRestScheme.value = normalizeRouterOsScheme(this.state.hotspotQuickUsermanRestScheme);
+		this.refs.hotspotQuickUsermanRestUsername = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickUsermanRestUsername || 'hotspot-read', 'style': 'max-width:220px;' });
+		this.refs.hotspotQuickUsermanRestPassword = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.hotspotQuickUsermanRestPassword || '', 'style': 'max-width:220px;', 'autocomplete': 'new-password' });
+		this.refs.hotspotQuickUsermanRestPasswordToggle = E('button', { 'class': 'cbi-button cbi-button-neutral', 'type': 'button', 'style': 'margin-inline-start:8px;' }, _('إظهار'));
+		this.refs.hotspotQuickRadiusTestButton = E('button', { 'class': 'cbi-button cbi-button-action', 'type': 'button' }, _('اختبار RADIUS'));
+		this.refs.hotspotQuickRadiusTestStatus = E('span', { 'style': 'margin-inline-start:8px; color:#52606d;' }, _('لم يتم الاختبار بعد.'));
 		this.refs.adminPassword = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'autocomplete': 'new-password', 'style': 'max-width:280px;' });
 		this.refs.adminPasswordConfirm = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'autocomplete': 'new-password', 'style': 'max-width:280px;' });
 		this.refs.hotspotEnabled = E('input', { 'type': 'checkbox' });
@@ -3932,6 +5332,21 @@ return view.extend({
 
 		this.syncRadioModeWidthUi();
 
+		radioSettingsCard = renderWizardCard(
+			_('القنوات وإعدادات الراديو'),
+			_('اختر القناة والنمط وعرض القناة. في الميش استخدم قناة ثابتة.'),
+			[
+				renderCardLiveSummary(this.refs.radioCardSummary),
+				(this.refs.meshChannelHelp = E('p', { 'style': 'display:none; margin:0 0 12px 0; color:#52606d;' })),
+				radio2g ? (this.refs.channel2gRow = E('div', { 'class': 'cbi-value alemprator-channel-row' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio2g)), E('div', { 'class': 'cbi-value-field' }, [ this.refs.channel2g ]) ])) : E('p', _('لم يتم اكتشاف راديو 2.4GHz.')),
+				radio2g ? (this.refs.mode2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('النمط (2.4GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiMode2g ]) ])) : null,
+				radio2g ? (this.refs.width2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عرض القناة (2.4GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiWidth2g ]) ])) : null,
+				radio5g ? (this.refs.channel5gRow = E('div', { 'class': 'cbi-value alemprator-channel-row' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio5g)), E('div', { 'class': 'cbi-value-field' }, [ this.refs.channel5g ]) ])) : E('p', _('لم يتم اكتشاف راديو 5GHz.')),
+				radio5g ? (this.refs.mode5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('النمط (5GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiMode5g ]) ])) : null,
+				radio5g ? (this.refs.width5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عرض القناة (5GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiWidth5g ]) ])) : null
+			]
+		);
+
 		stepPanels.push(E('div', { 'class': 'cbi-section-node alemprator-step-panel' }, [
 			renderWizardCard(
 				_('تحديد عنوان الشبكة المحلية'),
@@ -3957,6 +5372,73 @@ return view.extend({
 					renderNoticeBox('neutral', _('النتيجة'), [ this.refs.modePlan = E('span') ])
 				]
 			),
+			radioSettingsCard,
+			(this.refs.hotspotQuickCard = renderWizardCard(
+				_('Hotspot Quick (بدون VLAN)'),
+				_('برمجة الهوتسبوت من نفس خطوة وضع التشغيل. عند التفعيل يثبت الوضع على AP ويعطل VLAN.'),
+				[
+					renderCardLiveSummary(this.refs.hotspotQuickCardSummary),
+						renderNoticeBox(hotspotLicenseCacheInfo().active ? 'info' : 'warning', _('ترخيص الهوتسبوت'), [ E('span', hotspotLicenseCacheMessage()) ]),
+					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل الهوتسبوت السريع')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickEnabled ]) ]),
+					(this.refs.hotspotQuickDetailsWrapper = E('div', { 'class': 'alemprator-responsive-fields', 'style': 'display:none;' }, [
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('واجهة الإنترنت')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickWanInterface, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اتركها lan في البرمجة المعتادة، ولا تغيّرها إلا إذا كان مصدر الإنترنت على واجهة أخرى.')) ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('واجهة المشتركين')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSubscriberInterface, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('الواجهة الأساسية للهوتسبوت. سيتم اشتقاق واجهة الشبكة الثانية تلقائياً.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RADIUS Server')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusServer ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RADIUS Server 2')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusServer2 ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RADIUS Secret')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusSecret, this.refs.hotspotQuickRadiusSecretToggle ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RADIUS Auth Port')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusAuthPort ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RADIUS Accounting Port')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusAcctPort ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('NAS IP')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusNasIp, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اختياري. اتركه فارغاً لاستخدام عنوان LAN تلقائياً.')) ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('NAS ID')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickNasId ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Accounting Interim')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickAcctInterim, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('بالثواني، يرسل تحديثات الاستهلاك إلى MikroTik/User Manager.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('CoA / Disconnect')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickCoaEnabled ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('CoA Port')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickCoaPort ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('اختبار RADIUS')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusTestButton, this.refs.hotspotQuickRadiusTestStatus ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSsid1 ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('IP الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickGateway1, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('سيتم توليد Pool تلقائيًا من نفس الشبكة: .10 إلى .199.')) ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool بداية الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolStart1 ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool نهاية الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolEnd1 ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('DNS Domain')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickDomain ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('DNS Server 1')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickDns1 ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('DNS Server 2')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickDns2 ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Ageing time')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickBridgeAgeingTime, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يكتب ageing_time لجسري Hotspot-1 و Hotspot-2. الافتراضي 10.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('صفحة الكرت')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickLoginMode ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Rate Limit (rx/tx)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRateLimit, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اختياري مثل 2M/5M. يطبق كحد افتراضي upload/download إذا لم يرجعه RADIUS.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Add MAC Cookie')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickMacCookieEnabled, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يحفظ MAC وIP واسم الكرت بعد نجاح الدخول، ثم يسمح بالدخول التلقائي لنفس الجهاز لاحقًا مثل MikroTik Cookies.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('قائمة السرعات المتاحة للمشتركين')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickAvailableSpeeds, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('أدخل خيارات السرعة، سطر لكل خيار. الصيغة: السرعة الاسم.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('رقم الدعم الفني')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSupportPhone, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يظهر كزر تواصل في أسفل الصفحة.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تنبيه للمشتركين')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickNoticeText, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('نص يظهر بشكل بارز للتنبيهات.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إظهار بث مباشر')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickLiveStreamEnabled ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('رابط البث المباشر')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickLiveStreamUrl ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إظهار الاستراحة')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRestAreaEnabled ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('رابط الاستراحة')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRestAreaUrl ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل فحص السرعة في صفحة الحالة')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSpeedtestEnabled, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يظهر زر للمشترك لقياس سرعة اتصاله الحقيقية بالراوتر.')) ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Browser Cookie')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickBrowserCookieEnabled, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يتذكر المتصفح رقم الكرت محليًا عند فتح صفحة الدخول.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('مدة كوكي المتصفح بالأيام')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickBrowserCookieDays, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('من 1 إلى 365 يومًا.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('قراءة رصيد User Manager')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickUsermanRestEnabled, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يفعل جسر RouterOS REST لعرض الرصيد والبروفايل ووقت الانتهاء في صفحة المشترك.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RouterOS REST Scheme')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickUsermanRestScheme, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('استخدم https مع www-ssl. يمكن استخدام http للاختبار فقط.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RouterOS API User')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickUsermanRestUsername, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('مستخدم قراءة فقط على MikroTik بصلاحيات User Manager.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RouterOS API Password')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickUsermanRestPassword, this.refs.hotspotQuickUsermanRestPasswordToggle, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('تحفظ على الراوتر فقط ولا ترسل للمتصفح.')) ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Policy/Profile للشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPolicy1 ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSecondaryEnabled ]) ]),
+						(this.refs.hotspotQuickSecondaryWrapper = E('div', { 'class': 'alemprator-responsive-fields', 'style': 'display:none;' }, [
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSsid2 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('IP الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickGateway2, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('سيتم توليد Pool تلقائيًا من نفس الشبكة: .10 إلى .199.')) ]) ]),
+							E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool بداية الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolStart2 ]) ]),
+							E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool نهاية الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolEnd2 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Policy/Profile للشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPolicy2 ]) ])
+						])),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Trial Users')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickTrialEnabled ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Trial Duration')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickTrialDuration, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('بالدقائق.')) ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Trial Uptime Limit')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickTrialUptimeLimit, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('بالدقائق لكل جهاز.')) ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('MAC Authentication')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickMacAuthEnabled ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('MAC Auth Suffix')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickMacAuthSuffix ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('MAC Auth Password')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickMacAuthPassword ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Walled Garden Domains')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickWalledGarden ]) ]),
+						(this.refs.hotspotVlanLockNotice = renderNoticeBox('warning', _('تنبيه'), [ E('span', _('عند تفعيل الهوتسبوت السريع يتم تعطيل VLAN تلقائيًا ومنع حفظه.')) ]))
+					]))
+				]
+			)),
 			(this.refs.apVlanWarning = E('div', {
 				'class': 'alemprator-notice alemprator-notice--warning',
 				'style': 'display:none; margin:12px 0 0 0;'
@@ -3978,14 +5460,14 @@ return view.extend({
 						]
 					)
 				])),
-				renderWizardCard(
+				(this.refs.wifiSecurityCard = renderWizardCard(
 					_('حماية الواي فاي المحلية'),
 					_('كلمة المرور للشبكات المحلية. اتركها فارغة للشبكة المفتوحة.'),
 					[
 						renderCardLiveSummary(this.refs.wifiSecurityCardSummary),
 						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة مرور الواي فاي')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiKey, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اتركه فارغًا للشبكة المفتوحة.')) ]) ])
 					]
-				),
+				)),
 				(this.refs.uplinkSettingsWrapper = E('div', { 'style': 'display:none;' }, [
 					renderWizardCard(
 						_('إعدادات الربط الصاعد للعميل + WDS'),
@@ -4012,7 +5494,7 @@ return view.extend({
 						]
 					)
 				])),
-				renderWizardCard(
+				(this.refs.vlanSettingsCard = renderWizardCard(
 					_('إعداد شبكة VLAN الثانوية'),
 					_('أضف شبكة واي فاي ثانوية معزولة من دون تغيير الشبكة الرئيسية.'),
 					[
@@ -4027,7 +5509,7 @@ return view.extend({
 						renderNoticeBox('neutral', _('ملخص VLAN الثانوية'), [ this.refs.secondaryNetworkPlan ]),
 						this.refs.secondaryNetworkNotice
 					]
-				)
+				))
 			])
 		]));
 
@@ -4049,6 +5531,7 @@ return view.extend({
 					_('يتطلب CoovaChilli ومخدم RADIUS (MikroTik User Manager). الإعدادات المتقدمة متاحة من صفحة الخدمات.'),
 					[
 						renderCardLiveSummary(self.refs.hotspotCardSummary),
+						renderNoticeBox(hotspotLicenseCacheInfo().active ? 'info' : 'warning', _('ترخيص الهوتسبوت'), [ E('span', hotspotLicenseCacheMessage()) ]),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('تشغيل الهوتسبوت')),
 							E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotEnabled ])
@@ -4130,24 +5613,6 @@ return view.extend({
 				)
 			];
 		}(this.state.hotspotAvailable))));
-
-		stepPanels.push(E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' }, [
-			renderNoticeBox('accent', _('الترتيب'), [ E('span', _('اضبط القنوات ثم احفظ.')) ]),
-			renderWizardCard(
-				_('القنوات وإعدادات الراديو'),
-				_('اختر القناة والنمط وعرض القناة. في الميش استخدم قناة ثابتة.'),
-				[
-					renderCardLiveSummary(this.refs.radioCardSummary),
-					(this.refs.meshChannelHelp = E('p', { 'style': 'display:none; margin:0 0 12px 0; color:#52606d;' })),
-					radio2g ? (this.refs.channel2gRow = E('div', { 'class': 'cbi-value alemprator-channel-row' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio2g)), E('div', { 'class': 'cbi-value-field' }, [ this.refs.channel2g ]) ])) : E('p', _('لم يتم اكتشاف راديو 2.4GHz.')),
-					radio2g ? (this.refs.mode2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('النمط (2.4GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiMode2g ]) ])) : null,
-					radio2g ? (this.refs.width2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عرض القناة (2.4GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiWidth2g ]) ])) : null,
-					radio5g ? (this.refs.channel5gRow = E('div', { 'class': 'cbi-value alemprator-channel-row' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio5g)), E('div', { 'class': 'cbi-value-field' }, [ this.refs.channel5g ]) ])) : E('p', _('لم يتم اكتشاف راديو 5GHz.')),
-					radio5g ? (this.refs.mode5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('النمط (5GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiMode5g ]) ])) : null,
-					radio5g ? (this.refs.width5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عرض القناة (5GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiWidth5g ]) ])) : null
-				]
-			)
-		]));
 
 		this.refs.resetHoldWrapper = E('div', { 'class': 'cbi-value-field' }, [ this.refs.resetHoldSeconds ]);
 		stepPanels.push(E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' }, [
@@ -4255,6 +5720,70 @@ return view.extend({
 			])
 		]));
 
+		(function() {
+			var legacyPanels = stepPanels.slice();
+			var optionsPage = E('div', { 'class': 'cbi-section-node alemprator-step-panel' });
+			var maintenancePage = E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' });
+			var optionBlocks = E('div', { 'class': 'alemprator-card-grid alemprator-card-grid--fluid' });
+			var maintenanceBlocks = E('div', { 'class': 'alemprator-card-grid alemprator-card-grid--fluid' });
+			var moveChildren = function(panel, target) {
+				if (!panel)
+					return;
+
+				panel.style.display = '';
+				while (panel.firstChild)
+					target.appendChild(panel.firstChild);
+			};
+			var moveModeChildren = function(panel, target) {
+				var deferred = [];
+
+				if (!panel)
+					return;
+
+				panel.style.display = '';
+				while (panel.firstChild) {
+					var child = panel.firstChild;
+
+					if (child.className && String(child.className).indexOf('alemprator-notice') > -1) {
+						panel.removeChild(child);
+						deferred.push(child);
+					}
+					else
+						target.appendChild(child);
+				}
+
+				deferred.forEach(function(node) {
+					target.appendChild(node);
+				});
+			};
+
+			legacyPanels.forEach(function(panel) {
+				if (panel)
+					panel.style.display = '';
+			});
+
+			optionsPage.appendChild(renderNoticeBox('accent', _('صفحة الخيارات'), [
+				E('span', _('كل خيارات البرمجة السريعة في مكان واحد: LAN، وضع التشغيل، الواي فاي، الهوتسبوت السريع، VLAN والقنوات.'))
+			]));
+
+			moveChildren(legacyPanels[0], optionBlocks);
+			moveModeChildren(legacyPanels[1], optionBlocks);
+			moveChildren(legacyPanels[3], optionBlocks);
+
+			maintenancePage.appendChild(renderNoticeBox('accent', _('صفحة الصيانة'), [
+				E('span', _('النسخ الاحتياطي، الاسترجاع، OTA، أزرار الجهاز، إعادة التشغيل وكلمة المرور.'))
+			]));
+
+			moveChildren(legacyPanels[4], maintenanceBlocks);
+
+			optionsPage.appendChild(optionBlocks);
+			maintenancePage.appendChild(maintenanceBlocks);
+
+			stepPanels.length = 0;
+			stepPanels.push(optionsPage);
+			stepPanels.push(maintenancePage);
+		}());
+
 		stepPanels.forEach(function(stepPanel) {
 			stepsWrap.appendChild(stepPanel);
 		});
@@ -4325,8 +5854,15 @@ return view.extend({
 		});
 
 		this.refs.mode.addEventListener('change', function() {
-			self.updateStepUi();
-		});
+                if (self.refs.mode.value !== 'ap') {
+                        // User chose Mesh, Extender, etc. Reset hotspot.
+                        // Actually, even if they explicitly select 'ap' from the dropdown, maybe reset? Yes, if they are touching mode, they want basic setup.
+                }
+                if (self.refs.hotspotQuickEnabled) self.refs.hotspotQuickEnabled.checked = false;
+                if (self.refs.hotspotEnabled) self.refs.hotspotEnabled.checked = false;
+                if (self.refs.hotspotQuickSecondaryEnabled) self.refs.hotspotQuickSecondaryEnabled.checked = false;
+                self.updateStepUi();
+        });
 
 		this.refs.uplinkSsid.addEventListener('input', function() {
 			self.updateStepUi();
@@ -4428,6 +5964,22 @@ return view.extend({
 			self.updateStepUi();
 		});
 
+		
+           if (this.refs.hotspotQuickSecondaryEnabled) {
+                   this.refs.hotspotQuickSecondaryEnabled.addEventListener('change', function() {
+                           self.updateStepUi();
+                   });
+           }
+
+           if (this.refs.hotspotQuickEnabled) {
+
+			this.refs.hotspotQuickEnabled.addEventListener('change', function() {
+				self.updateStepUi();
+				if (self.refs.hotspotQuickEnabled.checked)
+					showHotspotLicenseSelectionMessage(_('الهوتسبوت السريع'));
+			});
+		}
+
 		this.refs.adminPassword.addEventListener('input', function() {
 			self.updateStepUi();
 		});
@@ -4451,6 +6003,8 @@ return view.extend({
 		if (this.refs.hotspotEnabled) {
 			this.refs.hotspotEnabled.addEventListener('change', function() {
 				self.updateStepUi();
+				if (self.refs.hotspotEnabled.checked)
+					showHotspotLicenseSelectionMessage(_('الهوتسبوت'));
 			});
 		}
 
@@ -4478,11 +6032,98 @@ return view.extend({
 			});
 		}
 
+		[
+			'hotspotQuickEnabled', 'hotspotQuickWanInterface', 'hotspotQuickSubscriberInterface',
+			'hotspotQuickRadiusServer', 'hotspotQuickRadiusServer2', 'hotspotQuickRadiusSecret', 'hotspotQuickRadiusAuthPort',
+			'hotspotQuickRadiusAcctPort', 'hotspotQuickRadiusNasIp', 'hotspotQuickNasId', 'hotspotQuickAcctInterim',
+			'hotspotQuickCoaEnabled', 'hotspotQuickCoaPort', 'hotspotQuickTrialEnabled', 'hotspotQuickTrialDuration',
+			'hotspotQuickTrialUptimeLimit', 'hotspotQuickMacAuthEnabled', 'hotspotQuickMacAuthSuffix',
+			'hotspotQuickMacAuthPassword', 'hotspotQuickWalledGarden', 'hotspotQuickDomain',
+			'hotspotQuickDns1', 'hotspotQuickDns2', 'hotspotQuickBridgeAgeingTime', 'hotspotQuickLoginMode', 'hotspotQuickRateLimit',
+			'hotspotQuickMacCookieEnabled', 'hotspotQuickAvailableSpeeds', 'hotspotQuickSupportPhone',
+			'hotspotQuickNoticeText', 'hotspotQuickLiveStreamEnabled', 'hotspotQuickLiveStreamUrl',
+			'hotspotQuickRestAreaEnabled', 'hotspotQuickRestAreaUrl', 'hotspotQuickSpeedtestEnabled', 'hotspotQuickBrowserCookieEnabled',
+			'hotspotQuickBrowserCookieDays', 'hotspotQuickUsermanRestEnabled', 'hotspotQuickUsermanRestScheme',
+			'hotspotQuickUsermanRestUsername', 'hotspotQuickUsermanRestPassword',
+			'hotspotQuickSsid1', 'hotspotQuickGateway1', 'hotspotQuickPoolStart1', 'hotspotQuickPoolEnd1',
+			'hotspotQuickPolicy1', 'hotspotQuickSecondaryEnabled', 'hotspotQuickSsid2',
+			'hotspotQuickGateway2', 'hotspotQuickPoolStart2', 'hotspotQuickPoolEnd2', 'hotspotQuickPolicy2'
+		].forEach(function(refName) {
+			if (self.refs[refName]) {
+				self.refs[refName].addEventListener((self.refs[refName].tagName == 'SELECT' || self.refs[refName].type == 'checkbox') ? 'change' : 'input', function() {
+					self.updateStepUi();
+				});
+			}
+		});
+
+		if (this.refs.hotspotQuickRadiusTestButton) {
+			this.refs.hotspotQuickRadiusTestButton.addEventListener('click', function(ev) {
+				ev.preventDefault();
+				self.testHotspotQuickRadius();
+			});
+		}
+
+		if (this.refs.hotspotQuickRadiusSecretToggle) {
+			this.refs.hotspotQuickRadiusSecretToggle.addEventListener('click', function(ev) {
+				ev.preventDefault();
+
+				if (!self.refs.hotspotQuickRadiusSecret)
+					return;
+
+				if (self.refs.hotspotQuickRadiusSecret.type == 'password') {
+					self.refs.hotspotQuickRadiusSecret.type = 'text';
+					self.refs.hotspotQuickRadiusSecretToggle.textContent = _('إخفاء');
+				}
+				else {
+					self.refs.hotspotQuickRadiusSecret.type = 'password';
+					self.refs.hotspotQuickRadiusSecretToggle.textContent = _('إظهار');
+				}
+			});
+		}
+
+		if (this.refs.hotspotQuickUsermanRestPasswordToggle) {
+			this.refs.hotspotQuickUsermanRestPasswordToggle.addEventListener('click', function(ev) {
+				ev.preventDefault();
+
+				if (!self.refs.hotspotQuickUsermanRestPassword)
+					return;
+
+				if (self.refs.hotspotQuickUsermanRestPassword.type == 'password') {
+					self.refs.hotspotQuickUsermanRestPassword.type = 'text';
+					self.refs.hotspotQuickUsermanRestPasswordToggle.textContent = _('إخفاء');
+				}
+				else {
+					self.refs.hotspotQuickUsermanRestPassword.type = 'password';
+					self.refs.hotspotQuickUsermanRestPasswordToggle.textContent = _('إظهار');
+				}
+			});
+		}
+
 		actions.appendChild(this.refs.reloadButton);
 		actions.appendChild(this.refs.backButton);
 		actions.appendChild(this.refs.nextButton);
 		actions.appendChild(this.refs.saveButton);
 		wizardContainer.appendChild(actions);
+
+		wizardContainer.appendChild(E('div', {
+			'class': 'alemprator-copyright-footer',
+			'style': 'text-align:center; padding:24px 16px 12px; margin-top:32px; border-top:1px solid rgba(0,0,0,0.08); color:#6c757d; font-size:12px; line-height:1.8; direction:rtl;'
+		}, [
+			E('div', {}, [
+				E('span', { 'style': 'font-size:13px;' }, '© جميع الحقوق محفوظة | '),
+				E('strong', { 'style': 'color:#415a77;' }, 'تطوير وتنفيذ: م. جلال أحمد القحم – م. محمد باعلوي')
+			]),
+			E('div', { 'style': 'margin-top:4px;' }, [
+				E('span', { 'style': 'color:#52606d;' }, 'شركة الإمبراطور للسوفتويرات | حلول برمجية وأنظمة وتطبيقات حسب الطلب')
+			]),
+			E('div', { 'style': 'margin-top:4px;' }, [
+				E('span', {}, '📱 '),
+				E('a', { 'href': 'tel:+967774070632', 'style': 'color:#1b4965; text-decoration:none;' }, '774070632'),
+				E('span', {}, ' | '),
+				E('a', { 'href': 'tel:+967777440819', 'style': 'color:#1b4965; text-decoration:none;' }, '777440819')
+			])
+		]));
+
 		panel.appendChild(wizardContainer);
 
 		this.updateStepUi();
