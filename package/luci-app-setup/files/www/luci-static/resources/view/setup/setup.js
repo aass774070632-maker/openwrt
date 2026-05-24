@@ -4183,6 +4183,7 @@ return view.extend({
 		var secondaryIface5g = radio5g ? secondaryApSectionName(radio5g['.name']) : null;
 		var iface;
 		var localRadios;
+		var managedSids = {};
 
 		applyRadioHtmode(radio2g, '2g', state);
 		applyRadioHtmode(radio5g, '5g', state);
@@ -4279,6 +4280,7 @@ return view.extend({
 			setWifiSecurity('wireless', uplinkStaIface, state.uplinkKey);
 
 			uplinkLanApIface = ensureNamedWifiIface('wizard_uplink_ap');
+			managedSids[uplinkLanApIface] = true;
 			configureApIface(
 				uplinkLanApIface,
 				wifiDeviceName(uplinkRadio),
@@ -4359,6 +4361,7 @@ return view.extend({
 
 		if (radio2g && (!uplinkRadio || radio2g['.name'] != uplinkRadio['.name']) && (!meshRadio || radio2g['.name'] != meshRadio['.name'])) {
 			iface = ensureWifiIface(radio2g['.name']);
+			managedSids[iface] = true;
 
 			if (vlanOnlyAp)
 				uci.remove('wireless', iface);
@@ -4369,6 +4372,7 @@ return view.extend({
 
 			if (state.isVlan) {
 				ensureNamedWifiIface(secondaryIface2g);
+				managedSids[secondaryIface2g] = true;
 				configureApIface(secondaryIface2g, radio2g['.name'], 'wizardvlan', previewSecondarySsid(state, '2g'), state.wifiKey, vlanPolicy);
 			}
 			else {
@@ -4381,6 +4385,7 @@ return view.extend({
 
 		if (radio5g && (!uplinkRadio || radio5g['.name'] != uplinkRadio['.name']) && (!meshRadio || radio5g['.name'] != meshRadio['.name'])) {
 			iface = ensureWifiIface(radio5g['.name']);
+			managedSids[iface] = true;
 
 			if (vlanOnlyAp)
 				uci.remove('wireless', iface);
@@ -4391,6 +4396,7 @@ return view.extend({
 
 			if (state.isVlan) {
 				ensureNamedWifiIface(secondaryIface5g);
+				managedSids[secondaryIface5g] = true;
 				configureApIface(secondaryIface5g, radio5g['.name'], 'wizardvlan', previewSecondarySsid(state, '5g'), state.wifiKey, vlanPolicy);
 			}
 			else {
@@ -4495,8 +4501,8 @@ return view.extend({
                                 uci.set('wireless', sid, 'disabled', '0');
                         }
                         else {
-                                // Enable strictly managed interfaces that aren't lan/vlan (like hotspot) instead of disabling
-                                uci.set('wireless', sid, 'disabled', '0');
+                                // Remove ghost interfaces that aren't lan/vlan (orphaned hotspot SSIDs etc.)
+                                uci.remove('wireless', sid);
                         }
                 });
 
