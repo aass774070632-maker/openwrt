@@ -1165,10 +1165,7 @@ function cleanupHotspotWizardState() {
 	});
 
 	if (uci.get('hotspot_openwrt', 'main')) {
-		uci.set('hotspot_openwrt', 'main', 'enabled', '0');
-		uci.set('hotspot_openwrt', 'main', 'quick_setup_enabled', '0');
-		uci.set('hotspot_openwrt', 'main', 'quick_runtime_dual_enabled', '0');
-		uci.unset('hotspot_openwrt', 'main', 'wifi_iface');
+		uci.remove('hotspot_openwrt', 'main');
 	}
 
 	uci.set('setup', 'default', 'hotspot_quick_enabled', '0');
@@ -4119,8 +4116,11 @@ return view.extend({
 		if (!state.hotspotAvailable || !uci.get('hotspot_openwrt', 'main'))
 			return;
 
-		if (state.hotspotQuickEnabled)
+		if (state.hotspotQuickEnabled) {
+			uci.remove('wireless', hotspotIface);
+			uci.set('setup', 'default', 'hotspot_enabled_from_wizard', '0');
 			return;
+		}
 
 		ensureNamedSection('hotspot_openwrt', 'main', 'main');
 		uci.set('hotspot_openwrt', 'main', 'enabled', state.hotspotEnabled ? '1' : '0');
