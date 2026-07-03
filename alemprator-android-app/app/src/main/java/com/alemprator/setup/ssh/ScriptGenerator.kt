@@ -59,8 +59,8 @@ class ScriptGenerator {
                 
                 commands.add("uci set wireless.default_radio0.ssid='$ssid2g'")
                 commands.add("uci set wireless.default_radio1.ssid='$ssid5g'")
-                commands.add("uci set wireless.default_radio0.isolate='1'")
-                commands.add("uci set wireless.default_radio1.isolate='1'")
+                commands.add("if uci -q get wireless.default_radio0.isolate; then uci -q delete wireless.default_radio0.isolate; fi")
+                commands.add("if uci -q get wireless.default_radio1.isolate; then uci -q delete wireless.default_radio1.isolate; fi")
                 
                 // 3. Security
                 if (device.noPassword) {
@@ -297,8 +297,8 @@ class ScriptGenerator {
                 
                 commands.add("uci set wireless.default_radio0.ssid='$ssid2g'")
                 commands.add("uci set wireless.default_radio1.ssid='$ssid5g'")
-                commands.add("uci set wireless.default_radio0.isolate='1'")
-                commands.add("uci set wireless.default_radio1.isolate='1'")
+                commands.add("if uci -q get wireless.default_radio0.isolate; then uci -q delete wireless.default_radio0.isolate; fi")
+                commands.add("if uci -q get wireless.default_radio1.isolate; then uci -q delete wireless.default_radio1.isolate; fi")
                 
                 // 3. Security
                 if (device.noPassword) {
@@ -344,7 +344,9 @@ class ScriptGenerator {
                 commands.add("uci set wireless.wizard_uplink_ap.device='$uplinkDevice'")
                 commands.add("uci set wireless.wizard_uplink_ap.mode='ap'")
                 commands.add("uci set wireless.wizard_uplink_ap.network='lan'")
-                commands.add("uci set wireless.wizard_uplink_ap.isolate='1'")
+                commands.add("if uci -q get wireless.wizard_uplink_ap.isolate; then uci -q delete wireless.wizard_uplink_ap.isolate; fi")
+                commands.add("uci set wireless.wizard_uplink_ap.disassoc_low_ack='0'")
+                commands.add("uci set wireless.wizard_uplink_ap.hidden='1'")
                 
                 // 3. Radio channels & modes
                 // Uplink radio channel MUST be auto
@@ -381,12 +383,14 @@ class ScriptGenerator {
                 if (isUplink5g) {
                     commands.add("uci set wireless.default_radio0.ssid='$ssid2g'")
                     commands.add("uci set wireless.default_radio0.disabled='0'")
-                    commands.add("uci set wireless.default_radio0.isolate='1'")
+                    commands.add("if uci -q get wireless.default_radio0.isolate; then uci -q delete wireless.default_radio0.isolate; fi")
+                    commands.add("uci set wireless.default_radio0.disassoc_low_ack='0'")
                     commands.add("uci set wireless.default_radio1.disabled='1'")
                 } else {
                     commands.add("uci set wireless.default_radio1.ssid='$ssid5g'")
                     commands.add("uci set wireless.default_radio1.disabled='0'")
-                    commands.add("uci set wireless.default_radio1.isolate='1'")
+                    commands.add("if uci -q get wireless.default_radio1.isolate; then uci -q delete wireless.default_radio1.isolate; fi")
+                    commands.add("uci set wireless.default_radio1.disassoc_low_ack='0'")
                     commands.add("uci set wireless.default_radio0.disabled='1'")
                 }
 
@@ -471,8 +475,8 @@ class ScriptGenerator {
         }
         
         // 3. Apply advanced switch configurations (isolate, hidden, dhcp)
-        commands.add("uci set wireless.default_radio0.isolate='1'")
-        commands.add("uci set wireless.default_radio1.isolate='1'")
+        commands.add("if uci -q get wireless.default_radio0.isolate; then uci -q delete wireless.default_radio0.isolate; fi")
+        commands.add("if uci -q get wireless.default_radio1.isolate; then uci -q delete wireless.default_radio1.isolate; fi")
         commands.add("uci set wireless.default_radio0.hidden='${if (device.hideSsid) "1" else "0"}'")
         commands.add("uci set wireless.default_radio1.hidden='${if (device.hideSsid) "1" else "0"}'")
         commands.add("uci set wireless.default_radio0.disabled='${if (device.vlanEnabled) "1" else "0"}'")
