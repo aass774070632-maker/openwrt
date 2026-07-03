@@ -1,4 +1,5 @@
 #!/bin/sh
+export PATH="/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 
 json_escape() {
 	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
@@ -49,8 +50,10 @@ route_ok='false'
 tun1='false'
 route_ok_secondary='false'
 tun0='false'
-[ -n "$(ip -4 addr show tun0 2>/dev/null)" ] && tun0='true'
-[ -n "$(ip -4 addr show tun1 2>/dev/null)" ] && tun1='true'
+tun0_mtu='0'
+tun1_mtu='0'
+[ -n "$(ip -4 addr show tun0 2>/dev/null)" ] && { tun0='true'; tun0_mtu="$(cat /sys/class/net/tun0/mtu 2>/dev/null || echo 0)"; }
+[ -n "$(ip -4 addr show tun1 2>/dev/null)" ] && { tun1='true'; tun1_mtu="$(cat /sys/class/net/tun1/mtu 2>/dev/null || echo 0)"; }
 
 [ -n "$(ip -4 addr show br-$subscriber_interface 2>/dev/null | awk '/inet / { print $2; exit }')" ] && bridge_has_ip='true'
 
@@ -154,5 +157,7 @@ printf '"radius_auth_port":"%s",' "$(json_escape "$radius_auth_port")"
 printf '"radius_acct_port":"%s",' "$(json_escape "$radius_acct_port")"
 printf '"presence_watchdog_running":%s,' "$([ -s "$watchdog_pid_file" ] && kill -0 "$(cat "$watchdog_pid_file" 2>/dev/null)" 2>/dev/null && echo true || echo false)"
 printf '"mac_cookie_watchdog_running":%s,' "$([ -s "$mac_cookie_watchdog_pid_file" ] && kill -0 "$(cat "$mac_cookie_watchdog_pid_file" 2>/dev/null)" 2>/dev/null && echo true || echo false)"
+printf '"tun0_mtu":%d,' "$tun0_mtu"
+printf '"tun1_mtu":%d,' "$tun1_mtu"
 printf '"radius_transport":"udp"'
 printf '}\n'

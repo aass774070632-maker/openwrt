@@ -1,0 +1,75 @@
+#!/bin/sh
+# Migration: Copy setup.default.hotspot_quick_* values to hotspot_openwrt.main.*
+# Defensive: only writes to hotspot_openwrt if the destination field is not already set.
+# This preserves existing configurations on deployed devices during upgrade.
+
+LOCKFILE='/var/lock/hotspot-quick-migrate.lock'
+[ -f "$LOCKFILE" ] && exit 0
+touch "$LOCKFILE"
+
+hotspot_migration_needed=0
+
+# Check if hotspot_openwrt main section exists
+uci -q get hotspot_openwrt.main >/dev/null || hotspot_migration_needed=1
+
+# List of fields to migrate (from setup.default to hotspot_openwrt.main)
+# Format: setup_field=uci_destination_field
+migrate_fields='
+hotspot_quick_radius_server=radius_server
+hotspot_quick_radius_server2=radius_server2
+hotspot_quick_radius_secret=radius_secret
+hotspot_quick_radius_auth_port=radius_auth_port
+hotspot_quick_radius_acct_port=radius_acct_port
+hotspot_quick_radius_nas_ip=radius_nas_ip
+hotspot_quick_nas_id=radius_nas_id
+hotspot_quick_acct_interim=acct_interim
+hotspot_quick_coa_enabled=coa_enabled
+hotspot_quick_coa_port=coa_port
+hotspot_quick_trial_enabled=trial_enabled
+hotspot_quick_trial_duration=trial_duration
+hotspot_quick_trial_uptime_limit=trial_uptime_limit
+hotspot_quick_mac_auth_enabled=mac_auth_enabled
+hotspot_quick_mac_auth_suffix=mac_auth_suffix
+hotspot_quick_mac_auth_password=mac_auth_password
+hotspot_quick_walled_garden=walled_garden
+hotspot_quick_domain=domain
+hotspot_quick_dns1=dns1
+hotspot_quick_dns2=dns2
+hotspot_quick_login_mode=login_mode
+hotspot_quick_rate_limit=rate_limit_rx_tx
+hotspot_quick_mac_cookie_enabled=mac_cookie_enabled
+hotspot_quick_available_speeds=available_speeds
+hotspot_quick_support_phone=support_phone
+hotspot_quick_notice_text=notice_text
+hotspot_quick_live_stream_enabled=live_stream_enabled
+hotspot_quick_live_stream_url=live_stream_url
+hotspot_quick_rest_area_enabled=rest_area_enabled
+hotspot_quick_rest_area_url=rest_area_url
+hotspot_quick_speedtest_enabled=speedtest_enabled
+hotspot_quick_browser_cookie_enabled=browser_cookie_enabled
+hotspot_quick_browser_cookie_days=browser_cookie_days
+hotspot_quick_userman_rest_enabled=userman_rest_enabled
+hotspot_quick_userman_rest_scheme=userman_rest_scheme
+hotspot_quick_userman_rest_username=userman_rest_username
+hotspot_quick_userman_rest_password=userman_rest_password
+'
+
+# Ensure hotspot_openwrt.main exists
+uci set hotspot_openwrt.main=hotspot 2>/dev/null || true
+
+# Migrate fields that are not already set in hotspot_openwrt
+for mapping in $migrate_fields; do
+	src="setup.default.$(echo "$mapping" | cut -d= -f1)"
+	dst="hotspot_openwrt.main.$(echo "$mapping" | cut -d= -f2)"
+	val="$(uci -q get "$src" 2>/dev/null)"
+	if [ -n "$val" ] && ! uci -q get "$dst" >/dev/null 2>&1; then
+		uci set "$dst"="$val" 2>/dev/null || true
+	fi
+done
+
+# Remove lockfile on exit
+rm -f "$LOCKFILE"
+
+uci commit hotspot_openwrt 2>/dev/null || true
+
+exit 0

@@ -1,0 +1,9 @@
+Package: kmod-crypto-sha1
+Version: 4.4.198-1
+Depends: kernel (=4.4.198-1-cc0c148a5885a95c3c7b717865c6c2fa), kmod-crypto-hash
+Source: package/kernel/linux
+License: GPLv2
+Section: kernel
+Architecture: mipsel_24kc
+Installed-Size: 200
+Description:  SHA1 digest CryptoAPI module

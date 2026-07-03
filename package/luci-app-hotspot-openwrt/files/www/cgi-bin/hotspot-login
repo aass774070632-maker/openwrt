@@ -8,7 +8,14 @@ json_escape() {
 }
 
 query_value() {
-	printf '%s' "&$QUERY_STRING" | sed -n "s/.*[&?]$1=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%2[Ff]/\//g; s/%3[Aa]/:/g; s/%3[Ff]/?/g; s/%3[Dd]/=/g; s/%26/\&/g; s/%5[Ff]/_/g'
+	# Handle both GET and POST data
+	local data="$QUERY_STRING"
+	[ "$REQUEST_METHOD" = "POST" ] && [ "$CONTENT_LENGTH" -gt 0 ] && {
+		local post_data
+		read -n "$CONTENT_LENGTH" post_data
+		data="$data&$post_data"
+	}
+	printf '%s' "&$data" | sed -n "s/.*[&?]$1=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%2[Ff]/\//g; s/%3[Aa]/:/g; s/%3[Ff]/?/g; s/%3[Dd]/=/g; s/%26/\&/g; s/%5[Ff]/_/g'
 }
 
 urlencode() {
@@ -28,6 +35,26 @@ urlencode() {
 
 ip_prefix24() {
     printf '%s' "$1" | awk -F. 'NF == 4 { printf "%s.%s.%s.", $1, $2, $3 }'
+}
+
+is_safe_redirect_url() {
+	# Allow only same-host http(s) absolute URLs or same-origin relative paths.
+	# $1 = url, $2 = space-separated allow-list of hosts. Rejects everything else
+	# (external hosts, protocol-relative //host, bare values) to prevent open redirect.
+	case "$1" in
+		http://*|https://*)
+			rest="${1#*://}"
+			hostpart="${rest%%/*}"
+			hostonly="${hostpart%%:*}"
+			for h in $2; do
+				[ "$hostonly" = "$h" ] && return 0
+			done
+			return 1
+			;;
+		//*|\\*) return 1 ;;
+		/*) return 0 ;;
+		*) return 1 ;;
+	esac
 }
 
 append_socket() {
@@ -51,15 +78,33 @@ socket_client_field() {
 # --- Settings ---
 primary_socket_path='/var/run/chilli_hotspot_openwrt.sock'
 secondary_socket_path='/var/run/chilli_hotspot_openwrt_secondary.sock'
+# --- Error Messages and Settings ---
+MSG_INVALID_CLIENT='لم يتم تحديد عنوان جهاز العميل.'
+MSG_RATE_LIMITED='محاولات دخول كثيرة فاشلة. حاول مرة أخرى بعد دقيقة.'
+MSG_NO_USER='أدخل رقم الكرت أولاً.'
+MSG_NO_PASS='أدخل كلمة المرور أولاً.'
+MSG_SUCCESS='تم تسجيل الدخول بنجاح.'
+MSG_NOT_SEEN_PRIMARY='لم يظهر جهازك بعد في قائمة الهوتسبوت. أعد ا لاتصال بالشبكة أو افتح صفحة الدخول مرة أخرى.'
+MSG_NOT_SEEN_SECONDARY='لم يظهر جهازك بعد في قائمة Hotspot-2. أعد الاتصال بالشبكة أو افتح صفحة الدخول مرة أخرى.'
+MSG_FAIL_RADIUS='فشل تسجيل الدخول عبر Hotspot. تحقق من رقم الكرت أو إعدادات RADIUS.'
+MSG_FAIL_MT_USERMAN='رقم الكرت غير صحيح أو تعذر التحقق من MikroTik User Manager.'
+MSG_SUCCESS_EMERGENCY='تم تسجيل الدخول بنجاح. تم فتح الإنترنت لجهازك.'
+
 socket_path=''
 remote_addr="${REMOTE_ADDR:-}"
 username="$(query_value username)"
+# Strip domain suffix for database lookup compatibility (e.g. 11111111111@userman2 -> 11111111111)
+username="${username%%@*}"
 password="$(query_value password)"
 userurl="$(query_value userurl)"
+challenge="$(query_value challenge)"
+uamip="$(query_value uamip)"
+uamport="$(query_value uamport)"
 card_number="$username"
 login_mode="$(uci -q get hotspot_openwrt.main.login_mode)"
 login_ok='false'
 message='فشل تسجيل الدخول.'
+err_code=''
 redirect=''
 chilli_attempted='0'
 chilli_client_seen='0'
@@ -67,6 +112,11 @@ chilli_message=''
 socket_candidates=''
 selected_instance=''
 case "$login_mode" in username) password='' ;; both|'') login_mode='both' ;; *) login_mode='both' ;; esac
+
+# Secure temp files: mktemp + chmod 600 + trap cleanup (replaces guessable $$ paths)
+chilli_out="$(mktemp)"
+cred_file=''
+trap 'rm -f "$chilli_out" "$cred_file"' EXIT
 
 # MikroTik Config from UCI
 mt_host="$(uci -q get hotspot_openwrt.main.radius_server)"
@@ -82,14 +132,21 @@ secondary_uamlisten="$(uci -q get chilli.hotspot_openwrt_secondary.uamlisten || 
 request_host="${HTTP_HOST%%:*}"
 [ -n "$request_host" ] || request_host="${SERVER_NAME%%:*}"
 
-if [ -z "$userurl" ]; then
-    if [ -n "$request_host" ]; then
-        userurl="http://$request_host/hotspot/status.html"
-    elif [ "$(ip_prefix24 "$remote_addr")" = "$(ip_prefix24 "$secondary_uamlisten")" ]; then
-        userurl="http://$secondary_uamlisten/hotspot/status.html"
-    else
-        userurl="http://$primary_uamlisten/hotspot/status.html"
-    fi
+# Default safe status URL (same-origin captive portal page).
+if [ -n "$request_host" ]; then
+    default_status_url="http://$request_host/hotspot/status.html"
+elif [ "$(ip_prefix24 "$remote_addr")" = "$(ip_prefix24 "$secondary_uamlisten")" ]; then
+    default_status_url="http://$secondary_uamlisten/hotspot/status.html"
+else
+    default_status_url="http://$primary_uamlisten/hotspot/status.html"
+fi
+# Sanitize client-supplied userurl: strip CR/LF (header-injection guard) and
+# enforce an allow-list (same host + http(s) only, or same-origin relative path).
+# Unsafe values fall back to the safe default to prevent open redirect / phishing.
+userurl="$(printf '%s' "$userurl" | tr -d '\r\n')"
+allowed_redirect_hosts="$request_host $primary_uamlisten $secondary_uamlisten"
+if [ -z "$userurl" ] || ! is_safe_redirect_url "$userurl" "$allowed_redirect_hosts"; then
+    userurl="$default_status_url"
 fi
 case "$userurl" in
     *\?*username=*|*\&username=*) redirect="$userurl" ;;
@@ -97,14 +154,34 @@ case "$userurl" in
     *) redirect="$userurl?username=$(urlencode "$username")" ;;
 esac
 
+# --- Rate limiting: prevent brute-force on RADIUS/card passwords (2.7) ---
+RATE_MAX_FAILS="${HOTSPOT_LOGIN_MAX_FAILS:-10}"
+RATE_WINDOW="${HOTSPOT_LOGIN_WINDOW:-60}"
+rate_fail_file="/tmp/hotspot-login-fails.$(printf '%s' "$remote_addr" | tr '.:' '__')"
+rate_blocked='0'
+if [ -f "$rate_fail_file" ]; then
+	rate_ts="$(awk '{print $1}' "$rate_fail_file" 2>/dev/null)"
+	rate_count="$(awk '{print $2}' "$rate_fail_file" 2>/dev/null)"
+	rate_now="$(date +%s)"
+	if [ -n "$rate_ts" ] && [ $((rate_now - rate_ts)) -le "$RATE_WINDOW" ] 2>/dev/null && [ "${rate_count:-0}" -ge "$RATE_MAX_FAILS" ] 2>/dev/null; then
+		rate_blocked='1'
+	fi
+fi
+
 # --- Main Logic ---
 
 if [ -z "$remote_addr" ]; then
-    message='لم يتم تحديد عنوان جهاز العميل.'
+    message="$MSG_INVALID_CLIENT"
+    err_code='INVALID_CLIENT'
+elif [ "$rate_blocked" = '1' ]; then
+    message="$MSG_RATE_LIMITED"
+    err_code='RATE_LIMITED'
 elif [ -z "$username" ]; then
-    message='أدخل رقم الكرت أولاً.'
+    message="$MSG_NO_USER"
+    err_code='NO_USER'
 elif [ "$login_mode" = 'both' ] && [ -z "$password" ]; then
-    message='أدخل كلمة المرور أولاً.'
+    message="$MSG_NO_PASS"
+    err_code='NO_PASS'
 else
     # 1. Try Chilli Mode First
     if command -v chilli_query >/dev/null 2>&1; then
@@ -133,15 +210,16 @@ else
             [ -n "$selected_instance" ] || selected_instance="$current_instance"
             socket_has_client "$socket_path" && chilli_client_seen='1'
             if [ -n "$userurl" ]; then
-                chilli_query -s "$socket_path" login ip "$remote_addr" username "$username" password "$password" url "$redirect" >/tmp/h-login.$$ 2>&1
+                chilli_query -s "$socket_path" login ip "$remote_addr" username "$username" password "$password" url "$redirect" >"$chilli_out" 2>&1
             else
-                chilli_query -s "$socket_path" login ip "$remote_addr" username "$username" password "$password" >/tmp/h-login.$$ 2>&1
+                chilli_query -s "$socket_path" login ip "$remote_addr" username "$username" password "$password" >"$chilli_out" 2>&1
             fi
             state="$(socket_client_field "$socket_path" 3)"
             if [ "$state" = "pass" ]; then
                 login_ok='true'
                 selected_instance="$current_instance"
-                message='تم تسجيل الدخول بنجاح.'
+                message="$MSG_SUCCESS"
+                err_code='SUCCESS'
 
                 if [ -x /usr/libexec/hotspot-openwrt/mac-cookies ]; then
                     mac="$(socket_client_field "$socket_path" 1)"
@@ -149,8 +227,7 @@ else
                 fi
                 break
             fi
-            chilli_message="$(cat /tmp/h-login.$$ 2>/dev/null | tr '\r\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g')"
-            rm -f /tmp/h-login.$$
+            chilli_message="$(cat "$chilli_out" 2>/dev/null | tr '\r\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g')"
         done
     fi
 
@@ -158,43 +235,41 @@ else
     if [ "$login_ok" = "false" ] && [ "$chilli_attempted" = '1' ]; then
         if [ "$chilli_client_seen" != '1' ]; then
             case "$selected_instance" in
-                secondary) message='لم يظهر جهازك بعد في قائمة Hotspot-2. أعد الاتصال بالشبكة أو افتح صفحة الدخول مرة أخرى.' ;;
-                *) message='لم يظهر جهازك بعد في قائمة الهوتسبوت. أعد الاتصال بالشبكة أو افتح صفحة الدخول مرة أخرى.' ;;
+                secondary) message="$MSG_NOT_SEEN_SECONDARY"; err_code='NOT_SEEN_SECONDARY' ;;
+                *) message="$MSG_NOT_SEEN_PRIMARY"; err_code='NOT_SEEN_PRIMARY' ;;
             esac
         elif [ -n "$chilli_message" ]; then
-            message="فشل تسجيل الدخول عبر Hotspot. تحقق من رقم الكرت أو إعدادات RADIUS. ($chilli_message)"
+            message="$MSG_FAIL_RADIUS ($chilli_message)"
+            err_code='FAIL_RADIUS'
         else
-            message='فشل تسجيل الدخول عبر Hotspot. تحقق من رقم الكرت أو إعدادات RADIUS.'
+            message="$MSG_FAIL_RADIUS"
+            err_code='FAIL_RADIUS'
         fi
     elif [ "$login_ok" = "false" ]; then
-        # Check card with MikroTik REST API without external base64/openssl dependency.
-        if [ -n "$mt_host" ] && [ -n "$mt_user" ] && [ -n "$mt_pass" ] && command -v uclient-fetch >/dev/null 2>&1; then
+        # Check card with MikroTik REST API. Credentials passed via curl -K config
+        # file (not argv) to avoid leaking in `ps`. No HTTPS→HTTP downgrade.
+        if [ -n "$mt_host" ] && [ -n "$mt_user" ] && [ -n "$mt_pass" ] && command -v curl >/dev/null 2>&1; then
+            cred_file="$(mktemp)"
+            chmod 600 "$cred_file" 2>/dev/null || true
+            printf 'user = "%s:%s"\n' "$mt_user" "$mt_pass" > "$cred_file"
+            curl_opts="-s -m 5"
+            [ "$mt_scheme" = 'https' ] && [ "$mt_insecure_ssl" = '1' ] && curl_opts="$curl_opts -k"
             encoded_username="$(urlencode "$username")"
             query_field="$mt_user_field"
             [ -n "$query_field" ] || query_field='name'
             api_url="$mt_scheme://$mt_host:$mt_port/rest/user-manager/user?$query_field=$encoded_username"
-            if [ "$mt_scheme" = 'https' ] && [ "$mt_insecure_ssl" = '1' ]; then
-                RESP="$(uclient-fetch -q --no-check-certificate --user="$mt_user" --password="$mt_pass" -O - "$api_url" 2>/dev/null)"
-            else
-                RESP="$(uclient-fetch -q --user="$mt_user" --password="$mt_pass" -O - "$api_url" 2>/dev/null)"
-            fi
+            RESP="$(curl $curl_opts -K "$cred_file" "$api_url" 2>/dev/null)"
             # Fallback to username field when custom lookup field returns no record.
             if [ -z "$RESP" ] || [ "$RESP" = '[]' ]; then
                 api_url="$mt_scheme://$mt_host:$mt_port/rest/user-manager/user?username=$encoded_username"
-                if [ "$mt_scheme" = 'https' ] && [ "$mt_insecure_ssl" = '1' ]; then
-                    RESP="$(uclient-fetch -q --no-check-certificate --user="$mt_user" --password="$mt_pass" -O - "$api_url" 2>/dev/null)"
-                else
-                    RESP="$(uclient-fetch -q --user="$mt_user" --password="$mt_pass" -O - "$api_url" 2>/dev/null)"
-                fi
+                RESP="$(curl $curl_opts -K "$cred_file" "$api_url" 2>/dev/null)"
             fi
+            rm -f "$cred_file"; cred_file=''
         fi
 
         if [ -n "$RESP" ] && { echo "$RESP" | jsonfilter -e '@[0].name' -e '@[0].username' -e '@.name' -e '@.username' 2>/dev/null | grep -q . || echo "$RESP" | grep -q "\"name\":\"$username\""; }; then
             # Success! Auth accepted by MikroTik
-            login_ok='true'
-            
-            # Open Firewall for this IP using NFT Set
-            nft add element inet fw4 hotspot_allowed { "$remote_addr" } 2>/dev/null
+login_ok='true'
             
             # Save MAC Cookie globally for all models
             if [ -x /usr/libexec/hotspot-openwrt/mac-cookies ]; then
@@ -203,14 +278,52 @@ else
                 [ -n "$mac" ] && /usr/libexec/hotspot-openwrt/mac-cookies save "$mac" "$remote_addr" "$username" >/dev/null 2>&1 || true
             fi
             
-            message='تم تسجيل الدخول بنجاح. تم فتح الإنترنت لجهازك.'
+            message="$MSG_SUCCESS_EMERGENCY"
+            err_code='SUCCESS_EMERGENCY'
         else
-            message="رقم الكرت غير صحيح أو تعذر التحقق من MikroTik User Manager."
+            message="$MSG_FAIL_MT_USERMAN"
+            err_code='FAIL_MT_USERMAN'
         fi
     fi
 fi
 
+# Update rate-limit counter: clear on success, increment on failure.
+if [ "$login_ok" = "true" ]; then
+    rm -f "$rate_fail_file"
+elif [ -n "$remote_addr" ] && [ -n "$username" ]; then
+    rl_now="$(date +%s)"
+    if [ -f "$rate_fail_file" ]; then
+        rl_ts="$(awk '{print $1}' "$rate_fail_file" 2>/dev/null)"
+        rl_count="$(awk '{print $2}' "$rate_fail_file" 2>/dev/null)"
+        if [ -n "$rl_ts" ] && [ $((rl_now - rl_ts)) -le "$RATE_WINDOW" ] 2>/dev/null; then
+            rl_count=$((rl_count + 1))
+        else
+            rl_count=1
+        fi
+    else
+        rl_count=1
+    fi
+    printf '%s %s\n' "$rl_now" "$rl_count" > "$rate_fail_file" 2>/dev/null || true
+fi
+
 # --- Response ---
-printf 'Content-Type: application/json\r\n'
-printf 'Cache-Control: no-store\r\n\r\n'
-printf '{"ok":%s,"message":"%s","username":"%s","redirect":"%s","instance":"%s"}\n' "$login_ok" "$(json_escape "$message")" "$(json_escape "$username")" "$(json_escape "$redirect")" "$(json_escape "$selected_instance")"
+if [ "$(query_value mikrotik)" = "1" ]; then
+    if [ "$login_ok" = "true" ]; then
+        printf "Status: 302 Found\r\n"
+        printf "Location: $redirect\r\n\r\n"
+    else
+        # Redirect back to login with error
+        # Use a simpler message or code for the URL
+        back_url="/cgi-bin/mikrotik-gate?res=failed&error=1"
+        [ -n "$challenge" ] && back_url="$back_url&challenge=$challenge"
+        [ -n "$uamip" ] && back_url="$back_url&uamip=$uamip"
+        [ -n "$uamport" ] && back_url="$back_url&uamport=$uamport"
+        [ -n "$userurl" ] && back_url="$back_url&userurl=$(urlencode "$userurl")"
+        printf "Status: 302 Found\r\n"
+        printf "Location: $back_url\r\n\r\n"
+    fi
+else
+    printf 'Content-Type: application/json\r\n'
+    printf 'Cache-Control: no-store\r\n\r\n'
+    printf '{"ok":%s,"message":"%s","err_code":"%s","username":"%s","redirect":"%s","instance":"%s"}\n' "$login_ok" "$(json_escape "$message")" "$(json_escape "$err_code")" "$(json_escape "$username")" "$(json_escape "$redirect")" "$(json_escape "$selected_instance")"
+fi

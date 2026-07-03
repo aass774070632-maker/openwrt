@@ -1,0 +1,68 @@
+#!/bin/sh
+
+base_ssid="$(uci -q get setup.default.wifi_ssid)"
+manual_ssid_2g="$(uci -q get setup.default.wifi_ssid_vlan_2g)"
+[ -n "$manual_ssid_2g" ] || manual_ssid_2g="$(uci -q get setup.default.wifi_ssid_vlan)"
+manual_ssid_5g="$(uci -q get setup.default.wifi_ssid_vlan_5g)"
+primary_ssid_5g_mode="$(uci -q get setup.default.wifi_ssid_5g_mode)"
+primary_ssid_5g_custom="$(uci -q get setup.default.wifi_ssid_5g)"
+lan_ipaddr="$(uci -q get network.lan.ipaddr)"
+[ -n "$lan_ipaddr" ] || lan_ipaddr="$(uci -q get setup.default.lan_ipaddr)"
+ip_suffix=''
+case "$lan_ipaddr" in
+	*.*.*.*) ip_suffix="$(printf '%s' "$lan_ipaddr" | awk -F. 'NF == 4 { print $3 "." $4 }')" ;;
+esac
+
+append_ip_suffix() {
+	local value="$1"
+
+	[ "$(uci -q get setup.default.wifi_ssid_vlan_ip_suffix)" = '1' ] || { printf '%s' "$value"; return; }
+	[ -n "$value" ] || { printf '%s' "$value"; return; }
+	[ -n "$ip_suffix" ] || { printf '%s' "$value"; return; }
+
+	case "$value" in
+		*"_$ip_suffix") printf '%s' "$value" ;;
+		*) printf '%s_%s' "$value" "$ip_suffix" ;;
+	esac
+}
+secondary_2g="${manual_ssid_2g:-${base_ssid}_VLAN}"
+secondary_2g="$(append_ip_suffix "$secondary_2g")"
+secondary_5g="${manual_ssid_5g:-${secondary_2g}_5G}"
+[ -n "$manual_ssid_5g" ] && secondary_5g="$(append_ip_suffix "$manual_ssid_5g")"
+primary_2g="$(append_ip_suffix "$base_ssid")"
+primary_5g="${primary_2g}_5G"
+[ "$primary_ssid_5g_mode" = 'custom' ] && [ -n "$primary_ssid_5g_custom" ] && primary_5g="$(append_ip_suffix "$primary_ssid_5g_custom")"
+changed=0
+
+[ -n "$base_ssid" ] || exit 0
+
+for section in $(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.=]*\)=wifi-iface$/\1/p"); do
+	[ "$(uci -q get wireless.$section.mode)" = 'ap' ] || continue
+	network="$(uci -q get wireless.$section.network)"
+	[ "$network" = 'lan' ] || [ "$network" = 'wizardvlan' ] || continue
+
+	device="$(uci -q get wireless.$section.device)"
+	[ -n "$device" ] || continue
+	band="$(uci -q get wireless.$device.band)"
+	[ "$band" = '2g' ] || [ "$band" = '5g' ] || continue
+
+	ssid="$(uci -q get wireless.$section.ssid)"
+	if [ "$network" = 'lan' ]; then
+		new_ssid="$primary_2g"
+		[ "$band" = '5g' ] && new_ssid="$primary_5g"
+	else
+		new_ssid="$secondary_2g"
+		[ "$band" = '5g' ] && new_ssid="$secondary_5g"
+	fi
+	[ "$ssid" = "$new_ssid" ] && continue
+
+	uci -q set wireless.$section.ssid="$new_ssid"
+	changed=1
+done
+
+if [ "$changed" = 1 ]; then
+	uci -q commit wireless
+	wifi reload >/dev/null 2>&1 || /etc/init.d/network reload >/dev/null 2>&1 || true
+fi
+
+exit 0

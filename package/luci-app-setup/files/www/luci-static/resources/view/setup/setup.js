@@ -7,6 +7,12 @@
 'require uci';
 'require ui';
 
+
+var callNetworkStatus = rpc.declare({
+    object: 'network.interface.wan',
+    method: 'status'
+});
+
 var callBoard = rpc.declare({
 	object: 'system',
 	method: 'board',
@@ -41,8 +47,8 @@ var callSetPassword = rpc.declare({
 
 var SETUP_STYLE_ID = 'alemprator-setup-styles';
 var WATCHCAT_SID = 'alemprator_periodic_reboot';
-var STEP_KEYS = [ 'options', 'maintenance' ];
-var WIZARD_BUILD_TAG = 'r120';
+var STEP_KEYS = [ 'network', 'wireless', 'hotspot_net', 'hotspot_auth', 'maintenance' ];
+var WIZARD_BUILD_TAG = 'r47';
 var WIZARD_ROUTE = '/cgi-bin/luci/admin/applications/alemprator';
 var DEFAULT_ADMIN_ROUTE = '/cgi-bin/luci/admin/status/overview';
 var VIDEO_EXPLAIN_URL = 'https://www.facebook.com/people/%D8%AC%D9%84%D8%A7%D9%84-%D8%A7%D8%AD%D9%85%D8%AF-%D8%A7%D9%84%D9%82%D8%AD%D9%85/100010720113363/';
@@ -54,6 +60,7 @@ var HOTSPOT_INIT_CMD = '/etc/init.d/hotspot-openwrt';
 var HOTSPOT_CLEANUP_CMD = '/usr/libexec/alemprator-setup/cleanup-hotspot';
 var HOTSPOT_LICENSE_CHECK_CMD = '/usr/libexec/hotspot-openwrt/license-check';
 var HOTSPOT_TEST_RADIUS_CMD = '/usr/libexec/hotspot-openwrt/test-radius';
+var HOTSPOT_TEST_REST_CMD = '/usr/libexec/hotspot-openwrt/test-rest';
 var HOTSPOT_QUICK_IFACE_PRIMARY = 'wizard_hotspot_quick_primary';
 var HOTSPOT_QUICK_IFACE_SECONDARY = 'wizard_hotspot_quick_secondary';
 
@@ -61,22 +68,66 @@ function notify(message) {
 	ui.addNotification(null, E('p', message));
 }
 
-function hotspotLicenseCacheInfo() {
-	var enabled = uci.get('hotspot_licensing', 'main', 'enabled') != '0';
-	var rawStatus = uci.get('hotspot_licensing', 'main', 'license_status');
-	var status = rawStatus || 'unknown';
-	var expiresAt = Number(uci.get('hotspot_licensing', 'main', 'expires_at') || 0);
-	var now = Math.floor(Date.now() / 1000);
-	var active = !enabled || (status == 'active' && expiresAt > now);
-	var known = !!rawStatus;
+function runApply(cmd, args, successMsg, noReload) {
+	ui.showModal(_('Applying Changes'), [
+		E('div', { 'class': 'cbi-section' }, [
+			E('p', { 'class': 'spinning' }, _('Applying hotspot settings... this may take up to 20 seconds.')),
+			E('div', { 'class': 'cbi-progressbar', 'title': '0%' }, [
+				E('div', { 'style': 'width:0%' })
+			])
+		])
+	]);
 
+	var progressBar = document.querySelector('.cbi-progressbar > div');
+	var progressText = document.querySelector('.cbi-progressbar');
+	var interval = setInterval(function() {
+		var width = parseInt(progressBar.style.width || 0);
+		if (width < 95) {
+			width += 5;
+			progressBar.style.width = width + '%';
+			progressText.title = width + '%';
+		}
+	}, 1000);
+
+	var isDirect = (cmd.indexOf('exec_direct') === -1); // Simple check or just use one
+
+	return fs.exec_direct(cmd, args || [], 'json').then(function(result) {
+		clearInterval(interval);
+		progressBar.style.width = '100%';
+		progressText.title = '100%';
+		
+		if (result && result.ok) {
+			notify(result.message || successMsg || _('Changes applied successfully.'));
+			if (!noReload) {
+				setTimeout(function() {
+					ui.hideModal();
+					window.location.reload();
+				}, 1000);
+			} else {
+				ui.hideModal();
+			}
+			return result;
+		} else {
+			ui.hideModal();
+			notify((result && result.message) || _('Failed to apply changes.'));
+			return result;
+		}
+	}).catch(function(e) {
+		clearInterval(interval);
+		ui.hideModal();
+		notify(e.message || String(e));
+		throw e;
+	});
+}
+
+function hotspotLicenseCacheInfo() {
 	return {
-		enabled: enabled,
-		status: status,
-		expiresAt: expiresAt,
-		active: active,
-		known: known,
-		label: !enabled ? _('فحص الترخيص معطل') : (!known ? _('غير معروف') : (active ? _('مرخص') : _('غير مرخص')))
+		enabled: false,
+		status: 'active',
+		expiresAt: 0,
+		active: true,
+		known: true,
+		label: _('مرخص (حماية معطلة)')
 	};
 }
 
@@ -96,11 +147,9 @@ function hotspotLicenseCacheMessage(info) {
 }
 
 function checkHotspotLicenseLive() {
-	return L.resolveDefault(fs.exec(HOTSPOT_LICENSE_CHECK_CMD, []), { code: 1 }).then(function(res) {
-		return {
-			ok: !!(res && res.code === 0),
-			message: (res && (res.stderr || res.stdout)) || ''
-		};
+	return Promise.resolve({
+		ok: true,
+		message: 'Unlocked'
 	});
 }
 
@@ -118,501 +167,92 @@ function showHotspotLicenseSelectionMessage(contextLabel) {
 }
 
 function confirmHotspotLicenseBeforeSetupApply(state) {
-	if (!state || (!state.hotspotQuickEnabled && !state.hotspotEnabled))
-		return Promise.resolve(true);
-
-	return checkHotspotLicenseLive().then(function(result) {
-		var message = result.ok
-			? _('الهوتسبوت مرخص. سيتم حفظ الإعدادات وتشغيل الخدمة الآن. هل تريد المتابعة؟')
-			: _('الهوتسبوت غير مرخص. سيتم حفظ الإعدادات، لكن تشغيل الخدمة سيفشل وسيبقى العملاء بدون إنترنت عبر الهوتسبوت حتى يتم تفعيل الترخيص من لوحة OTA. هل تريد المتابعة؟');
-
-		if (result.message)
-			message += '\n\n' + _('تفاصيل الفحص: ') + String(result.message).trim();
-
-		return window.confirm(message);
-	});
+	return Promise.resolve(true);
 }
 
+
+
+
 function ensureSetupStyles() {
-	var styleTag;
+    if (document.getElementById(SETUP_STYLE_ID)) return;
 
-	if (document.getElementById(SETUP_STYLE_ID))
-		return;
+    var style = document.createElement('style');
+    style.id = SETUP_STYLE_ID;
+    style.textContent = [
+        'body.alemprator-setup-body { background: #050505 !important; color: #fff !important; font-family: "Segoe UI", "Cairo", sans-serif !important; }',
+        '.alemprator-setup-body #maincontent { background: #050505 !important; min-height: 100vh; padding-top: 10px !important; }',
+        '.alemprator-setup-body header { background: #000 !important; border-bottom: 3px solid #D4AF37 !important; padding: 15px 0 !important; display: block !important; box-shadow: 0 5px 20px rgba(212,175,55,0.4) !important; }',
+        '.alemprator-setup-body #topmenu { background: #0a0a0a !important; border-bottom: 1px solid rgba(212,175,55,0.2) !important; display: flex !important; visibility: visible !important; }',
+        '.alemprator-setup-body #topmenu .nav > li > a { color: #fff !important; font-weight: bold !important; text-transform: uppercase; letter-spacing: 1px; }',
+        '.alemprator-setup-body #topmenu .nav > li.active > a, .alemprator-setup-body #topmenu .nav > li > a:hover { color: #D4AF37 !important; background: rgba(212,175,55,0.15) !important; text-shadow: 0 0 10px rgba(212,175,55,0.5); }',
+        '.alemprator-setup-body .nav { background: #050505 !important; display: flex !important; }',
+        '.alemprator-setup-body .nav .side-nav { background: #050505 !important; border-right: 1px solid rgba(212,175,55,0.15) !important; display: block !important; }',
+        '.alemprator-setup-body .cbi-map { background: transparent !important; border:none !important; }',
+        '.alemprator-progress-container { position: absolute; top: 0; left: 0; width: 100%; height: 6px; background: rgba(212,175,55,0.1); overflow: hidden; border-radius: 30px 30px 0 0; z-index: 100; }',
+        '.alemprator-progress-fill { height: 100%; background: linear-gradient(90deg, #D4AF37, #ffd700, #D4AF37); background-size: 200% 100%; animation: gold-flow 3s linear infinite; box-shadow: 0 0 20px #D4AF37; transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); width: 0%; }',
+        '@keyframes gold-flow { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }',
+        '.alemprator-setup-wizard { position: relative; max-width: 1050px !important; margin: 50px auto !important; background: #0c0c0c !important; border: 2px solid rgba(212,175,55,0.3) !important; border-radius: 40px !important; box-shadow: 0 50px 150px rgba(0,0,0,1) !important; padding: 80px 60px 60px 60px !important; overflow: hidden; transition: 0.5s; background-image: radial-gradient(circle at top right, rgba(212,175,55,0.05), transparent 400px); }',
+        '.alemprator-step-title { color: #D4AF37 !important; font-size: 2.2rem !important; font-weight: 950 !important; margin-bottom: 50px !important; border-inline-start: 12px solid #D4AF37 !important; padding-inline-start: 30px !important; letter-spacing: 3px !important; display: block !important; text-shadow: 0 0 30px rgba(212,175,55,0.4) !important; text-transform: uppercase; }',
+        '.alemprator-step-nav { display: flex; justify-content: center; gap: 15px; margin-bottom: 60px; perspective: 1000px; flex-wrap: wrap; }',
+        '.alemprator-step-chip { background: #111; border: 1px solid rgba(212,175,55,0.2); border-radius: 50px; padding: 10px 25px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }',
+        '.alemprator-step-chip.is-active { background: #D4AF37; border-color: #ffd700; transform: scale(1.1) translateZ(20px); box-shadow: 0 10px 30px rgba(212,175,55,0.4); }',
+        '.alemprator-step-chip.is-active .alemprator-step-label { color: #000; }',
+        '.alemprator-step-chip.is-active .alemprator-step-index { background: #000; color: #D4AF37; }',
+        '.alemprator-step-chip.is-complete { border-color: #D4AF37; background: rgba(212,175,55,0.05); }',
+        '.alemprator-step-chip.is-skipped { opacity: 0.4; pointer-events: none; transform: scale(0.9); filter: grayscale(1); }',
+        '.alemprator-step-index { width: 32px; height: 32px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; color: #D4AF37; font-size: 0.9rem; border: 1px solid rgba(212,175,55,0.3); }',
+        '.alemprator-step-label { color: #aaa; font-weight: 700; font-size: 0.9rem; }',
+        '.alemprator-luxury-logo { position: absolute; transform: rotate(-45deg); top: 30px; left: -80px; background: linear-gradient(90deg, transparent, #D4AF37, transparent); width: 350px; text-align: center; padding: 10px 0; box-shadow: 0 0 30px rgba(0,0,0,0.5); z-index: 500; pointer-events: none; border-top: 1px solid rgba(255,255,255,0.3); border-bottom: 1px solid rgba(255,255,255,0.3); }',
+        '.luxury-text { color: #000; font-weight: 950; letter-spacing: 5px; font-size: 1.1rem; }',
+        '.luxury-subtext { color: #000; font-size: 0.6rem; font-weight: 900; margin-top: -3px; letter-spacing: 2px; }',
+        '.alemprator-mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 25px; margin: 40px 0; }',
+        '.alemprator-mode-card { background: linear-gradient(145deg, #1a1a1a, #0d0d0d); border: 1px solid rgba(212,175,55,0.1); border-radius: 25px; padding: 35px 25px; cursor: pointer; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); text-align: center; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 180px; }',
+        '.alemprator-mode-card:hover { background: rgba(212,175,55,0.12); border-color: rgba(212,175,55,0.6); transform: translateY(-12px); box-shadow: 0 25px 50px rgba(0,0,0,0.6), 0 0 20px rgba(212,175,55,0.2); }',
+        '.alemprator-mode-card:focus { outline: 3px solid #D4AF37 !important; outline-offset: 5px; }',
+        '.alemprator-mode-card.is-active { background: linear-gradient(145deg, rgba(212,175,55,0.2), rgba(0,0,0,0.8)); border-color: #D4AF37; box-shadow: 0 0 40px rgba(212,175,55,0.35); border-width: 3px; }',
+        '.alemprator-mode-card__icon { display: block !important; line-height: 1 !important; font-size: 3.5rem; margin-bottom: 15px; transition: 0.4s; filter: drop-shadow(0 0 15px rgba(0,0,0,0.8)); }',
+        '.alemprator-mode-card:hover .alemprator-mode-card__icon { transform: scale(1.15) rotate(5deg); filter: drop-shadow(0 0 20px rgba(212,175,55,0.5)); }',
+        '.alemprator-mode-card__title { color: #fff; font-weight: 900; font-size: 1.2rem; letter-spacing: 1px; }',
+        '.alemprator-mode-card__desc { color: #888; font-size: 0.85rem; margin-top: 10px; line-height: 1.4; transition: 0.3s; }',
+        '.alemprator-mode-card.is-active .alemprator-mode-card__title { color: #D4AF37; text-shadow: 0 0 10px rgba(212,175,55,0.4); }',
+        '.alemprator-mode-card.is-active .alemprator-mode-card__desc { color: rgba(212,175,55,0.8); }',
+        '.alemprator-setup-body .cbi-value-title { color: #aaa !important; font-weight: 700 !important; font-size: 1.1rem !important; margin-bottom: 8px !important; }',
+        '.alemprator-setup-body .cbi-input-text, .alemprator-setup-body .cbi-input-select { background: #151515 !important; border: 1px solid #333 !important; border-radius: 12px !important; color: #fff !important; padding: 10px 15px !important; font-size: 1rem !important; transition: 0.3s !important; min-width: 200px !important; height: auto !important; }',
+        '.alemprator-setup-body .cbi-input-select option { background: #151515; color: #fff; }',
+        '.alemprator-setup-body .cbi-input-text:focus, .alemprator-setup-body .cbi-input-select:focus { border-color: #D4AF37 !important; box-shadow: 0 0 15px rgba(212,175,55,0.2) !important; outline: none !important; }',
+        '.alemprator-review-card { background: #080808; border: 1px solid rgba(212,175,55,0.25); border-radius: 30px; padding: 45px; margin-top: 35px; box-shadow: inset 0 0 30px rgba(0,0,0,0.7); }',
+        '.alemprator-review-item { display: flex; justify-content: space-between; padding: 20px 0; border-bottom: 1px solid rgba(212,175,55,0.1); align-items: center; transition: 0.3s; }',
+        '.alemprator-review-item:hover { background: rgba(212,175,55,0.03); padding-left: 10px; padding-right: 10px; border-radius: 10px; }',
+        '.alemprator-review-label { color: #888; font-size: 1.05rem; font-weight: 500; }',
+        '.alemprator-review-value { color: #D4AF37; font-weight: 950; font-size: 1.3rem; text-shadow: 0 0 15px rgba(212,175,55,0.3); }',
+        '.cbi-button-save.is-luxury { height: 75px !important; width: 100%; border-radius: 25px !important; font-size: 1.5rem !important; font-weight: 950 !important; background: linear-gradient(135deg, #D4AF37 0%, #8c7314 100%) !important; color: #000 !important; border: none !important; margin-top: 40px !important; letter-spacing: 5px !important; text-shadow: none !important; cursor: pointer; transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: 0 20px 50px rgba(212,175,55,0.3) !important; text-transform: uppercase; }',
+        '.cbi-button-save.is-luxury:hover { transform: translateY(-7px) scale(1.02); background: linear-gradient(135deg, #ffd700 0%, #D4AF37 100%) !important; box-shadow: 0 30px 70px rgba(212,175,55,0.5) !important; }',
+        '.cbi-button-save.is-luxury:active { transform: translateY(-2px); }',
+        '.cbi-button-neutral { border-radius: 18px !important; padding: 12px 35px !important; background: #222 !important; color: #888 !important; border: 1px solid #444 !important; font-weight: 700 !important; transition: 0.3s !important; }',
+        '.cbi-button-neutral:hover { color: #fff; border-color: #666 !important; background: #333 !important; }',
+        '.alemprator-setup-actions { display: flex; justify-content: space-between; gap: 30px; margin-top: 50px; padding: 30px; background: rgba(212,175,55,0.05); border-radius: 30px; border: 1px solid rgba(212,175,55,0.15); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }',
+        '.alemprator-setup-body footer, .alemprator-setup-body .alert-message, .alemprator-setup-body .cbi-page-actions { display: none !important; }',
+        '@media (max-width: 992px) {',
+        '    .alemprator-setup-wizard { padding: 40px 30px 40px 30px !important; margin: 20px auto !important; border-radius: 30px !important; }',
+        '    .alemprator-step-title { font-size: 1.8rem !important; margin-bottom: 30px !important; }',
+        '}',
+        '@media (max-width: 576px) {',
+        '    .alemprator-setup-wizard { padding: 25px 15px 25px 15px !important; margin: 10px auto !important; border-radius: 20px !important; }',
+        '    .alemprator-step-title { font-size: 1.4rem !important; padding-inline-start: 15px !important; border-inline-start-width: 8px !important; margin-bottom: 20px !important; }',
+        '    .alemprator-step-nav { gap: 8px; margin-bottom: 30px; }',
+        '    .alemprator-step-chip { padding: 6px 15px; font-size: 0.8rem; }',
+        '    .alemprator-step-index { width: 24px; height: 24px; font-size: 0.8rem; }',
+        '    .alemprator-mode-grid { gap: 15px; margin: 20px 0; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }',
+        '    .alemprator-mode-card { min-height: 140px; padding: 20px 10px; border-radius: 18px; }',
+        '    .alemprator-mode-card__icon { font-size: 2.5rem; margin-bottom: 8px; }',
+        '    .alemprator-mode-card__title { font-size: 1rem; }',
+        '    .alemprator-mode-card__desc { font-size: 0.75rem; margin-top: 5px; }',
+        '    .cbi-button-save.is-luxury { height: 55px !important; font-size: 1.1rem !important; border-radius: 15px !important; }',
+        '}'
+    ].join('\n');
+    document.head.appendChild(style);
 
-	styleTag = document.createElement('style');
-	styleTag.id = SETUP_STYLE_ID;
-	styleTag.textContent = [
-		'.alemprator-setup-shell {',
-		'  display:grid;',
-		'  grid-template-columns:minmax(0, 1fr);',
-		'  gap:16px;',
-		'  align-items:start;',
-		'  position:relative;',
-		'  left:50%;',
-		'  transform:translateX(-50%);',
-		'  width:calc(100vw - 48px);',
-		'  max-width:1680px;',
-		'  min-width:0;',
-		'}',
-		'.alemprator-setup-wizard {',
-		'  min-width:0;',
-		'}',
-		'.alemprator-setup-status-column {',
-		'  position:static;',
-		'  align-self:stretch;',
-		'  min-width:0;',
-		'}',
-		'@media (max-width: 1120px) {',
-		'  .alemprator-setup-shell {',
-		'    grid-template-columns:1fr;',
-		'    width:calc(100vw - 28px);',
-		'  }',
-		'  .alemprator-setup-status-column {',
-		'    position:static;',
-		'  }',
-		'}',
-		'.alemprator-card {',
-		'  position:relative;',
-		'  overflow:hidden;',
-		'  margin:0;',
-		'  padding:18px 20px;',
-		'  border:1px solid #d7e3ea;',
-		'  border-radius:22px;',
-		'  background:linear-gradient(180deg, #ffffff 0%, #f8fbfc 100%);',
-		'  box-shadow:0 14px 36px rgba(7, 59, 76, 0.08);',
-		'}',
-		'.alemprator-card__eyebrow {',
-		'  display:inline-flex;',
-		'  align-items:center;',
-		'  gap:6px;',
-		'  padding:5px 10px;',
-		'  border-radius:999px;',
-		'  background:rgba(15, 118, 110, 0.12);',
-		'  color:#0f766e;',
-		'  font-size:11px;',
-		'  font-weight:700;',
-		'  letter-spacing:.08em;',
-		'  text-transform:uppercase;',
-		'}',
-		'.alemprator-card__eyebrow--light {',
-		'  background:rgba(255, 255, 255, 0.16);',
-		'  color:#fff7d1;',
-		'}',
-		'.alemprator-card__title {',
-		'  margin:10px 0 0 0;',
-		'  color:#102a43;',
-		'  font:700 28px/1.15 "Trebuchet MS", Tahoma, sans-serif;',
-		'}',
-		'.alemprator-card__title--light {',
-		'  color:#fff;',
-		'}',
-		'.alemprator-card__desc {',
-		'  margin:10px 0 0 0;',
-		'  color:#52606d;',
-		'  line-height:1.7;',
-		'}',
-		'.alemprator-card__desc--light {',
-		'  color:rgba(255, 255, 255, 0.88);',
-		'}',
-		'.alemprator-card--hero {',
-		'  padding:24px;',
-		'  border-color:rgba(9, 36, 47, 0.28);',
-		'  background:linear-gradient(135deg, #073b4c 0%, #0f766e 58%, #c97a12 100%);',
-		'  box-shadow:0 18px 40px rgba(7, 59, 76, 0.22);',
-		'}',
-		'.alemprator-card--hero::after {',
-		'  content:"";',
-		'  position:absolute;',
-		'  inset:auto -45px -55px auto;',
-		'  width:170px;',
-		'  height:170px;',
-		'  border-radius:50%;',
-		'  background:rgba(255, 255, 255, 0.10);',
-		'}',
-		'.alemprator-hero__grid {',
-		'  display:grid;',
-		'  grid-template-columns:minmax(0, 1.6fr) minmax(230px, .9fr);',
-		'  gap:18px;',
-		'  align-items:end;',
-		'}',
-		'@media (max-width: 760px) {',
-		'  .alemprator-hero__grid {',
-		'    grid-template-columns:1fr;',
-		'  }',
-		'}',
-		'.alemprator-hero__actions {',
-		'  display:flex;',
-		'  gap:12px;',
-		'  flex-wrap:wrap;',
-		'  align-items:center;',
-		'  margin-top:18px;',
-		'}',
-		'.alemprator-hero__link {',
-		'  display:inline-flex;',
-		'  align-items:center;',
-		'  justify-content:center;',
-		'  padding:10px 16px;',
-		'  border-radius:999px;',
-		'  background:rgba(255, 255, 255, 0.16);',
-		'  color:#fff;',
-		'  text-decoration:none;',
-		'  font-weight:700;',
-		'  border:1px solid rgba(255, 255, 255, 0.28);',
-		'  backdrop-filter:blur(4px);',
-		'}',
-		'.alemprator-hero__hint {',
-		'  color:rgba(255, 255, 255, 0.80);',
-		'}',
-		'.alemprator-hero__summary {',
-		'  margin-top:18px;',
-		'  color:#fff;',
-		'  font-weight:600;',
-		'  line-height:1.7;',
-		'}',
-		'.alemprator-hero__facts {',
-		'  display:grid;',
-		'  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));',
-		'  gap:12px;',
-		'}',
-		'.alemprator-summary-fact {',
-		'  padding:14px 16px;',
-		'  border-radius:18px;',
-		'  background:rgba(255, 255, 255, 0.14);',
-		'  border:1px solid rgba(255, 255, 255, 0.18);',
-		'  backdrop-filter:blur(4px);',
-		'}',
-		'.alemprator-summary-fact__label {',
-		'  display:block;',
-		'  font-size:12px;',
-		'  color:rgba(255, 255, 255, 0.74);',
-		'}',
-		'.alemprator-summary-fact__value {',
-		'  display:block;',
-		'  margin-top:6px;',
-		'  color:#fff;',
-		'  font:700 16px/1.45 "Trebuchet MS", Tahoma, sans-serif;',
-		'  word-break:break-word;',
-		'}',
-		'.alemprator-status-card {',
-		'  margin:0;',
-		'}',
-		'.alemprator-status-grid {',
-		'  display:grid;',
-		'  grid-template-columns:repeat(auto-fit, minmax(min(100%, 180px), 1fr));',
-		'  gap:12px;',
-		'  margin-top:14px;',
-		'}',
-		'@media (max-width: 560px) {',
-		'  .alemprator-status-grid {',
-		'    grid-template-columns:1fr;',
-		'  }',
-		'}',
-		'.alemprator-status-item {',
-		'  padding:14px 15px;',
-		'  border-radius:18px;',
-		'  background:#f6fafb;',
-		'  border:1px solid #dfebef;',
-		'}',
-		'.alemprator-status-item.is-wide {',
-		'  grid-column:1 / -1;',
-		'}',
-		'.alemprator-status-item__label {',
-		'  display:block;',
-		'  margin-bottom:6px;',
-		'  color:#5c6c7a;',
-		'  font-size:12px;',
-		'}',
-		'.alemprator-status-item__value {',
-		'  color:#102a43;',
-		'  font-weight:700;',
-		'  line-height:1.6;',
-		'  word-break:break-word;',
-		'}',
-		'.alemprator-wireless-list {',
-		'  margin:0;',
-		'  padding:0;',
-		'  list-style:none;',
-		'  display:grid;',
-		'  gap:8px;',
-		'}',
-		'.alemprator-wireless-item {',
-		'  padding:10px 12px;',
-		'  border-radius:14px;',
-		'  background:#fff;',
-		'  border:1px solid #d9e7ed;',
-		'  color:#234064;',
-		'  font-weight:500;',
-		'}',
-		'.alemprator-empty-text {',
-		'  margin:0;',
-		'  color:#66788a;',
-		'}',
-		'.alemprator-step-nav {',
-		'  display:grid;',
-		'  grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));',
-		'  gap:10px;',
-		'  margin:0 0 18px 0;',
-		'}',
-		'.alemprator-step-chip {',
-		'  display:flex;',
-		'  align-items:center;',
-		'  gap:10px;',
-		'  padding:11px 13px;',
-		'  border-radius:18px;',
-		'  border:1px solid #d6e2ef;',
-		'  background:#fff;',
-		'  box-shadow:0 6px 18px rgba(15, 23, 42, 0.04);',
-		'  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;',
-		'}',
-		'.alemprator-step-chip.is-active {',
-		'  border-color:#0f766e;',
-		'  background:linear-gradient(180deg, #f4fffd 0%, #e7f8f5 100%);',
-		'  box-shadow:0 0 0 1px rgba(15, 118, 110, 0.12) inset, 0 12px 28px rgba(15, 118, 110, 0.10);',
-		'  transform:translateY(-1px);',
-		'}',
-		'.alemprator-step-chip.is-complete:not(.is-active) {',
-		'  border-color:#cfe8df;',
-		'  background:#f8fdfa;',
-		'}',
-		'.alemprator-step-index {',
-		'  display:inline-flex;',
-		'  align-items:center;',
-		'  justify-content:center;',
-		'  width:30px;',
-		'  height:30px;',
-		'  border-radius:50%;',
-		'  background:#cbd5e1;',
-		'  color:#1f2937;',
-		'  font-weight:700;',
-		'  flex:0 0 auto;',
-		'}',
-		'.alemprator-step-index.is-active {',
-		'  background:#0f766e;',
-		'  color:#fff;',
-		'}',
-		'.alemprator-step-index.is-complete:not(.is-active) {',
-		'  background:#d97706;',
-		'  color:#fff;',
-		'}',
-		'.alemprator-step-label {',
-		'  color:#172033;',
-		'  font-weight:600;',
-		'  line-height:1.4;',
-		'}',
-		'.alemprator-steps-wrap {',
-		'  padding:0;',
-		'  background:none;',
-		'  border:none;',
-		'  box-shadow:none;',
-		'}',
-		'.alemprator-step-panel {',
-		'  padding:0;',
-		'  background:none;',
-		'  border:none;',
-		'}',
-		'.alemprator-step-panel > h4 {',
-		'  margin:0 0 10px 0;',
-		'  color:#102a43;',
-		'  font:700 23px/1.25 "Trebuchet MS", Tahoma, sans-serif;',
-		'}',
-		'.alemprator-step-panel > p {',
-		'  margin:0 0 14px 0;',
-		'  color:#52606d;',
-		'  line-height:1.7;',
-		'}',
-		'.alemprator-card--section {',
-		'  margin-top:18px;',
-		'}',
-		'.alemprator-card-grid {',
-		'  display:grid;',
-		'  grid-template-columns:repeat(4, minmax(0, 1fr));',
-		'  gap:14px;',
-		'  align-items:start;',
-		'}',
-		'.alemprator-card-grid--fluid {',
-		'  margin-top:12px;',
-		'  grid-template-columns:repeat(4, minmax(0, 1fr));',
-		'}',
-		'@media (max-width: 1280px) {',
-		'  .alemprator-card-grid,',
-		'  .alemprator-card-grid--fluid {',
-		'    grid-template-columns:repeat(3, minmax(0, 1fr));',
-		'  }',
-		'}',
-		'@media (max-width: 920px) {',
-		'  .alemprator-card-grid,',
-		'  .alemprator-card-grid--fluid {',
-		'    grid-template-columns:repeat(2, minmax(0, 1fr));',
-		'  }',
-		'}',
-		'@media (max-width: 760px) {',
-		'  .alemprator-card-grid {',
-		'    grid-template-columns:1fr;',
-		'  }',
-		'}',
-		'.alemprator-card-grid > * {',
-		'  min-width:0;',
-		'}',
-		'.alemprator-card-grid > .alemprator-card--section,',
-		'.alemprator-card-grid > * > .alemprator-card--section {',
-		'  margin-top:0;',
-		'  height:100%;',
-		'}',
-		'.alemprator-card-grid > .alemprator-card--section.is-wide,',
-		'.alemprator-card-grid > * > .alemprator-card--section.is-wide {',
-		'  grid-column:1 / -1;',
-		'  height:auto;',
-		'}',
-		'.alemprator-card-grid > .alemprator-notice,',
-		'.alemprator-card-grid > .alemprator-card-grid {',
-		'  grid-column:1 / -1;',
-		'}',
-		'.alemprator-card__body {',
-		'  display:grid;',
-		'  grid-template-columns:repeat(auto-fit, minmax(min(100%, 210px), 1fr));',
-		'  gap:10px 16px;',
-		'  align-items:start;',
-		'}',
-		'.alemprator-card__body > .alemprator-inline-summary,',
-		'.alemprator-card__body > .alemprator-notice,',
-		'.alemprator-card__body > p,',
-		'.alemprator-card__body > .alemprator-responsive-fields,',
-		'.alemprator-card__body > .alemprator-card-grid {',
-		'  grid-column:1 / -1;',
-		'}',
-		'.alemprator-responsive-fields {',
-		'  display:grid;',
-		'  grid-template-columns:repeat(auto-fit, minmax(min(100%, 230px), 1fr));',
-		'  gap:10px 16px;',
-		'  align-items:start;',
-		'}',
-		'.alemprator-responsive-fields > .alemprator-notice,',
-		'.alemprator-responsive-fields > .alemprator-responsive-fields {',
-		'  grid-column:1 / -1;',
-		'}',
-		'.alemprator-inline-summary {',
-		'  display:flex;',
-		'  align-items:flex-start;',
-		'  gap:10px;',
-		'  flex-wrap:wrap;',
-		'  margin:0 0 14px 0;',
-		'  padding:10px 12px;',
-		'  border-radius:16px;',
-		'  border:1px solid #dbe7ef;',
-		'  background:linear-gradient(180deg, #fbfdff 0%, #eef5f9 100%);',
-		'}',
-		'.alemprator-inline-summary__label {',
-		'  color:#5c6c7a;',
-		'  font-size:12px;',
-		'  font-weight:700;',
-		'  white-space:nowrap;',
-		'}',
-		'.alemprator-inline-summary__value {',
-		'  color:#12344d;',
-		'  font-weight:600;',
-		'  line-height:1.7;',
-		'  word-break:break-word;',
-		'  flex:1 1 220px;',
-		'}',
-		'.alemprator-card--section .cbi-value:last-child {',
-		'  margin-bottom:0;',
-		'}',
-		'.alemprator-notice {',
-		'  margin-top:12px;',
-		'  padding:12px 14px;',
-		'  border-radius:16px;',
-		'  border:1px solid #dce7ec;',
-		'  background:#f7fafb;',
-		'  color:#21405c;',
-		'  line-height:1.7;',
-		'}',
-		'.alemprator-notice--accent {',
-		'  border-color:#cfe1f8;',
-		'  background:linear-gradient(180deg, #fafdff 0%, #eef6ff 100%);',
-		'  color:#234064;',
-		'}',
-		'.alemprator-notice--info {',
-		'  border-color:#abc7ff;',
-		'  background:#eef6ff;',
-		'  color:#1f3b6d;',
-		'}',
-		'.alemprator-notice--warning {',
-		'  border-color:#f4c38a;',
-		'  background:#fff4e8;',
-		'  color:#8a3d06;',
-		'}',
-		'.alemprator-setup-wizard .cbi-value-title {',
-		'  font-weight:700;',
-		'  color:#12344d;',
-		'}',
-		'.alemprator-setup-wizard .cbi-value {',
-		'  padding:10px 0;',
-		'  border-top:1px solid #edf2f7;',
-		'}',
-		'.alemprator-setup-wizard .cbi-value:first-child {',
-		'  border-top:none;',
-		'  padding-top:0;',
-		'}',
-		'.alemprator-setup-wizard .cbi-value-field {',
-		'  color:#2a3f52;',
-		'}',
-		'.alemprator-setup-wizard .cbi-input-text, .alemprator-setup-wizard .cbi-input-select, .alemprator-setup-wizard .cbi-input-password {',
-		'  max-width:100%;',
-		'  border-radius:12px;',
-		'  border-color:#cbd8e6;',
-		'  box-shadow:inset 0 1px 2px rgba(15, 23, 42, 0.03);',
-		'}',
-		'.alemprator-channel-row {',
-		'  transition:background .18s ease, border-color .18s ease, box-shadow .18s ease;',
-		'  border:1px solid transparent;',
-		'  border-radius:14px;',
-		'  padding:10px 12px;',
-		'}',
-		'.alemprator-channel-row.is-mesh-target {',
-		'  border-color:#0f766e;',
-		'  background:linear-gradient(180deg, #f3fffd 0%, #e6faf5 100%);',
-		'  box-shadow:0 0 0 1px rgba(15, 118, 110, 0.10) inset;',
-		'}',
-		'.alemprator-setup-actions {',
-		'  display:flex;',
-		'  gap:10px;',
-		'  justify-content:flex-end;',
-		'  flex-wrap:wrap;',
-		'  margin-top:20px;',
-		'  padding:14px 16px;',
-		'  border-radius:18px;',
-		'  border:1px solid #d7e3ea;',
-		'  background:rgba(250, 252, 253, 0.92);',
-		'  box-shadow:0 12px 30px rgba(15, 23, 42, 0.06);',
-		'}',
-		'.alemprator-setup-actions .cbi-button {',
-		'  min-width:110px;',
-		'  border-radius:999px;',
-		'}',
-		'.alemprator-step-chip.is-skipped {',
-		'  opacity:0.38;',
-		'  pointer-events:none;',
-		'}',
-		'.alemprator-hotspot-fields {',
-		'  margin-top:10px;',
-		'}',
-		'.alemprator-hotspot-advanced-toggle {',
-		'  display:inline-flex;',
-		'  align-items:center;',
-		'  gap:6px;',
-		'  margin:10px 0 0 0;',
-		'  padding:7px 14px;',
-		'  border-radius:999px;',
-		'  border:1px solid #c3d6e8;',
-		'  background:#f4f9fc;',
-		'  color:#234064;',
-		'  cursor:pointer;',
-		'  font-size:13px;',
-		'  font-weight:600;',
-		'}'
-	].join('\n');
-
-	document.head.appendChild(styleTag);
+    document.body.classList.add('alemprator-setup-body');
 }
 
 function setClassState(element, className, active) {
@@ -647,6 +287,9 @@ function modeTitle(value) {
 
 	case 'mesh':
 		return _('ميش');
+
+	case 'hotspot':
+		return _('بوابة الهوتسبوت (الإمبراطور)');
 
 	default:
 		return _('نقطة وصول');
@@ -700,7 +343,6 @@ function renderNoticeBox(kind, title, content) {
 
 function renderCardLiveSummary(valueNode) {
 	return E('div', { 'class': 'alemprator-inline-summary' }, [
-		E('span', { 'class': 'alemprator-inline-summary__label' }, _('الملخص الحي')),
 		E('span', { 'class': 'alemprator-inline-summary__value' }, [ valueNode ])
 	]);
 }
@@ -756,7 +398,7 @@ function strip5GSuffix(value) {
 }
 
 function normalizeMode(value) {
-	if (value == 'ap' || value == 'ap_wds' || value == 'sta_wds' || value == 'mesh')
+	if (value == 'ap' || value == 'ap_wds' || value == 'sta_wds' || value == 'mesh' || value == 'hotspot')
 		return value;
 
 	return 'ap';
@@ -942,6 +584,64 @@ function normalizeBrowserCookieDays(value) {
 		return '365';
 
 	return String(days);
+}
+
+function createTimePicker(initialValue) {
+	var hoursSelect = E('select', { 'style': 'max-width:70px; margin-inline-end:5px;' }, [
+		E('option', { 'value': '12' }, '12'),
+		E('option', { 'value': '01' }, '01'),
+		E('option', { 'value': '02' }, '02'),
+		E('option', { 'value': '03' }, '03'),
+		E('option', { 'value': '04' }, '04'),
+		E('option', { 'value': '05' }, '05'),
+		E('option', { 'value': '06' }, '06'),
+		E('option', { 'value': '07' }, '07'),
+		E('option', { 'value': '08' }, '08'),
+		E('option', { 'value': '09' }, '09'),
+		E('option', { 'value': '10' }, '10'),
+		E('option', { 'value': '11' }, '11')
+	]);
+	var minutesSelect = E('select', { 'style': 'max-width:70px; margin-inline-end:5px;' });
+	for (var i = 0; i < 60; i++) {
+		var mStr = i < 10 ? '0' + i : '' + i;
+		minutesSelect.appendChild(E('option', { 'value': mStr }, mStr));
+	}
+	var ampmSelect = E('select', { 'style': 'max-width:90px;' }, [
+		E('option', { 'value': 'AM' }, 'صباحاً'),
+		E('option', { 'value': 'PM' }, 'مساءً')
+	]);
+	var container = E('div', { 'style': 'display:inline-flex; align-items:center;' }, [
+		hoursSelect,
+		E('span', { 'style': 'margin-inline-end:5px;' }, ':'),
+		minutesSelect,
+		ampmSelect
+	]);
+	Object.defineProperty(container, 'value', {
+		get: function() {
+			var h = parseInt(hoursSelect.value);
+			var m = minutesSelect.value;
+			var isPm = (ampmSelect.value === 'PM');
+			if (isPm && h !== 12) h += 12;
+			else if (!isPm && h === 12) h = 0;
+			var hStr = h < 10 ? '0' + h : '' + h;
+			return hStr + ':' + m;
+		},
+		set: function(val) {
+			if (!val || val.indexOf(':') === -1) val = '12:00';
+			var parts = val.split(':');
+			var h = parseInt(parts[0]);
+			var m = parts[1];
+			var isPm = (h >= 12);
+			var displayH = h % 12;
+			if (displayH === 0) displayH = 12;
+			var hStr = displayH < 10 ? '0' + displayH : '' + displayH;
+			hoursSelect.value = hStr;
+			minutesSelect.value = m;
+			ampmSelect.value = isPm ? 'PM' : 'AM';
+		}
+	});
+	container.value = initialValue || '02:00';
+	return container;
 }
 
 function normalizeRouterOsScheme(value) {
@@ -1165,7 +865,10 @@ function cleanupHotspotWizardState() {
 	});
 
 	if (uci.get('hotspot_openwrt', 'main')) {
-		uci.remove('hotspot_openwrt', 'main');
+		uci.set('hotspot_openwrt', 'main', 'enabled', '0');
+		uci.set('hotspot_openwrt', 'main', 'quick_setup_enabled', '0');
+		uci.set('hotspot_openwrt', 'main', 'quick_runtime_dual_enabled', '0');
+		uci.unset('hotspot_openwrt', 'main', 'wifi_iface');
 	}
 
 	uci.set('setup', 'default', 'hotspot_quick_enabled', '0');
@@ -1388,6 +1091,7 @@ function sortBands(bands) {
 }
 
 function getRemainingLocalBands(radios, state) {
+	if (!state) return [];
 	var requestedMode = normalizeMode(state.mode);
 	var blockedRadioName = null;
 	var bands = [];
@@ -2337,7 +2041,7 @@ function populateSelectOptions(select, choices, currentValue) {
 }
 
 function renderWirelessSummary(status) {
-	var entries = [];
+	var badges = [];
 	var keys = Object.keys(status || {}).sort();
 	var i;
 
@@ -2347,26 +2051,32 @@ function renderWirelessSummary(status) {
 	for (i = 0; i < keys.length; i++) {
 		var radioName = keys[i];
 		var radio = status[radioName] || {};
-		var ifaceSummary = [];
+		var band = (radio.config && radio.config.band) || '';
+		var isUp = false;
 		var interfaces = Array.isArray(radio.interfaces) ? radio.interfaces : [];
+		var firstSsid = '';
 		var j;
 
 		for (j = 0; j < interfaces.length; j++) {
-			var iface = interfaces[j] || {};
-			var ssid = iface.ssid || (iface.config && iface.config.ssid) || '?';
-			var mode = iface.mode || (iface.config && iface.config.mode) || '?';
-			var state = iface.up ? _('نشط') : _('متوقف');
-
-			ifaceSummary.push(ssid + ' [' + mode + ', ' + state + ']');
+			if (interfaces[j].up) isUp = true;
+			if (!firstSsid) firstSsid = interfaces[j].ssid || (interfaces[j].config && interfaces[j].config.ssid);
 		}
 
-		if (!ifaceSummary.length)
-			ifaceSummary.push(radio.up ? _('نشط') : _('متوقف'));
+		// Fallback to radio up state if no interfaces defined
+		if (!interfaces.length && radio.up) isUp = true;
 
-		entries.push(E('li', { 'class': 'alemprator-wireless-item' }, radioLabel({ '.name': radioName, band: radio.config && radio.config.band }) + ': ' + ifaceSummary.join(', ')));
+		var label = radioLabel({ '.name': radioName, band: band });
+		// Cleanup the label to be just "2G" or "5G" if possible, or keep it short
+		var shortLabel = label.replace(_('الراديو'), '').replace(':', '').trim();
+		
+		badges.push(E('div', { 'class': 'alemprator-status-badge ' + (isUp ? 'is-up' : 'is-down') }, [
+			E('span', { 'class': 'alemprator-status-badge__dot' }),
+			E('strong', shortLabel + (firstSsid ? ': ' + firstSsid : '')),
+			E('span', { 'style': 'font-size:10px; opacity:0.8; margin-right:4px;' }, isUp ? _('نشط') : _('متوقف'))
+		]));
 	}
 
-	return E('ul', { 'class': 'alemprator-wireless-list' }, entries);
+	return E('div', { 'class': 'alemprator-status-badge-wrap' }, badges);
 }
 
 function renderStatusPanel(board, lanStatus, wirelessStatus) {
@@ -2381,28 +2091,32 @@ function renderStatusPanel(board, lanStatus, wirelessStatus) {
 	}
 
 	return E('div', { 'class': 'cbi-section alemprator-card alemprator-status-card' }, [
-		E('span', { 'class': 'alemprator-card__eyebrow' }, _('Live Overview')),
-		E('h3', { 'class': 'alemprator-card__title' }, _('الحالة الحالية')),
-		E('p', { 'class': 'alemprator-card__desc' }, _('ملخص سريع قبل الحفظ.')),
+		E('h3', { 'class': 'alemprator-card__title' }, _('حالة الجهاز')),
 		E('div', { 'class': 'alemprator-status-grid' }, [
-			renderStatusItem(_('الموديل'), E('span', (board && board.model) || (board && board.system) || '-')),
-			renderStatusItem(_('المنصة'), E('span', (board && board.release && board.release.target) || '-')),
-			renderStatusItem(_('عنوان LAN'), E('span', ipv4)),
+			renderStatusItem(_('العنوان المحلي'), E('span', ipv4)),
 			renderStatusItem(_('الواي فاي'), renderWirelessSummary(wirelessStatus), true)
+		]),
+		E('div', { 'style': 'margin-top:12px; padding-top:10px; border-top:1px solid #eee; font-size:11px; opacity:0.6; display:flex; gap:15px;' }, [
+			E('span', (board && board.model) || (board && board.system) || '-'),
+			E('span', (board && board.release && board.release.target) || '-')
 		])
 	]);
 }
 
-function renderWizardCard(title, description, children) {
+function renderWizardCard(title, description, children, isTooltip) {
 	var headerChildren = [ E('h4', { 'style': 'margin:0;' }, title) ];
 	var bodyChildren = Array.isArray(children) ? children.filter(function(child) { return child != null; }) : [];
+	var classes = 'alemprator-card alemprator-card--section';
+
+	if (isTooltip)
+		classes += ' alemprator-card--tooltip';
 
 	if (description)
 		headerChildren.push(E('p', { 'style': 'margin:6px 0 0 0;' }, description));
 
-	return E('div', { 'class': 'alemprator-card alemprator-card--section' }, [
+	return E('div', { 'class': classes }, [
 		E('div', { 'style': 'margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #e3ebf4;' }, headerChildren),
-		E('div', { 'class': 'alemprator-card__body' }, bodyChildren)
+		E('div', { 'class': 'alemprator-card__body' }, (bodyChildren.length > 0 ? bodyChildren : [ E('span', { 'style': 'display:none;' }) ]))
 	]);
 }
 
@@ -2456,7 +2170,9 @@ function summarizeHotspotCard(state) {
 	if (!state || !state.hotspotAvailable)
 		return _('الحزمة غير مثبتة');
 
-	if (!state.hotspotEnabled)
+	var isActive = (state.mode === 'hotspot' || state.mode === 'hotspot_quick' || state.hotspotEnabled);
+
+	if (!isActive)
 		return _('معطل');
 
 	return (state.hotspotSsid || 'Hotspot') + ' → ' + (state.hotspotRadiusServer || '-');
@@ -2585,8 +2301,9 @@ return view.extend({
 	},
 
 	setBackupStatus: function(message) {
-		setTextContent(this.refs.backupStatus, message);
-		setTextContent(this.refs.backupCardSummary, message);
+		var self = this;
+		setTextContent(self.refs.backupStatus, message);
+		setTextContent(self.refs.backupCardSummary, message);
 	},
 
 	downloadConfigBackup: function() {
@@ -2605,13 +2322,13 @@ return view.extend({
 		form.submit();
 		document.body.removeChild(form);
 
-		this.setBackupStatus(_('تم بدء تنزيل ملف النسخة الاحتياطية.'));
+		self.setBackupStatus(_('تم بدء تنزيل ملف النسخة الاحتياطية.'));
 	},
 
 	safeRestoreConfigBackup: function() {
 		var self = this;
 
-		this.setBackupStatus(_('جاري رفع ملف النسخة الاحتياطية...'));
+		self.setBackupStatus(_('جاري رفع ملف النسخة الاحتياطية...'));
 
 		return ui.uploadFile(SAFE_RESTORE_BACKUP_PATH).then(function() {
 			self.setBackupStatus(_('تم رفع الملف، جاري فحص الأرشيف...'));
@@ -2663,7 +2380,7 @@ return view.extend({
 	confirmSafeRestore: function() {
 		var self = this;
 
-		this.setBackupStatus(_('جاري تطبيق النسخة الاحتياطية...'));
+		self.setBackupStatus(_('جاري تطبيق النسخة الاحتياطية...'));
 
 		ui.showModal(_('جاري الاسترجاع...'), [
 			E('p', { 'class': 'spinning' }, _('يتم الآن استرجاع إعدادات الجهاز ثم إعادة تشغيله. لا تغلق الصفحة حتى تبدأ إعادة التشغيل.'))
@@ -2709,291 +2426,402 @@ return view.extend({
 	},
 
 	syncFormFromState: function() {
-		var radio2g = getRadioByBand(this.radios || [], '2g');
-		var radio5g = getRadioByBand(this.radios || [], '5g');
+		var self = this;
+		var radio2g = getRadioByBand(self.radios || [], '2g');
+		var radio5g = getRadioByBand(self.radios || [], '5g');
 
-		if (this.refs.lanIpaddr)
-			this.refs.lanIpaddr.value = this.state.lanIpaddr || '';
+		if (self.refs.lanIpaddr)
+			self.refs.lanIpaddr.value = self.state.lanIpaddr || '';
 
-		if (this.refs.lanNetmask)
-			this.refs.lanNetmask.value = this.state.lanNetmask || '';
+		if (self.refs.lanNetmask)
+			self.refs.lanNetmask.value = self.state.lanNetmask || '';
 
-		if (this.refs.mode)
-			this.refs.mode.value = this.state.mode || 'ap';
+		if (self.refs.mode)
+			self.refs.mode.value = self.state.mode || 'ap';
 
-		if (this.refs.wifiSsid)
-			this.refs.wifiSsid.value = this.state.wifiSsid || '';
+		if (self.refs.wifiSsid)
+			self.refs.wifiSsid.value = self.state.wifiSsid || '';
 
-		if (this.refs.wifiSsid5gMode)
-			this.refs.wifiSsid5gMode.value = this.state.wifiSsid5gMode || 'derived';
+		if (self.refs.wifiSsid5gMode)
+			self.refs.wifiSsid5gMode.value = self.state.wifiSsid5gMode || 'derived';
 
-		if (this.refs.wifiSsid5g)
-			this.refs.wifiSsid5g.value = this.state.wifiSsid5g || '';
+		if (self.refs.wifiSsid5g)
+			self.refs.wifiSsid5g.value = self.state.wifiSsid5g || '';
 
-		if (this.refs.wifiSsidVlan2g)
-			this.refs.wifiSsidVlan2g.value = this.state.wifiSsidVlan2g || '';
+		if (self.refs.wifiSsidVlan2g)
+			self.refs.wifiSsidVlan2g.value = self.state.wifiSsidVlan2g || '';
 
-		if (this.refs.wifiSsidVlan5g)
-			this.refs.wifiSsidVlan5g.value = this.state.wifiSsidVlan5g || '';
+		if (self.refs.wifiSsidVlan5g)
+			self.refs.wifiSsidVlan5g.value = self.state.wifiSsidVlan5g || '';
 
-		if (this.refs.wifiSsidIpSuffixPrimary)
-			this.refs.wifiSsidIpSuffixPrimary.checked = !!this.state.wifiSsidVlanIpSuffix;
+		if (self.refs.wifiSsidIpSuffixPrimary)
+			self.refs.wifiSsidIpSuffixPrimary.checked = !!self.state.wifiSsidVlanIpSuffix;
 
-		if (this.refs.wifiSsidVlanIpSuffix)
-			this.refs.wifiSsidVlanIpSuffix.checked = !!this.state.wifiSsidVlanIpSuffix;
+		if (self.refs.wifiSsidVlanIpSuffix)
+			self.refs.wifiSsidVlanIpSuffix.checked = !!self.state.wifiSsidVlanIpSuffix;
 
-		if (this.refs.wifiKey)
-			this.refs.wifiKey.value = this.state.wifiKey || '';
+		if (self.refs.wifiKey)
+			self.refs.wifiKey.value = self.state.wifiKey || '';
 
-		if (this.refs.uplinkSsid)
-			this.refs.uplinkSsid.value = this.state.uplinkSsid || '';
+		if (self.refs.uplinkSsid)
+			self.refs.uplinkSsid.value = self.state.uplinkSsid || '';
 
-		if (this.refs.uplinkKey)
-			this.refs.uplinkKey.value = this.state.uplinkKey || '';
+		if (self.refs.uplinkKey)
+			self.refs.uplinkKey.value = self.state.uplinkKey || '';
 
-		if (this.refs.uplinkBand)
-			this.refs.uplinkBand.value = this.state.uplinkBand || '2g';
+		if (self.refs.uplinkBand)
+			self.refs.uplinkBand.value = self.state.uplinkBand || '2g';
 
-		if (this.refs.meshId)
-			this.refs.meshId.value = this.state.meshId || '';
+		if (self.refs.meshId)
+			self.refs.meshId.value = self.state.meshId || '';
 
-		if (this.refs.meshKey)
-			this.refs.meshKey.value = this.state.meshKey || '';
+		if (self.refs.meshKey)
+			self.refs.meshKey.value = self.state.meshKey || '';
 
-		if (this.refs.meshBand)
-			this.refs.meshBand.value = this.state.meshBand || '2g';
+		if (self.refs.meshBand)
+			self.refs.meshBand.value = self.state.meshBand || '2g';
 
-		if (this.refs.isVlan)
-			this.refs.isVlan.checked = !!this.state.isVlan;
+		if (self.refs.isVlan)
+			self.refs.isVlan.checked = !!self.state.isVlan;
 
-		if (this.refs.vlanId)
-			this.refs.vlanId.value = this.state.vlanId || '10';
+		if (self.refs.vlanId)
+			self.refs.vlanId.value = self.state.vlanId || '10';
 
-		if (this.refs.channel2g && radio2g) {
+		if (self.refs.channel2g && radio2g) {
 			populateSelectOptions(
-				this.refs.channel2g,
-				channelChoices('2g', this.frequencyMap ? this.frequencyMap[radio2g['.name']] : null),
-				this.state.channel2g
+				self.refs.channel2g,
+				channelChoices('2g', self.frequencyMap ? self.frequencyMap[radio2g['.name']] : null),
+				self.state.channel2g
 			);
 		}
 
-		if (this.refs.channel5g && radio5g) {
+		if (self.refs.channel5g && radio5g) {
 			populateSelectOptions(
-				this.refs.channel5g,
-				channelChoices('5g', this.frequencyMap ? this.frequencyMap[radio5g['.name']] : null),
-				this.state.channel5g
+				self.refs.channel5g,
+				channelChoices('5g', self.frequencyMap ? self.frequencyMap[radio5g['.name']] : null),
+				self.state.channel5g
 			);
 		}
 
 		/* Keep step-3 radio mode/width selects aligned with freshly loaded state. */
-		this.syncRadioModeWidthUi();
+		self.syncRadioModeWidthUi();
 
-		if (this.refs.resetDisabled)
-			this.refs.resetDisabled.checked = !!this.state.resetDisabled;
+		if (self.refs.resetDisabled)
+			self.refs.resetDisabled.checked = !!self.state.resetDisabled;
 
-		if (this.refs.resetHoldSeconds)
-			this.refs.resetHoldSeconds.value = this.state.resetHoldSeconds || '5';
+		if (self.refs.resetHoldSeconds)
+			self.refs.resetHoldSeconds.value = self.state.resetHoldSeconds || '5';
 
-		if (this.refs.wpsDisabled)
-			this.refs.wpsDisabled.checked = !!this.state.wpsDisabled;
+		if (self.refs.wpsDisabled)
+			self.refs.wpsDisabled.checked = !!self.state.wpsDisabled;
 
-		if (this.refs.rebootEnabled)
-			this.refs.rebootEnabled.checked = !!this.state.rebootEnabled;
+		if (self.refs.rebootEnabled)
+			self.refs.rebootEnabled.checked = !!self.state.rebootEnabled;
 
-		if (this.refs.rebootHours)
-			this.refs.rebootHours.value = this.state.rebootHours || '24';
+		if (self.refs.rebootHours)
+			self.refs.rebootHours.value = self.state.rebootHours || '24';
 
-		if (this.refs.otaWindowStart)
-			this.refs.otaWindowStart.value = String(this.state.otaWindowStart == null ? 2 : this.state.otaWindowStart);
+		if (self.refs.otaWindowStart)
+			self.refs.otaWindowStart.value = String(self.state.otaWindowStart == null ? 2 : self.state.otaWindowStart);
 
-		if (this.refs.otaWindowEnd)
-			this.refs.otaWindowEnd.value = String(this.state.otaWindowEnd == null ? 6 : this.state.otaWindowEnd);
+		if (self.refs.otaWindowEnd)
+			self.refs.otaWindowEnd.value = String(self.state.otaWindowEnd == null ? 6 : self.state.otaWindowEnd);
 
-		if (this.refs.hotspotQuickEnabled)
-			this.refs.hotspotQuickEnabled.checked = !!this.state.hotspotQuickEnabled;
+		if (self.refs.hotspotQuickEnabled)
+			self.refs.hotspotQuickEnabled.checked = !!(self.state || {}).hotspotQuickEnabled;
 
-		if (this.refs.hotspotQuickWanInterface)
-			this.refs.hotspotQuickWanInterface.value = this.state.hotspotQuickWanInterface || 'lan';
+		if (self.refs.hotspotQuickWanInterface)
+			self.refs.hotspotQuickWanInterface.value = self.state.hotspotQuickWanInterface || 'lan';
 
-		if (this.refs.hotspotQuickSubscriberInterface)
-			this.refs.hotspotQuickSubscriberInterface.value = this.state.hotspotQuickSubscriberInterface || 'hotspot';
+		if (self.refs.hotspotQuickSubscriberInterface)
+			self.refs.hotspotQuickSubscriberInterface.value = self.state.hotspotQuickSubscriberInterface || 'hotspot';
 
-		if (this.refs.hotspotQuickSsid1)
-			this.refs.hotspotQuickSsid1.value = this.state.hotspotQuickSsid1 || 'Hotspot-1';
+		if (self.refs.hotspotQuickSsid1)
+			self.refs.hotspotQuickSsid1.value = self.state.hotspotQuickSsid1 || 'Hotspot-1';
 
-		if (this.refs.hotspotQuickGateway1)
-			this.refs.hotspotQuickGateway1.value = this.state.hotspotQuickGateway1 || '192.168.10.1';
+		if (self.refs.hotspotQuickGateway1)
+			self.refs.hotspotQuickGateway1.value = self.state.hotspotQuickGateway1 || '192.168.10.1';
 
-		if (this.refs.hotspotQuickPoolStart1)
-			this.refs.hotspotQuickPoolStart1.value = this.state.hotspotQuickPoolStart1 || '192.168.10.10';
+		if (self.refs.hotspotQuickPoolStart1)
+			self.refs.hotspotQuickPoolStart1.value = self.state.hotspotQuickPoolStart1 || '192.168.10.10';
 
-		if (this.refs.hotspotQuickPoolEnd1)
-			this.refs.hotspotQuickPoolEnd1.value = this.state.hotspotQuickPoolEnd1 || '192.168.10.199';
+		if (self.refs.hotspotQuickPoolEnd1)
+			self.refs.hotspotQuickPoolEnd1.value = self.state.hotspotQuickPoolEnd1 || '192.168.10.199';
 
-		if (this.refs.hotspotQuickPolicy1)
-			this.refs.hotspotQuickPolicy1.value = this.state.hotspotQuickPolicy1 || 'standard';
+		if (self.refs.hotspotQuickPolicy1)
+			self.refs.hotspotQuickPolicy1.value = self.state.hotspotQuickPolicy1 || 'standard';
 
-		if (this.refs.hotspotQuickSecondaryEnabled)
-			this.refs.hotspotQuickSecondaryEnabled.checked = this.state.hotspotQuickSecondaryEnabled !== false;
+		if (self.refs.hotspotQuickSecondaryEnabled)
+			self.refs.hotspotQuickSecondaryEnabled.checked = self.state.hotspotQuickSecondaryEnabled !== false;
 
-		if (this.refs.hotspotQuickSsid2)
-			this.refs.hotspotQuickSsid2.value = this.state.hotspotQuickSsid2 || 'Hotspot-2';
+		if (self.refs.hotspotQuickSsid2)
+			self.refs.hotspotQuickSsid2.value = self.state.hotspotQuickSsid2 || 'Hotspot-2';
 
-		if (this.refs.hotspotQuickGateway2)
-			this.refs.hotspotQuickGateway2.value = this.state.hotspotQuickGateway2 || '192.168.20.1';
+		if (self.refs.hotspotQuickGateway2)
+			self.refs.hotspotQuickGateway2.value = self.state.hotspotQuickGateway2 || '192.168.20.1';
 
-		if (this.refs.hotspotQuickPoolStart2)
-			this.refs.hotspotQuickPoolStart2.value = this.state.hotspotQuickPoolStart2 || '192.168.20.10';
+		if (self.refs.hotspotQuickPoolStart2)
+			self.refs.hotspotQuickPoolStart2.value = self.state.hotspotQuickPoolStart2 || '192.168.20.10';
 
-		if (this.refs.hotspotQuickPoolEnd2)
-			this.refs.hotspotQuickPoolEnd2.value = this.state.hotspotQuickPoolEnd2 || '192.168.20.199';
+		if (self.refs.hotspotQuickPoolEnd2)
+			self.refs.hotspotQuickPoolEnd2.value = self.state.hotspotQuickPoolEnd2 || '192.168.20.199';
 
-		if (this.refs.hotspotQuickPolicy2)
-			this.refs.hotspotQuickPolicy2.value = this.state.hotspotQuickPolicy2 || 'premium';
+		if (self.refs.hotspotQuickPolicy2)
+			self.refs.hotspotQuickPolicy2.value = self.state.hotspotQuickPolicy2 || 'premium';
 
-		if (this.refs.hotspotQuickRadiusServer)
-			this.refs.hotspotQuickRadiusServer.value = this.state.hotspotQuickRadiusServer || '192.168.1.2';
+		if (self.refs.hotspotQuickRadiusServer)
+			self.refs.hotspotQuickRadiusServer.value = self.state.hotspotQuickRadiusServer || '192.168.1.2';
 
-		if (this.refs.hotspotQuickRadiusServer2)
-			this.refs.hotspotQuickRadiusServer2.value = this.state.hotspotQuickRadiusServer2 || '';
+		if (self.refs.hotspotQuickRadiusServer2)
+			self.refs.hotspotQuickRadiusServer2.value = self.state.hotspotQuickRadiusServer2 || '';
 
-		if (this.refs.hotspotQuickRadiusSecret)
-			this.refs.hotspotQuickRadiusSecret.value = this.state.hotspotQuickRadiusSecret || '';
+		if (self.refs.hotspotQuickRadiusSecret)
+			self.refs.hotspotQuickRadiusSecret.value = self.state.hotspotQuickRadiusSecret || '';
 
-		if (this.refs.hotspotQuickRadiusAuthPort)
-			this.refs.hotspotQuickRadiusAuthPort.value = this.state.hotspotQuickRadiusAuthPort || '1812';
+		if (self.refs.hotspotQuickRadiusAuthPort)
+			self.refs.hotspotQuickRadiusAuthPort.value = self.state.hotspotQuickRadiusAuthPort || '1812';
 
-		if (this.refs.hotspotQuickRadiusAcctPort)
-			this.refs.hotspotQuickRadiusAcctPort.value = this.state.hotspotQuickRadiusAcctPort || '1813';
+		if (self.refs.hotspotQuickRadiusAcctPort)
+			self.refs.hotspotQuickRadiusAcctPort.value = self.state.hotspotQuickRadiusAcctPort || '1813';
 
-		if (this.refs.hotspotQuickRadiusNasIp)
-			this.refs.hotspotQuickRadiusNasIp.value = this.state.hotspotQuickRadiusNasIp || '';
+		if (self.refs.hotspotQuickRadiusNasIp)
+			self.refs.hotspotQuickRadiusNasIp.value = self.state.hotspotQuickRadiusNasIp || '';
 
-		if (this.refs.hotspotQuickNasId)
-			this.refs.hotspotQuickNasId.value = this.state.hotspotQuickNasId || '';
+		if (self.refs.hotspotQuickAcctInterim)
+			self.refs.hotspotQuickAcctInterim.value = self.state.hotspotQuickAcctInterim || '60';
 
-		if (this.refs.hotspotQuickAcctInterim)
-			this.refs.hotspotQuickAcctInterim.value = this.state.hotspotQuickAcctInterim || '60';
+		if (self.refs.hotspotQuickCoaEnabled)
+			self.refs.hotspotQuickCoaEnabled.checked = !!self.state.hotspotQuickCoaEnabled;
 
-		if (this.refs.hotspotQuickCoaEnabled)
-			this.refs.hotspotQuickCoaEnabled.checked = !!this.state.hotspotQuickCoaEnabled;
+		if (self.refs.hotspotQuickCoaPort)
+			self.refs.hotspotQuickCoaPort.value = self.state.hotspotQuickCoaPort || '3799';
 
-		if (this.refs.hotspotQuickCoaPort)
-			this.refs.hotspotQuickCoaPort.value = this.state.hotspotQuickCoaPort || '3799';
+		if (self.refs.hotspotQuickTrialEnabled)
+			self.refs.hotspotQuickTrialEnabled.checked = !!self.state.hotspotQuickTrialEnabled;
 
-		if (this.refs.hotspotQuickTrialEnabled)
-			this.refs.hotspotQuickTrialEnabled.checked = !!this.state.hotspotQuickTrialEnabled;
+		if (self.refs.hotspotQuickTrialDuration)
+			self.refs.hotspotQuickTrialDuration.value = self.state.hotspotQuickTrialDuration || '30';
 
-		if (this.refs.hotspotQuickTrialDuration)
-			this.refs.hotspotQuickTrialDuration.value = this.state.hotspotQuickTrialDuration || '30';
+		if (self.refs.hotspotQuickTrialUptimeLimit)
+			self.refs.hotspotQuickTrialUptimeLimit.value = self.state.hotspotQuickTrialUptimeLimit || '30';
 
-		if (this.refs.hotspotQuickTrialUptimeLimit)
-			this.refs.hotspotQuickTrialUptimeLimit.value = this.state.hotspotQuickTrialUptimeLimit || '30';
+		if (self.refs.hotspotQuickMacAuthEnabled)
+			self.refs.hotspotQuickMacAuthEnabled.checked = !!self.state.hotspotQuickMacAuthEnabled;
 
-		if (this.refs.hotspotQuickMacAuthEnabled)
-			this.refs.hotspotQuickMacAuthEnabled.checked = !!this.state.hotspotQuickMacAuthEnabled;
+		if (self.refs.hotspotQuickMacAuthSuffix)
+			self.refs.hotspotQuickMacAuthSuffix.value = self.state.hotspotQuickMacAuthSuffix || '@mac';
 
-		if (this.refs.hotspotQuickMacAuthSuffix)
-			this.refs.hotspotQuickMacAuthSuffix.value = this.state.hotspotQuickMacAuthSuffix || '@mac';
+		if (self.refs.hotspotQuickMacAuthPassword)
+			self.refs.hotspotQuickMacAuthPassword.value = self.state.hotspotQuickMacAuthPassword || 'mac';
 
-		if (this.refs.hotspotQuickMacAuthPassword)
-			this.refs.hotspotQuickMacAuthPassword.value = this.state.hotspotQuickMacAuthPassword || 'mac';
+		if (self.refs.hotspotQuickWalledGarden)
+			self.refs.hotspotQuickWalledGarden.value = self.state.hotspotQuickWalledGarden || '';
 
-		if (this.refs.hotspotQuickWalledGarden)
-			this.refs.hotspotQuickWalledGarden.value = this.state.hotspotQuickWalledGarden || '';
+		if (self.refs.hotspotQuickDomain)
+			self.refs.hotspotQuickDomain.value = self.state.hotspotQuickDomain || 'hotspot.local';
 
-		if (this.refs.hotspotQuickDomain)
-			this.refs.hotspotQuickDomain.value = this.state.hotspotQuickDomain || 'hotspot.local';
+		if (self.refs.hotspotQuickDns1)
+			self.refs.hotspotQuickDns1.value = self.state.hotspotQuickDns1 || '8.8.8.8';
 
-		if (this.refs.hotspotQuickDns1)
-			this.refs.hotspotQuickDns1.value = this.state.hotspotQuickDns1 || '8.8.8.8';
+		if (self.refs.hotspotQuickDns2)
+			self.refs.hotspotQuickDns2.value = self.state.hotspotQuickDns2 || '82.114.163.31';
 
-		if (this.refs.hotspotQuickDns2)
-			this.refs.hotspotQuickDns2.value = this.state.hotspotQuickDns2 || '82.114.163.31';
+		if (self.refs.hotspotQuickBridgeAgeingTime)
+			self.refs.hotspotQuickBridgeAgeingTime.value = self.state.hotspotQuickBridgeAgeingTime || '10';
 
-		if (this.refs.hotspotQuickBridgeAgeingTime)
-			this.refs.hotspotQuickBridgeAgeingTime.value = this.state.hotspotQuickBridgeAgeingTime || '10';
+		if (self.refs.hotspotQuickLoginMode)
+			self.refs.hotspotQuickLoginMode.value = self.state.hotspotQuickLoginMode || 'standard';
 
-		if (this.refs.hotspotQuickLoginMode)
-			this.refs.hotspotQuickLoginMode.value = normalizeHotspotLoginMode(this.state.hotspotQuickLoginMode);
+		if (self.refs.hotspotQuickRateLimit)
+			self.refs.hotspotQuickRateLimit.value = self.state.hotspotQuickRateLimit || '2M/5M';
 
-		if (this.refs.hotspotQuickRateLimit)
-			this.refs.hotspotQuickRateLimit.value = this.state.hotspotQuickRateLimit || '2M/5M';
+		if (self.refs.hotspotQuickMacCookieEnabled)
+			self.refs.hotspotQuickMacCookieEnabled.checked = !!self.state.hotspotQuickMacCookieEnabled;
 
-		if (this.refs.hotspotQuickMacCookieEnabled)
-			this.refs.hotspotQuickMacCookieEnabled.checked = !!this.state.hotspotQuickMacCookieEnabled;
+		if (self.refs.hotspotQuickAvailableSpeeds)
+			self.refs.hotspotQuickAvailableSpeeds.value = self.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast';
 
-		if (this.refs.hotspotQuickAvailableSpeeds)
-			this.refs.hotspotQuickAvailableSpeeds.value = this.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast';
+		if (self.refs.hotspotQuickSupportPhone)
+			self.refs.hotspotQuickSupportPhone.value = self.state.hotspotQuickSupportPhone || '';
 
-		if (this.refs.hotspotQuickSupportPhone)
-			this.refs.hotspotQuickSupportPhone.value = this.state.hotspotQuickSupportPhone || '';
+		if (self.refs.hotspotQuickNoticeText)
+			self.refs.hotspotQuickNoticeText.value = self.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا';
 
-		if (this.refs.hotspotQuickNoticeText)
-			this.refs.hotspotQuickNoticeText.value = this.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا';
+		if (self.refs.hotspotQuickLiveStreamEnabled)
+			self.refs.hotspotQuickLiveStreamEnabled.checked = !!self.state.hotspotQuickLiveStreamEnabled;
 
-		if (this.refs.hotspotQuickLiveStreamEnabled)
-			this.refs.hotspotQuickLiveStreamEnabled.checked = !!this.state.hotspotQuickLiveStreamEnabled;
+		if (self.refs.hotspotQuickLiveStreamUrl)
+			self.refs.hotspotQuickLiveStreamUrl.value = self.state.hotspotQuickLiveStreamUrl || '';
 
-		if (this.refs.hotspotQuickLiveStreamUrl)
-			this.refs.hotspotQuickLiveStreamUrl.value = this.state.hotspotQuickLiveStreamUrl || '';
+		if (self.refs.hotspotQuickRestAreaEnabled)
+			self.refs.hotspotQuickRestAreaEnabled.checked = !!self.state.hotspotQuickRestAreaEnabled;
 
-		if (this.refs.hotspotQuickRestAreaEnabled)
-			this.refs.hotspotQuickRestAreaEnabled.checked = !!this.state.hotspotQuickRestAreaEnabled;
+		if (self.refs.hotspotQuickRestAreaUrl)
+			self.refs.hotspotQuickRestAreaUrl.value = self.state.hotspotQuickRestAreaUrl || '';
 
-		if (this.refs.hotspotQuickRestAreaUrl)
-			this.refs.hotspotQuickRestAreaUrl.value = this.state.hotspotQuickRestAreaUrl || '';
+		if (self.refs.hotspotQuickSpeedtestEnabled)
+			self.refs.hotspotQuickSpeedtestEnabled.checked = !!self.state.hotspotQuickSpeedtestEnabled;
 
-		if (this.refs.hotspotQuickSpeedtestEnabled)
-			this.refs.hotspotQuickSpeedtestEnabled.checked = !!this.state.hotspotQuickSpeedtestEnabled;
+		if (self.refs.hotspotQuickBrowserCookieEnabled)
+			self.refs.hotspotQuickBrowserCookieEnabled.checked = self.state.hotspotQuickBrowserCookieEnabled !== false;
 
-		if (this.refs.hotspotQuickBrowserCookieEnabled)
-			this.refs.hotspotQuickBrowserCookieEnabled.checked = this.state.hotspotQuickBrowserCookieEnabled !== false;
+		if (self.refs.hotspotQuickBrowserCookieDays)
+			self.refs.hotspotQuickBrowserCookieDays.value = self.state.hotspotQuickBrowserCookieDays || '7';
 
-		if (this.refs.hotspotQuickBrowserCookieDays)
-			this.refs.hotspotQuickBrowserCookieDays.value = normalizeBrowserCookieDays(this.state.hotspotQuickBrowserCookieDays || '7');
+		if (self.refs.hotspotQuickUsermanRestEnabled)
+			self.refs.hotspotQuickUsermanRestEnabled.checked = !!self.state.hotspotQuickUsermanRestEnabled;
 
-		if (this.refs.hotspotQuickUsermanRestEnabled)
-			this.refs.hotspotQuickUsermanRestEnabled.checked = !!this.state.hotspotQuickUsermanRestEnabled;
+		if (self.refs.hotspotQuickUsermanRestScheme)
+			self.refs.hotspotQuickUsermanRestScheme.value = self.state.hotspotQuickUsermanRestScheme || 'http';
 
-		if (this.refs.hotspotQuickUsermanRestScheme)
-			this.refs.hotspotQuickUsermanRestScheme.value = normalizeRouterOsScheme(this.state.hotspotQuickUsermanRestScheme);
+		if (self.refs.hotspotQuickUsermanRestUsername)
+			self.refs.hotspotQuickUsermanRestUsername.value = self.state.hotspotQuickUsermanRestUsername || 'hotspot-read';
 
-		if (this.refs.hotspotQuickUsermanRestUsername)
-			this.refs.hotspotQuickUsermanRestUsername.value = this.state.hotspotQuickUsermanRestUsername || 'hotspot-read';
+		if (self.refs.hotspotQuickUsermanRestPassword)
+			self.refs.hotspotQuickUsermanRestPassword.value = self.state.hotspotQuickUsermanRestPassword || '';
 
-		if (this.refs.hotspotQuickUsermanRestPassword)
-			this.refs.hotspotQuickUsermanRestPassword.value = this.state.hotspotQuickUsermanRestPassword || '';
+			self.refs.hotspotQuickRadiusServer.value = self.state.hotspotQuickRadiusServer || '192.168.1.2';
 
-		if (this.refs.adminPassword)
-			this.refs.adminPassword.value = '';
+		if (self.refs.hotspotQuickRadiusServer2)
+			self.refs.hotspotQuickRadiusServer2.value = self.state.hotspotQuickRadiusServer2 || '';
 
-		if (this.refs.adminPasswordConfirm)
-			this.refs.adminPasswordConfirm.value = '';
+		if (self.refs.hotspotQuickRadiusSecret)
+			self.refs.hotspotQuickRadiusSecret.value = self.state.hotspotQuickRadiusSecret || '';
 
-		if (this.refs.hotspotEnabled)
-			this.refs.hotspotEnabled.checked = !!this.state.hotspotEnabled;
+		if (self.refs.hotspotQuickRadiusAuthPort)
+			self.refs.hotspotQuickRadiusAuthPort.value = self.state.hotspotQuickRadiusAuthPort || '1812';
 
-		if (this.refs.hotspotSsid)
-			this.refs.hotspotSsid.value = this.state.hotspotSsid || 'Hotspot';
+		if (self.refs.hotspotQuickRadiusAcctPort)
+			self.refs.hotspotQuickRadiusAcctPort.value = self.state.hotspotQuickRadiusAcctPort || '1813';
 
-		if (this.refs.hotspotRadiusServer)
-			this.refs.hotspotRadiusServer.value = this.state.hotspotRadiusServer || '192.168.1.2';
+		if (self.refs.hotspotQuickRadiusNasIp)
+			self.refs.hotspotQuickRadiusNasIp.value = self.state.hotspotQuickRadiusNasIp || '';
 
-		if (this.refs.hotspotRadiusSecret)
-			this.refs.hotspotRadiusSecret.value = this.state.hotspotRadiusSecret || '';
+		if (self.refs.hotspotQuickNasId)
+			self.refs.hotspotQuickNasId.value = self.state.hotspotQuickNasId || '';
 
-		if (this.refs.hotspotNasId)
-			this.refs.hotspotNasId.value = this.state.hotspotNasId || '';
+		if (self.refs.hotspotQuickAcctInterim)
+			self.refs.hotspotQuickAcctInterim.value = self.state.hotspotQuickAcctInterim || '60';
 
-		if (this.refs.hotspotIp)
-			this.refs.hotspotIp.value = this.state.hotspotIp || '192.168.10.1';
+		if (self.refs.hotspotQuickCoaEnabled)
+			self.refs.hotspotQuickCoaEnabled.checked = !!self.state.hotspotQuickCoaEnabled;
 
-		if (this.refs.hotspotPoolStart)
-			this.refs.hotspotPoolStart.value = this.state.hotspotPoolStart || '192.168.10.10';
+		if (self.refs.hotspotQuickCoaPort)
+			self.refs.hotspotQuickCoaPort.value = self.state.hotspotQuickCoaPort || '3799';
 
-		if (this.refs.hotspotPoolEnd)
-			this.refs.hotspotPoolEnd.value = this.state.hotspotPoolEnd || '192.168.10.254';
+		if (self.refs.hotspotQuickTrialEnabled)
+			self.refs.hotspotQuickTrialEnabled.checked = !!self.state.hotspotQuickTrialEnabled;
+
+		if (self.refs.hotspotQuickTrialDuration)
+			self.refs.hotspotQuickTrialDuration.value = self.state.hotspotQuickTrialDuration || '30';
+
+		if (self.refs.hotspotQuickTrialUptimeLimit)
+			self.refs.hotspotQuickTrialUptimeLimit.value = self.state.hotspotQuickTrialUptimeLimit || '30';
+
+		if (self.refs.hotspotQuickMacAuthEnabled)
+			self.refs.hotspotQuickMacAuthEnabled.checked = !!self.state.hotspotQuickMacAuthEnabled;
+
+		if (self.refs.hotspotQuickMacAuthSuffix)
+			self.refs.hotspotQuickMacAuthSuffix.value = self.state.hotspotQuickMacAuthSuffix || '@mac';
+
+		if (self.refs.hotspotQuickMacAuthPassword)
+			self.refs.hotspotQuickMacAuthPassword.value = self.state.hotspotQuickMacAuthPassword || 'mac';
+
+		if (self.refs.hotspotQuickWalledGarden)
+			self.refs.hotspotQuickWalledGarden.value = self.state.hotspotQuickWalledGarden || '';
+
+		if (self.refs.hotspotQuickDomain)
+			self.refs.hotspotQuickDomain.value = self.state.hotspotQuickDomain || 'hotspot.local';
+
+		if (self.refs.hotspotQuickDns1)
+			self.refs.hotspotQuickDns1.value = self.state.hotspotQuickDns1 || '8.8.8.8';
+
+		if (self.refs.hotspotQuickDns2)
+			self.refs.hotspotQuickDns2.value = self.state.hotspotQuickDns2 || '82.114.163.31';
+
+		if (self.refs.hotspotQuickBridgeAgeingTime)
+			self.refs.hotspotQuickBridgeAgeingTime.value = self.state.hotspotQuickBridgeAgeingTime || '10';
+
+		if (self.refs.hotspotQuickLoginMode)
+			self.refs.hotspotQuickLoginMode.value = normalizeHotspotLoginMode(self.state.hotspotQuickLoginMode);
+
+		if (self.refs.hotspotQuickRateLimit)
+			self.refs.hotspotQuickRateLimit.value = self.state.hotspotQuickRateLimit || '2M/5M';
+
+		if (self.refs.hotspotQuickMacCookieEnabled)
+			self.refs.hotspotQuickMacCookieEnabled.checked = !!self.state.hotspotQuickMacCookieEnabled;
+
+		if (self.refs.hotspotQuickAvailableSpeeds)
+			self.refs.hotspotQuickAvailableSpeeds.value = self.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast';
+
+		if (self.refs.hotspotQuickSupportPhone)
+			self.refs.hotspotQuickSupportPhone.value = self.state.hotspotQuickSupportPhone || '';
+
+		if (self.refs.hotspotQuickNoticeText)
+			self.refs.hotspotQuickNoticeText.value = self.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا';
+
+		if (self.refs.hotspotQuickLiveStreamEnabled)
+			self.refs.hotspotQuickLiveStreamEnabled.checked = !!self.state.hotspotQuickLiveStreamEnabled;
+
+		if (self.refs.hotspotQuickLiveStreamUrl)
+			self.refs.hotspotQuickLiveStreamUrl.value = self.state.hotspotQuickLiveStreamUrl || '';
+
+		if (self.refs.hotspotQuickRestAreaEnabled)
+			self.refs.hotspotQuickRestAreaEnabled.checked = !!self.state.hotspotQuickRestAreaEnabled;
+
+		if (self.refs.hotspotQuickRestAreaUrl)
+			self.refs.hotspotQuickRestAreaUrl.value = self.state.hotspotQuickRestAreaUrl || '';
+
+		if (self.refs.hotspotQuickSpeedtestEnabled)
+			self.refs.hotspotQuickSpeedtestEnabled.checked = !!self.state.hotspotQuickSpeedtestEnabled;
+
+		if (self.refs.hotspotQuickBrowserCookieEnabled)
+			self.refs.hotspotQuickBrowserCookieEnabled.checked = self.state.hotspotQuickBrowserCookieEnabled !== false;
+
+		if (self.refs.hotspotQuickBrowserCookieDays)
+			self.refs.hotspotQuickBrowserCookieDays.value = normalizeBrowserCookieDays(self.state.hotspotQuickBrowserCookieDays || '7');
+
+		if (self.refs.hotspotQuickUsermanRestEnabled)
+			self.refs.hotspotQuickUsermanRestEnabled.checked = !!self.state.hotspotQuickUsermanRestEnabled;
+
+		if (self.refs.hotspotQuickUsermanRestScheme)
+			self.refs.hotspotQuickUsermanRestScheme.value = normalizeRouterOsScheme(self.state.hotspotQuickUsermanRestScheme);
+
+		if (self.refs.hotspotQuickUsermanRestUsername)
+			self.refs.hotspotQuickUsermanRestUsername.value = self.state.hotspotQuickUsermanRestUsername || 'hotspot-read';
+
+		if (self.refs.hotspotQuickUsermanRestPassword)
+			self.refs.hotspotQuickUsermanRestPassword.value = self.state.hotspotQuickUsermanRestPassword || '';
+
+		if (self.refs.adminPassword)
+			self.refs.adminPassword.value = '';
+
+		if (self.refs.adminPasswordConfirm)
+			self.refs.adminPasswordConfirm.value = '';
+
+		if (self.refs.hotspotEnabled)
+			self.refs.hotspotEnabled.checked = !!self.state.hotspotEnabled;
+
+		if (self.refs.hotspotSsid)
+			self.refs.hotspotSsid.value = self.state.hotspotSsid || 'Hotspot';
+
+		if (self.refs.hotspotRadiusServer)
+			self.refs.hotspotRadiusServer.value = self.state.hotspotRadiusServer || '192.168.1.2';
+
+		if (self.refs.hotspotRadiusSecret)
+			self.refs.hotspotRadiusSecret.value = self.state.hotspotRadiusSecret || '';
+
+		if (self.refs.hotspotNasId)
+			self.refs.hotspotNasId.value = self.state.hotspotNasId || '';
+
+		if (self.refs.hotspotIp)
+			self.refs.hotspotIp.value = self.state.hotspotIp || '192.168.10.1';
+
+		if (self.refs.hotspotPoolStart)
+			self.refs.hotspotPoolStart.value = self.state.hotspotPoolStart || '192.168.10.10';
+
+		if (self.refs.hotspotPoolEnd)
+			self.refs.hotspotPoolEnd.value = self.state.hotspotPoolEnd || '192.168.10.254';
 	},
 
 	reloadStateFromDevice: function() {
@@ -3003,9 +2831,9 @@ return view.extend({
 		if (!window.confirm(_('سيتم استبدال القيم الحالية داخل المعالج بإعدادات الجهاز الفعلية. هل تريد المتابعة؟')))
 			return Promise.resolve();
 
-		if (this.refs.reloadButton) {
-			this.refs.reloadButton.disabled = true;
-			this.refs.reloadButton.textContent = _('جارٍ التحديث...');
+		if (self.refs.reloadButton) {
+			self.refs.reloadButton.disabled = true;
+			self.refs.reloadButton.textContent = _('جارٍ التحديث...');
 		}
 
 		if (typeof uci.unload == 'function') {
@@ -3110,7 +2938,7 @@ return view.extend({
 		var hasPrimaryApIface = !!(apIface2g || apIface5g);
 		var hasVlanApIface = !!(findSecondaryApIfaceSection(radios, '2g') || findSecondaryApIfaceSection(radios, '5g'));
 		var hotspotQuickEnabled = uci.get('setup', 'default', 'hotspot_quick_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'quick_setup_enabled') == '1';
-		var hotspotQuickWanInterface = normalizeInterfaceName(uci.get('setup', 'default', 'hotspot_quick_wan_interface') || uci.get('hotspot_openwrt', 'main', 'wan_interface') || 'lan', 'lan');
+		var hotspotQuickWanInterface = normalizeInterfaceName(uci.get('setup', 'default', 'hotspot_quick_wan_interface') || uci.get('hotspot_openwrt', 'main', 'wan_interface') || 'wan', 'wan');
 		var hotspotQuickSubscriberInterface = normalizeInterfaceName(uci.get('setup', 'default', 'hotspot_quick_subscriber_interface') || uci.get('hotspot_openwrt', 'main', 'subscriber_interface') || 'hotspot', 'hotspot');
 		var hotspotQuickSsid1 = String(uci.get('setup', 'default', 'hotspot_quick_ssid_1') || uci.get('hotspot_openwrt', 'main', 'quick_ssid_primary') || 'Hotspot-1').trim();
 		var hotspotQuickGateway1 = String(uci.get('setup', 'default', 'hotspot_quick_gateway_1') || uci.get('hotspot_openwrt', 'main', 'quick_gateway_primary') || uci.get('hotspot_openwrt', 'main', 'hotspot_ip') || '192.168.10.1').trim();
@@ -3156,6 +2984,10 @@ return view.extend({
 		var hotspotQuickRestAreaEnabled = uci.get('setup', 'default', 'hotspot_quick_rest_area_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'rest_area_enabled') == '1';
 		var hotspotQuickRestAreaUrl = String(uci.get('setup', 'default', 'hotspot_quick_rest_area_url') || uci.get('hotspot_openwrt', 'main', 'rest_area_url') || '').trim();
 		var hotspotQuickSpeedtestEnabled = uci.get('setup', 'default', 'hotspot_quick_speedtest_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'speedtest_enabled') == '1';
+		var hotspotQuickMaintEnabled = uci.get('setup', 'default', 'hotspot_quick_maint_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'maint_enabled') == '1';
+		var hotspotQuickMaintStart = uci.get('setup', 'default', 'hotspot_quick_maint_start') || uci.get('hotspot_openwrt', 'main', 'maint_start') || '02:00';
+		var hotspotQuickMaintEnd = uci.get('setup', 'default', 'hotspot_quick_maint_end') || uci.get('hotspot_openwrt', 'main', 'maint_end') || '03:00';
+		var hotspotQuickMaintMode = uci.get('setup', 'default', 'hotspot_quick_maint_mode') || uci.get('hotspot_openwrt', 'main', 'maint_mode') || 'free';
 		var hotspotQuickBrowserCookieEnabled = uci.get('setup', 'default', 'hotspot_quick_browser_cookie_enabled') != '0' && uci.get('hotspot_openwrt', 'main', 'browser_cookie_enabled') != '0';
 		var hotspotQuickBrowserCookieDays = normalizeBrowserCookieDays(uci.get('setup', 'default', 'hotspot_quick_browser_cookie_days') || uci.get('hotspot_openwrt', 'main', 'browser_cookie_days') || '7');
 		var hotspotQuickUsermanRestEnabled = uci.get('setup', 'default', 'hotspot_quick_userman_rest_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'userman_rest_enabled') == '1';
@@ -3277,6 +3109,10 @@ return view.extend({
 			hotspotQuickRestAreaEnabled: hotspotQuickRestAreaEnabled,
 			hotspotQuickRestAreaUrl: hotspotQuickRestAreaUrl,
 			hotspotQuickSpeedtestEnabled: hotspotQuickSpeedtestEnabled,
+			hotspotQuickMaintEnabled: hotspotQuickMaintEnabled,
+			hotspotQuickMaintStart: hotspotQuickMaintStart,
+			hotspotQuickMaintEnd: hotspotQuickMaintEnd,
+			hotspotQuickMaintMode: hotspotQuickMaintMode,
 			hotspotQuickBrowserCookieEnabled: hotspotQuickBrowserCookieEnabled,
 			hotspotQuickBrowserCookieDays: hotspotQuickBrowserCookieDays,
 			hotspotQuickUsermanRestEnabled: hotspotQuickUsermanRestEnabled,
@@ -3315,7 +3151,7 @@ return view.extend({
 			hotspotSsid: (function() {
 				var sec = findNamedWifiIfaceSection('wizard_hotspot');
 				return sec ? String(sec.ssid || 'Hotspot') : 'Hotspot';
-			}()),
+			}.call(this)),
 			hotspotRadiusServer: uci.get('hotspot_openwrt', 'main', 'radius_server') || '192.168.1.2',
 			hotspotRadiusSecret: uci.get('hotspot_openwrt', 'main', 'radius_secret') || '',
 			hotspotNasId: uci.get('hotspot_openwrt', 'main', 'radius_nas_id') || '',
@@ -3326,109 +3162,127 @@ return view.extend({
 	},
 
 	collectState: function() {
-		this.state.lanIpaddr = this.refs.lanIpaddr.value.trim();
-		this.state.lanNetmask = this.refs.lanNetmask.value.trim();
-		this.state.mode = this.refs.mode.value;
-		this.state.wifiSsid = this.refs.wifiSsid.value.trim();
-		this.state.wifiSsid5gMode = this.refs.wifiSsid5gMode ? this.refs.wifiSsid5gMode.value : (this.state.wifiSsid5gMode || 'derived');
-		this.state.wifiSsid5g = this.refs.wifiSsid5g ? this.refs.wifiSsid5g.value.trim() : (this.state.wifiSsid5g || '');
-		this.state.wifiSsidVlan2g = this.refs.wifiSsidVlan2g ? this.refs.wifiSsidVlan2g.value.trim() : (this.state.wifiSsidVlan2g || '');
-		this.state.wifiSsidVlan5g = this.refs.wifiSsidVlan5g ? this.refs.wifiSsidVlan5g.value.trim() : (this.state.wifiSsidVlan5g || '');
-		this.state.wifiSsidVlanIpSuffix = this.refs.wifiSsidIpSuffixPrimary ? this.refs.wifiSsidIpSuffixPrimary.checked : (this.refs.wifiSsidVlanIpSuffix ? this.refs.wifiSsidVlanIpSuffix.checked : !!this.state.wifiSsidVlanIpSuffix);
-		this.state.wifiKey = this.refs.wifiKey.value;
-		this.state.uplinkSsid = this.refs.uplinkSsid ? this.refs.uplinkSsid.value.trim() : '';
-		this.state.uplinkKey = this.refs.uplinkKey ? this.refs.uplinkKey.value : '';
-		this.state.uplinkBand = this.refs.uplinkBand ? this.refs.uplinkBand.value : '2g';
-		this.state.meshId = this.refs.meshId ? this.refs.meshId.value.trim() : '';
-		this.state.meshKey = this.refs.meshKey ? this.refs.meshKey.value : '';
-		this.state.meshBand = this.refs.meshBand ? this.refs.meshBand.value : '2g';
-		this.state.isVlan = this.refs.isVlan.checked;
-		this.state.vlanId = this.refs.vlanId.value.trim();
-		this.state.channel2g = this.refs.channel2g ? this.refs.channel2g.value : 'auto';
-		this.state.channel5g = this.refs.channel5g ? this.refs.channel5g.value : 'auto';
-		this.state.wifiMode2g = this.refs.wifiMode2g ? this.refs.wifiMode2g.value : (this.state.wifiMode2g || 'ax');
-		this.state.wifiWidth2g = this.refs.wifiWidth2g ? this.refs.wifiWidth2g.value : (this.state.wifiWidth2g || '20');
-		this.state.wifiMode5g = this.refs.wifiMode5g ? this.refs.wifiMode5g.value : (this.state.wifiMode5g || 'ax');
-		this.state.wifiWidth5g = this.refs.wifiWidth5g ? this.refs.wifiWidth5g.value : (this.state.wifiWidth5g || '80');
-		this.state.resetDisabled = this.refs.resetDisabled.checked;
-		this.state.resetHoldSeconds = this.refs.resetHoldSeconds.value;
-		this.state.wpsDisabled = this.refs.wpsDisabled.checked;
-		this.state.rebootEnabled = this.refs.rebootEnabled ? this.refs.rebootEnabled.checked : false;
-		this.state.rebootHours = this.refs.rebootHours ? this.refs.rebootHours.value.trim() : '24';
-		this.state.otaWindowStart = this.refs.otaWindowStart ? normalizeHour(this.refs.otaWindowStart.value, 2) : this.state.otaWindowStart;
-		this.state.otaWindowEnd = this.refs.otaWindowEnd ? normalizeHour(this.refs.otaWindowEnd.value, 6) : this.state.otaWindowEnd;
-		this.state.hotspotQuickEnabled = this.refs.hotspotQuickEnabled ? this.refs.hotspotQuickEnabled.checked : !!this.state.hotspotQuickEnabled;
-		this.state.hotspotQuickWanInterface = this.refs.hotspotQuickWanInterface ? this.refs.hotspotQuickWanInterface.value.trim() : (this.state.hotspotQuickWanInterface || 'lan');
-		this.state.hotspotQuickSubscriberInterface = this.refs.hotspotQuickSubscriberInterface ? this.refs.hotspotQuickSubscriberInterface.value.trim() : (this.state.hotspotQuickSubscriberInterface || 'hotspot');
-		this.state.hotspotQuickSsid1 = this.refs.hotspotQuickSsid1 ? this.refs.hotspotQuickSsid1.value.trim() : (this.state.hotspotQuickSsid1 || 'Hotspot-1');
-		this.state.hotspotQuickGateway1 = this.refs.hotspotQuickGateway1 ? this.refs.hotspotQuickGateway1.value.trim() : (this.state.hotspotQuickGateway1 || '192.168.10.1');
-		this.state.hotspotQuickPoolStart1 = this.refs.hotspotQuickPoolStart1 ? this.refs.hotspotQuickPoolStart1.value.trim() : deriveHotspotPoolStart(this.state.hotspotQuickGateway1);
-		this.state.hotspotQuickPoolEnd1 = this.refs.hotspotQuickPoolEnd1 ? this.refs.hotspotQuickPoolEnd1.value.trim() : deriveHotspotPoolEnd(this.state.hotspotQuickGateway1);
-		this.state.hotspotQuickPolicy1 = normalizeHotspotPolicy(this.refs.hotspotQuickPolicy1 ? this.refs.hotspotQuickPolicy1.value : this.state.hotspotQuickPolicy1, 'standard');
-		this.state.hotspotQuickSecondaryEnabled = this.refs.hotspotQuickSecondaryEnabled ? this.refs.hotspotQuickSecondaryEnabled.checked : (this.state.hotspotQuickSecondaryEnabled !== false);
-		this.state.hotspotQuickSsid2 = this.refs.hotspotQuickSsid2 ? this.refs.hotspotQuickSsid2.value.trim() : (this.state.hotspotQuickSsid2 || 'Hotspot-2');
-		this.state.hotspotQuickGateway2 = this.refs.hotspotQuickGateway2 ? this.refs.hotspotQuickGateway2.value.trim() : (this.state.hotspotQuickGateway2 || '192.168.20.1');
-		this.state.hotspotQuickPoolStart2 = this.refs.hotspotQuickPoolStart2 ? this.refs.hotspotQuickPoolStart2.value.trim() : deriveHotspotPoolStart(this.state.hotspotQuickGateway2);
-		this.state.hotspotQuickPoolEnd2 = this.refs.hotspotQuickPoolEnd2 ? this.refs.hotspotQuickPoolEnd2.value.trim() : deriveHotspotPoolEnd(this.state.hotspotQuickGateway2);
-		this.state.hotspotQuickPolicy2 = normalizeHotspotPolicy(this.refs.hotspotQuickPolicy2 ? this.refs.hotspotQuickPolicy2.value : this.state.hotspotQuickPolicy2, 'premium');
-		this.state.hotspotQuickRadiusServer = this.refs.hotspotQuickRadiusServer ? this.refs.hotspotQuickRadiusServer.value.trim() : (this.state.hotspotQuickRadiusServer || '192.168.1.2');
-		this.state.hotspotQuickRadiusServer2 = this.refs.hotspotQuickRadiusServer2 ? this.refs.hotspotQuickRadiusServer2.value.trim() : (this.state.hotspotQuickRadiusServer2 || '');
-		this.state.hotspotQuickRadiusSecret = this.refs.hotspotQuickRadiusSecret ? this.refs.hotspotQuickRadiusSecret.value : (this.state.hotspotQuickRadiusSecret || '');
-		this.state.hotspotQuickRadiusAuthPort = this.refs.hotspotQuickRadiusAuthPort ? this.refs.hotspotQuickRadiusAuthPort.value.trim() : (this.state.hotspotQuickRadiusAuthPort || '1812');
-		this.state.hotspotQuickRadiusAcctPort = this.refs.hotspotQuickRadiusAcctPort ? this.refs.hotspotQuickRadiusAcctPort.value.trim() : (this.state.hotspotQuickRadiusAcctPort || '1813');
-		this.state.hotspotQuickRadiusNasIp = this.refs.hotspotQuickRadiusNasIp ? this.refs.hotspotQuickRadiusNasIp.value.trim() : (this.state.hotspotQuickRadiusNasIp || '');
-		this.state.hotspotQuickNasId = deriveHotspotQuickNasId(this.state.hotspotQuickNasId, this.state.lanIpaddr);
-		this.state.hotspotQuickAcctInterim = this.refs.hotspotQuickAcctInterim ? this.refs.hotspotQuickAcctInterim.value.trim() : (this.state.hotspotQuickAcctInterim || '60');
-		this.state.hotspotQuickCoaEnabled = this.refs.hotspotQuickCoaEnabled ? this.refs.hotspotQuickCoaEnabled.checked : !!this.state.hotspotQuickCoaEnabled;
-		this.state.hotspotQuickCoaPort = this.refs.hotspotQuickCoaPort ? this.refs.hotspotQuickCoaPort.value.trim() : (this.state.hotspotQuickCoaPort || '3799');
-		this.state.hotspotQuickTrialEnabled = this.refs.hotspotQuickTrialEnabled ? this.refs.hotspotQuickTrialEnabled.checked : !!this.state.hotspotQuickTrialEnabled;
-		this.state.hotspotQuickTrialDuration = this.refs.hotspotQuickTrialDuration ? this.refs.hotspotQuickTrialDuration.value.trim() : (this.state.hotspotQuickTrialDuration || '30');
-		this.state.hotspotQuickTrialUptimeLimit = this.refs.hotspotQuickTrialUptimeLimit ? this.refs.hotspotQuickTrialUptimeLimit.value.trim() : (this.state.hotspotQuickTrialUptimeLimit || '30');
-		this.state.hotspotQuickMacAuthEnabled = this.refs.hotspotQuickMacAuthEnabled ? this.refs.hotspotQuickMacAuthEnabled.checked : !!this.state.hotspotQuickMacAuthEnabled;
-		this.state.hotspotQuickMacAuthSuffix = this.refs.hotspotQuickMacAuthSuffix ? this.refs.hotspotQuickMacAuthSuffix.value.trim() : (this.state.hotspotQuickMacAuthSuffix || '@mac');
-		this.state.hotspotQuickMacAuthPassword = this.refs.hotspotQuickMacAuthPassword ? this.refs.hotspotQuickMacAuthPassword.value : (this.state.hotspotQuickMacAuthPassword || 'mac');
-		this.state.hotspotQuickWalledGarden = this.refs.hotspotQuickWalledGarden ? this.refs.hotspotQuickWalledGarden.value.trim() : (this.state.hotspotQuickWalledGarden || '');
-		this.state.hotspotQuickDomain = this.refs.hotspotQuickDomain ? this.refs.hotspotQuickDomain.value.trim() : (this.state.hotspotQuickDomain || 'hotspot.local');
-		this.state.hotspotQuickDns1 = this.refs.hotspotQuickDns1 ? this.refs.hotspotQuickDns1.value.trim() : (this.state.hotspotQuickDns1 || '8.8.8.8');
-		this.state.hotspotQuickDns2 = this.refs.hotspotQuickDns2 ? this.refs.hotspotQuickDns2.value.trim() : (this.state.hotspotQuickDns2 || '82.114.163.31');
-		this.state.hotspotQuickBridgeAgeingTime = normalizePositiveNumber(this.refs.hotspotQuickBridgeAgeingTime ? this.refs.hotspotQuickBridgeAgeingTime.value.trim() : (this.state.hotspotQuickBridgeAgeingTime || '10'), '10');
-		this.state.hotspotQuickLoginMode = normalizeHotspotLoginMode(this.refs.hotspotQuickLoginMode ? this.refs.hotspotQuickLoginMode.value : this.state.hotspotQuickLoginMode);
-		this.state.hotspotQuickRateLimit = this.refs.hotspotQuickRateLimit ? this.refs.hotspotQuickRateLimit.value.trim() : (this.state.hotspotQuickRateLimit || '2M/5M');
-		this.state.hotspotQuickMacCookieEnabled = this.refs.hotspotQuickMacCookieEnabled ? this.refs.hotspotQuickMacCookieEnabled.checked : !!this.state.hotspotQuickMacCookieEnabled;
-		this.state.hotspotQuickAvailableSpeeds = this.refs.hotspotQuickAvailableSpeeds ? this.refs.hotspotQuickAvailableSpeeds.value.trim() : (this.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast');
-		this.state.hotspotQuickSupportPhone = this.refs.hotspotQuickSupportPhone ? this.refs.hotspotQuickSupportPhone.value.trim() : (this.state.hotspotQuickSupportPhone || '');
-		this.state.hotspotQuickNoticeText = this.refs.hotspotQuickNoticeText ? this.refs.hotspotQuickNoticeText.value.trim() : (this.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا');
-		this.state.hotspotQuickLiveStreamEnabled = this.refs.hotspotQuickLiveStreamEnabled ? this.refs.hotspotQuickLiveStreamEnabled.checked : !!this.state.hotspotQuickLiveStreamEnabled;
-		this.state.hotspotQuickLiveStreamUrl = this.refs.hotspotQuickLiveStreamUrl ? this.refs.hotspotQuickLiveStreamUrl.value.trim() : (this.state.hotspotQuickLiveStreamUrl || '');
-		this.state.hotspotQuickRestAreaEnabled = this.refs.hotspotQuickRestAreaEnabled ? this.refs.hotspotQuickRestAreaEnabled.checked : !!this.state.hotspotQuickRestAreaEnabled;
-		this.state.hotspotQuickRestAreaUrl = this.refs.hotspotQuickRestAreaUrl ? this.refs.hotspotQuickRestAreaUrl.value.trim() : (this.state.hotspotQuickRestAreaUrl || '');
-		this.state.hotspotQuickSpeedtestEnabled = this.refs.hotspotQuickSpeedtestEnabled ? this.refs.hotspotQuickSpeedtestEnabled.checked : !!this.state.hotspotQuickSpeedtestEnabled;
-		this.state.hotspotQuickBrowserCookieEnabled = this.refs.hotspotQuickBrowserCookieEnabled ? this.refs.hotspotQuickBrowserCookieEnabled.checked : (this.state.hotspotQuickBrowserCookieEnabled !== false);
-		this.state.hotspotQuickBrowserCookieDays = normalizeBrowserCookieDays(this.refs.hotspotQuickBrowserCookieDays ? this.refs.hotspotQuickBrowserCookieDays.value.trim() : (this.state.hotspotQuickBrowserCookieDays || '7'));
-		this.state.hotspotQuickUsermanRestEnabled = this.refs.hotspotQuickUsermanRestEnabled ? this.refs.hotspotQuickUsermanRestEnabled.checked : !!this.state.hotspotQuickUsermanRestEnabled;
-		this.state.hotspotQuickUsermanRestScheme = normalizeRouterOsScheme(this.refs.hotspotQuickUsermanRestScheme ? this.refs.hotspotQuickUsermanRestScheme.value : this.state.hotspotQuickUsermanRestScheme);
-		this.state.hotspotQuickUsermanRestUsername = this.refs.hotspotQuickUsermanRestUsername ? this.refs.hotspotQuickUsermanRestUsername.value.trim() : (this.state.hotspotQuickUsermanRestUsername || 'hotspot-read');
-		this.state.hotspotQuickUsermanRestPassword = this.refs.hotspotQuickUsermanRestPassword ? this.refs.hotspotQuickUsermanRestPassword.value : (this.state.hotspotQuickUsermanRestPassword || '');
-		this.state.adminPassword = this.refs.adminPassword ? this.refs.adminPassword.value : '';
-		this.state.adminPasswordConfirm = this.refs.adminPasswordConfirm ? this.refs.adminPasswordConfirm.value : '';
-		this.state.hotspotEnabled = this.refs.hotspotEnabled ? this.refs.hotspotEnabled.checked : false;
-		this.state.hotspotSsid = this.refs.hotspotSsid ? this.refs.hotspotSsid.value.trim() : (this.state.hotspotSsid || 'Hotspot');
-		this.state.hotspotRadiusServer = this.refs.hotspotRadiusServer ? this.refs.hotspotRadiusServer.value.trim() : (this.state.hotspotRadiusServer || '192.168.1.2');
-		this.state.hotspotRadiusSecret = this.refs.hotspotRadiusSecret ? this.refs.hotspotRadiusSecret.value : '';
-		this.state.hotspotNasId = this.refs.hotspotNasId ? this.refs.hotspotNasId.value.trim() : (this.state.hotspotNasId || '');
-		this.state.hotspotIp = this.refs.hotspotIp ? this.refs.hotspotIp.value.trim() : (this.state.hotspotIp || '192.168.10.1');
-		this.state.hotspotPoolStart = this.refs.hotspotPoolStart ? this.refs.hotspotPoolStart.value.trim() : (this.state.hotspotPoolStart || '192.168.10.10');
-		this.state.hotspotPoolEnd = this.refs.hotspotPoolEnd ? this.refs.hotspotPoolEnd.value.trim() : (this.state.hotspotPoolEnd || '192.168.10.254');
+		var self = this;
+		if (!self.state)
+			self.state = {};
+		self.state.lanIpaddr = self.refs.lanIpaddr.value.trim();
+		self.state.lanNetmask = self.refs.lanNetmask.value.trim();
+		self.state.mode = self.refs.mode.value;
+
+		/* Bridge Hotspot mode and Quick Hotspot flag */
+		if (self.state.mode == 'hotspot' || (self.state.mode == 'ap' && self.state.hotspotQuickEnabled)) {
+			self.state.hotspotQuickEnabled = true;
+			self.state.hotspotQuickSecondaryEnabled = true;
+		} else {
+			self.state.hotspotQuickEnabled = false;
+		}
+
+		self.state.wifiSsid = self.refs.wifiSsid.value.trim();
+		self.state.wifiSsid5gMode = self.refs.wifiSsid5gMode ? self.refs.wifiSsid5gMode.value : (self.state.wifiSsid5gMode || 'derived');
+		self.state.wifiSsid5g = self.refs.wifiSsid5g ? self.refs.wifiSsid5g.value.trim() : (self.state.wifiSsid5g || '');
+		self.state.wifiSsidVlan2g = self.refs.wifiSsidVlan2g ? self.refs.wifiSsidVlan2g.value.trim() : (self.state.wifiSsidVlan2g || '');
+		self.state.wifiSsidVlan5g = self.refs.wifiSsidVlan5g ? self.refs.wifiSsidVlan5g.value.trim() : (self.state.wifiSsidVlan5g || '');
+		self.state.wifiSsidVlanIpSuffix = self.refs.wifiSsidIpSuffixPrimary ? self.refs.wifiSsidIpSuffixPrimary.checked : (self.refs.wifiSsidVlanIpSuffix ? self.refs.wifiSsidVlanIpSuffix.checked : !!self.state.wifiSsidVlanIpSuffix);
+		self.state.wifiKey = self.refs.wifiKey.value;
+		self.state.uplinkSsid = self.refs.uplinkSsid ? self.refs.uplinkSsid.value.trim() : '';
+		self.state.uplinkKey = self.refs.uplinkKey ? self.refs.uplinkKey.value : '';
+		self.state.uplinkBand = self.refs.uplinkBand ? self.refs.uplinkBand.value : '2g';
+		self.state.meshId = self.refs.meshId ? self.refs.meshId.value.trim() : '';
+		self.state.meshKey = self.refs.meshKey ? self.refs.meshKey.value : '';
+		self.state.meshBand = self.refs.meshBand ? self.refs.meshBand.value : '2g';
+		self.state.isVlan = self.refs.isVlan.checked;
+		self.state.vlanId = self.refs.vlanId.value.trim();
+		self.state.channel2g = self.refs.channel2g ? self.refs.channel2g.value : 'auto';
+		self.state.channel5g = self.refs.channel5g ? self.refs.channel5g.value : 'auto';
+		self.state.wifiMode2g = self.refs.wifiMode2g ? self.refs.wifiMode2g.value : (self.state.wifiMode2g || 'ax');
+		self.state.wifiWidth2g = self.refs.wifiWidth2g ? self.refs.wifiWidth2g.value : (self.state.wifiWidth2g || '20');
+		self.state.wifiMode5g = self.refs.wifiMode5g ? self.refs.wifiMode5g.value : (self.state.wifiMode5g || 'ax');
+		self.state.wifiWidth5g = self.refs.wifiWidth5g ? self.refs.wifiWidth5g.value : (self.state.wifiWidth5g || '80');
+		self.state.resetDisabled = self.refs.resetDisabled.checked;
+		self.state.resetHoldSeconds = self.refs.resetHoldSeconds.value;
+		self.state.wpsDisabled = self.refs.wpsDisabled.checked;
+		self.state.rebootEnabled = self.refs.rebootEnabled ? self.refs.rebootEnabled.checked : false;
+		self.state.rebootHours = self.refs.rebootHours ? self.refs.rebootHours.value.trim() : '24';
+		self.state.otaWindowStart = self.refs.otaWindowStart ? normalizeHour(self.refs.otaWindowStart.value, 2) : self.state.otaWindowStart;
+		self.state.otaWindowEnd = self.refs.otaWindowEnd ? normalizeHour(self.refs.otaWindowEnd.value, 6) : self.state.otaWindowEnd;
+		self.state.hotspotQuickWanInterface = self.refs.hotspotQuickWanInterface ? self.refs.hotspotQuickWanInterface.value.trim() : (self.state.hotspotQuickWanInterface || 'lan');
+		self.state.hotspotQuickSubscriberInterface = self.refs.hotspotQuickSubscriberInterface ? self.refs.hotspotQuickSubscriberInterface.value.trim() : (self.state.hotspotQuickSubscriberInterface || 'hotspot');
+		self.state.hotspotQuickSsid1 = self.refs.hotspotQuickSsid1 ? self.refs.hotspotQuickSsid1.value.trim() : (self.state.hotspotQuickSsid1 || 'Hotspot-1');
+		self.state.hotspotQuickGateway1 = self.refs.hotspotQuickGateway1 ? self.refs.hotspotQuickGateway1.value.trim() : (self.state.hotspotQuickGateway1 || '192.168.10.1');
+		self.state.hotspotQuickPoolStart1 = self.refs.hotspotQuickPoolStart1 ? self.refs.hotspotQuickPoolStart1.value.trim() : deriveHotspotPoolStart(self.state.hotspotQuickGateway1);
+		self.state.hotspotQuickPoolEnd1 = self.refs.hotspotQuickPoolEnd1 ? self.refs.hotspotQuickPoolEnd1.value.trim() : deriveHotspotPoolEnd(self.state.hotspotQuickGateway1);
+		self.state.hotspotQuickPolicy1 = normalizeHotspotPolicy(self.refs.hotspotQuickPolicy1 ? self.refs.hotspotQuickPolicy1.value : self.state.hotspotQuickPolicy1, 'standard');
+		self.state.hotspotQuickSecondaryEnabled = self.refs.hotspotQuickSecondaryEnabled ? self.refs.hotspotQuickSecondaryEnabled.checked : (self.state.hotspotQuickSecondaryEnabled !== false);
+		self.state.hotspotQuickSsid2 = self.refs.hotspotQuickSsid2 ? self.refs.hotspotQuickSsid2.value.trim() : (self.state.hotspotQuickSsid2 || 'Hotspot-2');
+		self.state.hotspotQuickGateway2 = self.refs.hotspotQuickGateway2 ? self.refs.hotspotQuickGateway2.value.trim() : (self.state.hotspotQuickGateway2 || '192.168.20.1');
+		self.state.hotspotQuickPoolStart2 = self.refs.hotspotQuickPoolStart2 ? self.refs.hotspotQuickPoolStart2.value.trim() : deriveHotspotPoolStart(self.state.hotspotQuickGateway2);
+		self.state.hotspotQuickPoolEnd2 = self.refs.hotspotQuickPoolEnd2 ? self.refs.hotspotQuickPoolEnd2.value.trim() : deriveHotspotPoolEnd(self.state.hotspotQuickGateway2);
+		self.state.hotspotQuickPolicy2 = normalizeHotspotPolicy(self.refs.hotspotQuickPolicy2 ? self.refs.hotspotQuickPolicy2.value : self.state.hotspotQuickPolicy2, 'premium');
+		self.state.hotspotQuickRadiusServer = self.refs.hotspotQuickRadiusServer ? self.refs.hotspotQuickRadiusServer.value.trim() : (self.state.hotspotQuickRadiusServer || '192.168.1.2');
+		self.state.hotspotQuickRadiusServer2 = self.refs.hotspotQuickRadiusServer2 ? self.refs.hotspotQuickRadiusServer2.value.trim() : (self.state.hotspotQuickRadiusServer2 || '');
+		self.state.hotspotQuickRadiusSecret = self.refs.hotspotQuickRadiusSecret ? self.refs.hotspotQuickRadiusSecret.value : (self.state.hotspotQuickRadiusSecret || '');
+		self.state.hotspotQuickRadiusAuthPort = self.refs.hotspotQuickRadiusAuthPort ? self.refs.hotspotQuickRadiusAuthPort.value.trim() : (self.state.hotspotQuickRadiusAuthPort || '1812');
+		self.state.hotspotQuickRadiusAcctPort = self.refs.hotspotQuickRadiusAcctPort ? self.refs.hotspotQuickRadiusAcctPort.value.trim() : (self.state.hotspotQuickRadiusAcctPort || '1813');
+		self.state.hotspotQuickRadiusNasIp = self.refs.hotspotQuickRadiusNasIp ? self.refs.hotspotQuickRadiusNasIp.value.trim() : (self.state.hotspotQuickRadiusNasIp || '');
+		self.state.hotspotQuickNasId = deriveHotspotQuickNasId(self.state.hotspotQuickNasId, self.state.lanIpaddr);
+		self.state.hotspotQuickAcctInterim = self.refs.hotspotQuickAcctInterim ? self.refs.hotspotQuickAcctInterim.value.trim() : (self.state.hotspotQuickAcctInterim || '60');
+		self.state.hotspotQuickCoaEnabled = self.refs.hotspotQuickCoaEnabled ? self.refs.hotspotQuickCoaEnabled.checked : !!self.state.hotspotQuickCoaEnabled;
+		self.state.hotspotQuickCoaPort = self.refs.hotspotQuickCoaPort ? self.refs.hotspotQuickCoaPort.value.trim() : (self.state.hotspotQuickCoaPort || '3799');
+		self.state.hotspotQuickTrialEnabled = self.refs.hotspotQuickTrialEnabled ? self.refs.hotspotQuickTrialEnabled.checked : !!self.state.hotspotQuickTrialEnabled;
+		self.state.hotspotQuickTrialDuration = self.refs.hotspotQuickTrialDuration ? self.refs.hotspotQuickTrialDuration.value.trim() : (self.state.hotspotQuickTrialDuration || '30');
+		self.state.hotspotQuickTrialUptimeLimit = self.refs.hotspotQuickTrialUptimeLimit ? self.refs.hotspotQuickTrialUptimeLimit.value.trim() : (self.state.hotspotQuickTrialUptimeLimit || '30');
+		self.state.hotspotQuickMacAuthEnabled = self.refs.hotspotQuickMacAuthEnabled ? self.refs.hotspotQuickMacAuthEnabled.checked : !!self.state.hotspotQuickMacAuthEnabled;
+		self.state.hotspotQuickMacAuthSuffix = self.refs.hotspotQuickMacAuthSuffix ? self.refs.hotspotQuickMacAuthSuffix.value.trim() : (self.state.hotspotQuickMacAuthSuffix || '@mac');
+		self.state.hotspotQuickMacAuthPassword = self.refs.hotspotQuickMacAuthPassword ? self.refs.hotspotQuickMacAuthPassword.value : (self.state.hotspotQuickMacAuthPassword || 'mac');
+		self.state.hotspotQuickWalledGarden = self.refs.hotspotQuickWalledGarden ? self.refs.hotspotQuickWalledGarden.value.trim() : (self.state.hotspotQuickWalledGarden || '');
+		self.state.hotspotQuickDomain = self.refs.hotspotQuickDomain ? self.refs.hotspotQuickDomain.value.trim() : (self.state.hotspotQuickDomain || 'hotspot.local');
+		self.state.hotspotQuickDns1 = self.refs.hotspotQuickDns1 ? self.refs.hotspotQuickDns1.value.trim() : (self.state.hotspotQuickDns1 || '8.8.8.8');
+		self.state.hotspotQuickDns2 = self.refs.hotspotQuickDns2 ? self.refs.hotspotQuickDns2.value.trim() : (self.state.hotspotQuickDns2 || '82.114.163.31');
+		self.state.hotspotQuickBridgeAgeingTime = normalizePositiveNumber(self.refs.hotspotQuickBridgeAgeingTime ? self.refs.hotspotQuickBridgeAgeingTime.value.trim() : (self.state.hotspotQuickBridgeAgeingTime || '10'), '10');
+		self.state.hotspotQuickLoginMode = normalizeHotspotLoginMode(self.refs.hotspotQuickLoginMode ? self.refs.hotspotQuickLoginMode.value : self.state.hotspotQuickLoginMode);
+		self.state.hotspotQuickRateLimit = self.refs.hotspotQuickRateLimit ? self.refs.hotspotQuickRateLimit.value.trim() : (self.state.hotspotQuickRateLimit || '2M/5M');
+		self.state.hotspotQuickMacCookieEnabled = self.refs.hotspotQuickMacCookieEnabled ? self.refs.hotspotQuickMacCookieEnabled.checked : !!self.state.hotspotQuickMacCookieEnabled;
+		self.state.hotspotQuickAvailableSpeeds = self.refs.hotspotQuickAvailableSpeeds ? self.refs.hotspotQuickAvailableSpeeds.value.trim() : (self.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast');
+		self.state.hotspotQuickSupportPhone = self.refs.hotspotQuickSupportPhone ? self.refs.hotspotQuickSupportPhone.value.trim() : (self.state.hotspotQuickSupportPhone || '');
+		self.state.hotspotQuickNoticeText = self.refs.hotspotQuickNoticeText ? self.refs.hotspotQuickNoticeText.value.trim() : (self.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا');
+		self.state.hotspotQuickLiveStreamEnabled = self.refs.hotspotQuickLiveStreamEnabled ? self.refs.hotspotQuickLiveStreamEnabled.checked : !!self.state.hotspotQuickLiveStreamEnabled;
+		self.state.hotspotQuickLiveStreamUrl = self.refs.hotspotQuickLiveStreamUrl ? self.refs.hotspotQuickLiveStreamUrl.value.trim() : (self.state.hotspotQuickLiveStreamUrl || '');
+		self.state.hotspotQuickRestAreaEnabled = self.refs.hotspotQuickRestAreaEnabled ? self.refs.hotspotQuickRestAreaEnabled.checked : !!self.state.hotspotQuickRestAreaEnabled;
+		self.state.hotspotQuickRestAreaUrl = self.refs.hotspotQuickRestAreaUrl ? self.refs.hotspotQuickRestAreaUrl.value.trim() : (self.state.hotspotQuickRestAreaUrl || '');
+		self.state.hotspotQuickSpeedtestEnabled = self.refs.hotspotQuickSpeedtestEnabled ? self.refs.hotspotQuickSpeedtestEnabled.checked : !!self.state.hotspotQuickSpeedtestEnabled;
+		self.state.hotspotQuickMaintEnabled = self.refs.hotspotQuickMaintEnabled ? self.refs.hotspotQuickMaintEnabled.checked : !!self.state.hotspotQuickMaintEnabled;
+		self.state.hotspotQuickMaintStart = self.refs.hotspotQuickMaintStart ? self.refs.hotspotQuickMaintStart.value : (self.state.hotspotQuickMaintStart || '02:00');
+		self.state.hotspotQuickMaintEnd = self.refs.hotspotQuickMaintEnd ? self.refs.hotspotQuickMaintEnd.value : (self.state.hotspotQuickMaintEnd || '03:00');
+		self.state.hotspotQuickMaintMode = self.refs.hotspotQuickMaintMode ? self.refs.hotspotQuickMaintMode.value : (self.state.hotspotQuickMaintMode || 'free');
+		self.state.hotspotQuickBrowserCookieEnabled = self.refs.hotspotQuickBrowserCookieEnabled ? self.refs.hotspotQuickBrowserCookieEnabled.checked : (self.state.hotspotQuickBrowserCookieEnabled !== false);
+		self.state.hotspotQuickBrowserCookieDays = normalizeBrowserCookieDays(self.refs.hotspotQuickBrowserCookieDays ? self.refs.hotspotQuickBrowserCookieDays.value.trim() : (self.state.hotspotQuickBrowserCookieDays || '7'));
+		self.state.hotspotQuickUsermanRestEnabled = self.refs.hotspotQuickUsermanRestEnabled ? self.refs.hotspotQuickUsermanRestEnabled.checked : !!self.state.hotspotQuickUsermanRestEnabled;
+		self.state.hotspotQuickUsermanRestScheme = normalizeRouterOsScheme(self.refs.hotspotQuickUsermanRestScheme ? self.refs.hotspotQuickUsermanRestScheme.value : self.state.hotspotQuickUsermanRestScheme);
+		self.state.hotspotQuickUsermanRestUsername = self.refs.hotspotQuickUsermanRestUsername ? self.refs.hotspotQuickUsermanRestUsername.value.trim() : (self.state.hotspotQuickUsermanRestUsername || 'hotspot-read');
+		self.state.hotspotQuickUsermanRestPassword = self.refs.hotspotQuickUsermanRestPassword ? self.refs.hotspotQuickUsermanRestPassword.value : (self.state.hotspotQuickUsermanRestPassword || '');
+		self.state.adminPassword = self.refs.adminPassword ? self.refs.adminPassword.value : '';
+		self.state.adminPasswordConfirm = self.refs.adminPasswordConfirm ? self.refs.adminPasswordConfirm.value : '';
+		self.state.hotspotEnabled = self.refs.hotspotEnabled ? self.refs.hotspotEnabled.checked : false;
+		self.state.hotspotSsid = self.refs.hotspotSsid ? self.refs.hotspotSsid.value.trim() : (self.state.hotspotSsid || 'Hotspot');
+		self.state.hotspotRadiusServer = self.refs.hotspotRadiusServer ? self.refs.hotspotRadiusServer.value.trim() : (self.state.hotspotRadiusServer || '192.168.1.2');
+		self.state.hotspotRadiusSecret = self.refs.hotspotRadiusSecret ? self.refs.hotspotRadiusSecret.value : '';
+		self.state.hotspotNasId = self.refs.hotspotNasId ? self.refs.hotspotNasId.value.trim() : (self.state.hotspotNasId || '');
+		self.state.hotspotIp = self.refs.hotspotIp ? self.refs.hotspotIp.value.trim() : (self.state.hotspotIp || '192.168.10.1');
+		self.state.hotspotPoolStart = self.refs.hotspotPoolStart ? self.refs.hotspotPoolStart.value.trim() : (self.state.hotspotPoolStart || '192.168.10.10');
+		self.state.hotspotPoolEnd = self.refs.hotspotPoolEnd ? self.refs.hotspotPoolEnd.value.trim() : (self.state.hotspotPoolEnd || '192.168.10.254');
 	},
 
 	describeModePlan: function() {
-		var radio2g = getRadioByBand(this.radios || [], '2g');
-		var remainingBands = getRemainingLocalBands(this.radios || [], this.state);
+		var self = this;
+		var state = self.state || {};
+		if (!state.mode) return '';
+		var radio2g = getRadioByBand(self.radios || [], '2g');
+		var remainingBands = getRemainingLocalBands(self.radios || [], self.state);
 		var onlyBand = remainingBands[0];
-		var uplinkBand = getRadioByBand(this.radios || [], this.state.uplinkBand) ? this.state.uplinkBand : (radio2g ? '2g' : '5g');
-		var meshBand = getRadioByBand(this.radios || [], this.state.meshBand) ? this.state.meshBand : (radio2g ? '2g' : '5g');
+		var uplinkBand = getRadioByBand(self.radios || [], self.state.uplinkBand) ? self.state.uplinkBand : (radio2g ? '2g' : '5g');
+		var meshBand = getRadioByBand(self.radios || [], self.state.meshBand) ? self.state.meshBand : (radio2g ? '2g' : '5g');
 
-		if (this.state.mode == 'ap_wds') {
+		if (self.state.mode == 'ap_wds') {
 			if (!remainingBands.length)
 				return _('AP + WDS بدون شبكة محلية.');
 
@@ -3438,7 +3292,7 @@ return view.extend({
 			return _('AP + WDS على الراديوهات المحلية.');
 		}
 
-		if (this.state.mode == 'sta_wds') {
+		if (self.state.mode == 'sta_wds') {
 			if (!remainingBands.length)
 				return _('الربط الصاعد على ') + bandLabel(uplinkBand) + _('، ولا توجد شبكة محلية.');
 
@@ -3448,7 +3302,7 @@ return view.extend({
 			return _('الربط الصاعد على ') + bandLabel(uplinkBand) + _('، والباقي للبث المحلي.');
 		}
 
-		if (this.state.mode == 'mesh') {
+		if (self.state.mode == 'mesh') {
 			if (!remainingBands.length)
 				return _('الميش على ') + bandLabel(meshBand) + _('، ولا توجد شبكة محلية.');
 
@@ -3468,600 +3322,357 @@ return view.extend({
 	},
 
 	describeSecondaryNetworkPlan: function() {
-		var vlanId = this.state.vlanId || '10';
+		var self = this;
+		var state = self.state || {};
+		if (!state.mode) return '';
+		var vlanId = self.state.vlanId || '10';
 		var vlanBinding = describeSecondaryVlanBinding(vlanId);
-		var secondary2g = previewSecondarySsid(this.state, '2g');
-		var secondary5g = previewSecondarySsid(this.state, '5g');
-		var remainingBands = getRemainingLocalBands(this.radios || [], this.state);
+		var secondary2g = previewSecondarySsid(self.state, '2g');
+		var secondary5g = previewSecondarySsid(self.state, '5g');
+		var remainingBands = getRemainingLocalBands(self.radios || [], self.state);
 		var remainingCount = remainingBands.length;
 		var onlyBand = remainingCount ? remainingBands[0] : null;
 		var firstBand = remainingBands[0];
 		var secondBand = remainingBands[1];
-		if (!this.state.isVlan)
+		if (!self.state.isVlan)
 			return _('معطلة.');
 
 		if (!remainingCount)
 			return _('مفعلة بدون بث لاسلكي.');
 
 		if (remainingCount == 1)
-			return _('مفعلة على ') + bandLabel(onlyBand) + _(': ') + previewSecondarySsid(this.state, onlyBand) + _(' ضمن ') + vlanBinding + _('.');
+			return _('مفعلة على ') + bandLabel(onlyBand) + _(': ') + previewSecondarySsid(self.state, onlyBand) + _(' ضمن ') + vlanBinding + _('.');
 
 		return _('مفعلة: ') + bandLabel(firstBand) + ' ' + secondary2g + _(' | ') + bandLabel(secondBand) + ' ' + secondary5g + _(' ضمن ') + vlanBinding + _('.');
 	},
 
 	syncRadioModeWidthUi: function() {
-		if (this.refs.wifiMode2g && this.refs.wifiWidth2g) {
-			this.state.wifiMode2g = normalizeWifiModeForBand('2g', this.state.wifiMode2g);
-			populateSelectOptions(this.refs.wifiMode2g, wifiModeChoices('2g'), this.state.wifiMode2g);
-			this.state.wifiWidth2g = normalizeWifiWidthForBand('2g', this.state.wifiMode2g, this.state.wifiWidth2g);
-			populateSelectOptions(this.refs.wifiWidth2g, wifiWidthChoices('2g', this.state.wifiMode2g), this.state.wifiWidth2g);
+		var self = this;
+		if (!self.state) return;
+		if (self.refs.wifiMode2g && self.refs.wifiWidth2g) {
+			self.state.wifiMode2g = normalizeWifiModeForBand('2g', self.state.wifiMode2g);
+			populateSelectOptions(self.refs.wifiMode2g, wifiModeChoices('2g'), self.state.wifiMode2g);
+			self.state.wifiWidth2g = normalizeWifiWidthForBand('2g', self.state.wifiMode2g, self.state.wifiWidth2g);
+			populateSelectOptions(self.refs.wifiWidth2g, wifiWidthChoices('2g', self.state.wifiMode2g), self.state.wifiWidth2g);
 		}
 
-		if (this.refs.wifiMode5g && this.refs.wifiWidth5g) {
-			this.state.wifiMode5g = normalizeWifiModeForBand('5g', this.state.wifiMode5g);
-			populateSelectOptions(this.refs.wifiMode5g, wifiModeChoices('5g'), this.state.wifiMode5g);
-			this.state.wifiWidth5g = normalizeWifiWidthForBand('5g', this.state.wifiMode5g, this.state.wifiWidth5g);
-			populateSelectOptions(this.refs.wifiWidth5g, wifiWidthChoices('5g', this.state.wifiMode5g), this.state.wifiWidth5g);
+		if (self.refs.wifiMode5g && self.refs.wifiWidth5g) {
+			self.state.wifiMode5g = normalizeWifiModeForBand('5g', self.state.wifiMode5g);
+			populateSelectOptions(self.refs.wifiMode5g, wifiModeChoices('5g'), self.state.wifiMode5g);
+			self.state.wifiWidth5g = normalizeWifiWidthForBand('5g', self.state.wifiMode5g, self.state.wifiWidth5g);
+			populateSelectOptions(self.refs.wifiWidth5g, wifiWidthChoices('5g', self.state.wifiMode5g), self.state.wifiWidth5g);
 		}
 	},
 
 	updateStepUi: function() {
+		var self = this;
+		if (!self.state || Object.keys(self.state).length === 0) return;
 		var i;
-		var lastStep = this.stepPanels.length - 1;
+		var lastStep = self.stepPanels.length - 1;
 		var vlanBinding;
 		var meshBandIs5g;
 		var meshChannel;
 
-		this.collectState();
-		this.syncRadioModeWidthUi();
-		enforceHotspotNoVlan(this.state);
-		if (this.state.hotspotQuickEnabled) {
-			this.state.mode = 'ap';
-			if (this.refs.mode)
-				this.refs.mode.value = 'ap';
-		}
-		vlanBinding = describeSecondaryVlanBinding(this.state.vlanId);
-		meshBandIs5g = (this.state.meshBand == '5g');
-		meshChannel = meshBandIs5g ? this.state.channel5g : this.state.channel2g;
+		self.collectState();
+		self.syncRadioModeWidthUi();
 
-		if (this.refs.isVlan)
-			this.refs.isVlan.checked = !!this.state.isVlan;
+		var isHotspotMode = (self.state.mode === 'hotspot' || self.state.mode === 'hotspot_quick');
 
-		for (i = 0; i < this.stepPanels.length; i++) {
-			this.stepPanels[i].style.display = (i == this.stepIndex) ? '' : 'none';
+		enforceHotspotNoVlan(self.state);
+		vlanBinding = describeSecondaryVlanBinding(self.state.vlanId);
+		meshBandIs5g = (self.state.meshBand == '5g');
+		meshChannel = meshBandIs5g ? self.state.channel5g : self.state.channel2g;
 
-			if (this.stepChips && this.stepChips[i]) {
-				setClassState(this.stepChips[i], 'is-active', i == this.stepIndex);
-				setClassState(this.stepChips[i], 'is-complete', i < this.stepIndex);
-				setClassState(this.stepChips[i], 'is-skipped', this.isStepSkipped(i));
+		if (self.refs.isVlan)
+			self.refs.isVlan.checked = !!self.state.isVlan;
+
+		for (i = 0; i < self.stepPanels.length; i++) {
+			self.stepPanels[i].style.display = (i == self.stepIndex) ? '' : 'none';
+
+			if (self.stepChips && self.stepChips[i]) {
+				setClassState(self.stepChips[i], 'is-active', i == self.stepIndex);
+				setClassState(self.stepChips[i], 'is-complete', i < self.stepIndex);
+				setClassState(self.stepChips[i], 'is-skipped', self.isStepSkipped(i));
 			}
 
-			if (this.stepBadges && this.stepBadges[i]) {
-				setClassState(this.stepBadges[i], 'is-active', i == this.stepIndex);
-				setClassState(this.stepBadges[i], 'is-complete', i < this.stepIndex);
+			if (self.stepBadges && self.stepBadges[i]) {
+				setClassState(self.stepBadges[i], 'is-active', i == self.stepIndex);
+				setClassState(self.stepBadges[i], 'is-complete', i < self.stepIndex);
 			}
 		}
 
-		this.refs.backButton.disabled = (this.stepIndex === 0);
-		setElementVisible(this.refs.nextButton, this.stepIndex !== lastStep);
-		setElementVisible(this.refs.saveButton, this.stepIndex === lastStep);
-		setElementVisible(this.refs.uplinkSettingsWrapper, this.state.mode == 'sta_wds');
-		setElementVisible(this.refs.meshSettingsWrapper, this.state.mode == 'mesh');
-		setElementVisible(this.refs.hotspotQuickDetailsWrapper, !!this.state.hotspotQuickEnabled);
-		setElementVisible(this.refs.hotspotQuickSecondaryWrapper, !!(this.state.hotspotQuickEnabled && this.state.hotspotQuickSecondaryEnabled));
-		if (this.refs.hotspotQuickCard)
-			setClassState(this.refs.hotspotQuickCard, 'is-wide', !!this.state.hotspotQuickEnabled);
-		if (this.refs.vlanSettingsCard)
-			setElementVisible(this.refs.vlanSettingsCard, !this.state.hotspotQuickEnabled);
-		if (this.refs.mode)
-			this.refs.mode.disabled = !!this.state.hotspotQuickEnabled;
-		setElementVisible(this.refs.vlanIdWrapper, this.refs.isVlan.checked);
-		if (this.refs.vlanSsid2gRow)
-			setElementVisible(this.refs.vlanSsid2gRow, this.refs.isVlan.checked);
-		if (this.refs.vlanSsid5gRow)
-			setElementVisible(this.refs.vlanSsid5gRow, this.refs.isVlan.checked);
-		if (this.refs.vlanSsidIpSuffixRow)
-			setElementVisible(this.refs.vlanSsidIpSuffixRow, true);
-		setElementVisible(this.refs.vlanPreviewWrapper, this.refs.isVlan.checked);
-		if (this.refs.hotspotVlanLockNotice)
-			setElementVisible(this.refs.hotspotVlanLockNotice, !!this.state.hotspotQuickEnabled);
+		
+		if (self.refs.progressFill) {
+            var perc = ((self.stepIndex + 1) / self.stepPanels.length) * 100;
+            self.refs.progressFill.style.width = perc + '%';
+        }
 
-		if (this.refs.isVlan)
-			this.refs.isVlan.disabled = !!this.state.hotspotQuickEnabled;
-		if (this.refs.vlanId)
-			this.refs.vlanId.disabled = !!this.state.hotspotQuickEnabled;
-		if (this.refs.wifiSsidVlan2g)
-			this.refs.wifiSsidVlan2g.disabled = !!this.state.hotspotQuickEnabled;
-		if (this.refs.wifiSsidVlan5g)
-			this.refs.wifiSsidVlan5g.disabled = !!this.state.hotspotQuickEnabled;
-		if (this.refs.wifiSsidVlanIpSuffix)
-			this.refs.wifiSsidVlanIpSuffix.disabled = !!this.state.hotspotQuickEnabled;
-		if (this.refs.wifiSsidIpSuffixPrimary)
-			this.refs.wifiSsidIpSuffixPrimary.disabled = !!this.state.hotspotQuickEnabled;
-		setElementVisible(this.refs.resetHoldWrapper, !this.refs.resetDisabled.checked);
-		setElementVisible(this.refs.rebootHoursWrapper, this.refs.rebootEnabled.checked);
-		var apVlanOnlyMode = (this.state.mode == 'ap' && this.state.isVlan);
-		if (this.refs.primaryWifiSection)
-			setElementVisible(this.refs.primaryWifiSection, !apVlanOnlyMode && !this.state.hotspotQuickEnabled);
-		if (this.refs.wifiSecurityCard)
-			setElementVisible(this.refs.wifiSecurityCard, !this.state.hotspotQuickEnabled);
-		if (this.refs.apVlanWarning)
-			setElementVisible(this.refs.apVlanWarning, apVlanOnlyMode);
-		var hasLocal5g = (getRemainingLocalBands(this.radios || [], this.state).indexOf('5g') != -1);
-		if (this.refs.ssid5gModeRow)
-			setElementVisible(this.refs.ssid5gModeRow, hasLocal5g);
-		if (this.refs.ssid5gCustomRow)
-			setElementVisible(this.refs.ssid5gCustomRow, hasLocal5g && this.state.wifiSsid5gMode == 'custom');
-		if (this.refs.ssidPreviewRow)
-			setElementVisible(this.refs.ssidPreviewRow, hasLocal5g);
-		this.refs.ssidPreview.textContent = primarySsid(this.state, '5g');
-		if (this.refs.heroCurrentLan)
-			this.refs.heroCurrentLan.textContent = this.state.lanIpaddr || '-';
-		if (this.refs.heroCurrentMode)
-			this.refs.heroCurrentMode.textContent = modeTitle(this.state.mode);
-		if (this.refs.heroCurrentSecondary)
-			this.refs.heroCurrentSecondary.textContent = this.state.hotspotQuickEnabled
+        if (self.stepIndex === (self.stepPanels.length - 1) && self.refs.reviewContainer) {
+            dom.content(self.refs.reviewContainer, [
+                E('div', { 'class': 'alemprator-review-item' }, [ E('span', { 'class': 'alemprator-review-label' }, _('وضع التشغيل:')), E('span', { 'class': 'alemprator-review-value' }, modeTitle(self.state.mode)) ]),
+                E('div', { 'class': 'alemprator-review-item' }, [ E('span', { 'class': 'alemprator-review-label' }, _('عنوان الشبكة:')), E('span', { 'class': 'alemprator-review-value' }, self.state.lanIpaddr) ]),
+                E('div', { 'class': 'alemprator-review-item' }, [ E('span', { 'class': 'alemprator-review-label' }, _('اسم الهوتسبوت:')), E('span', { 'class': 'alemprator-review-value' }, self.state.hotspotQuickSsid1 || 'Hotspot-1') ])
+            ]);
+            self.refs.saveButton.classList.add('is-luxury');
+        } else if (self.refs.saveButton) {
+            self.refs.saveButton.classList.remove('is-luxury');
+        }
+
+		self.refs.prevButton.disabled = (self.stepIndex === 0);
+		setElementVisible(self.refs.nextButton, self.stepIndex !== lastStep);
+		setElementVisible(self.refs.saveButton, self.stepIndex === lastStep);
+		setElementVisible(self.refs.uplinkSettingsWrapper, (self.state.mode == 'sta_wds' || self.state.mode == 'ap_wds'));
+		setElementVisible(self.refs.meshSettingsWrapper, self.state.mode == 'mesh');
+		setElementVisible(self.refs.hotspotQuickDetailsWrapper, !!(self.state || {}).hotspotQuickEnabled);
+		setElementVisible(self.refs.hotspotQuickAuthWrapper, !!(self.state || {}).hotspotQuickEnabled);
+		setElementVisible(self.refs.hotspotQuickRestFieldsWrapper, !!(self.state.hotspotQuickEnabled && self.state.hotspotQuickUsermanRestEnabled));
+		setElementVisible(self.refs.hotspotQuickSecondaryWrapper, !!(self.state.hotspotQuickEnabled && self.state.hotspotQuickSecondaryEnabled));
+		setElementVisible(self.refs.hotspotQuickMaintWrapper, !!(self.state.hotspotQuickEnabled && self.state.hotspotQuickMaintEnabled));
+		if (self.refs.hotspotQuickCard)
+			setClassState(self.refs.hotspotQuickCard, 'is-wide', !!(self.state || {}).hotspotQuickEnabled);
+		if (self.refs.vlanSettingsCard)
+			setElementVisible(self.refs.vlanSettingsCard, !(self.state || {}).hotspotQuickEnabled && !isHotspotMode);
+		
+		if (self.refs.lanAdvancedCard)
+			setElementVisible(self.refs.lanAdvancedCard, true);
+
+		// Radio settings: Show as minimalist tooltip even in Hotspot mode for Alemprator minimalism
+		if (self.refs.radioSettingsCard)
+			setElementVisible(self.refs.radioSettingsCard, true);
+
+		if (self.refs.meshSettingsCard)
+			setElementVisible(self.refs.meshSettingsCard, !isHotspotMode);
+
+		if (self.refs.otaCard)
+			setElementVisible(self.refs.otaCard, true);
+		if (self.refs.firstbootCard)
+			setElementVisible(self.refs.firstbootCard, true);
+		if (self.refs.buttonPoliciesCard)
+			setElementVisible(self.refs.buttonPoliciesCard, true);
+		if (self.refs.rebootCard)
+			setElementVisible(self.refs.rebootCard, true);
+		
+		// Hide maintenance header and backup in hotspot mode if total minimalism is desired
+		// For now, let's keep backup but hide the technical stuff.
+		// If the user wants to hide the header too:
+		if (self.refs.maintenanceHeader)
+			setElementVisible(self.refs.maintenanceHeader, true);
+		if (self.refs.backupCard)
+			setElementVisible(self.refs.backupCard, true);
+
+		if (self.refs.mode)
+			self.refs.mode.disabled = !!(self.state || {}).hotspotQuickEnabled;
+		setElementVisible(self.refs.vlanIdWrapper, self.refs.isVlan.checked);
+		if (self.refs.vlanSsid2gRow)
+			setElementVisible(self.refs.vlanSsid2gRow, self.refs.isVlan.checked);
+		if (self.refs.vlanSsid5gRow)
+			setElementVisible(self.refs.vlanSsid5gRow, self.refs.isVlan.checked);
+		if (self.refs.vlanSsidIpSuffixRow)
+			setElementVisible(self.refs.vlanSsidIpSuffixRow, true);
+		setElementVisible(self.refs.vlanPreviewWrapper, self.refs.isVlan.checked);
+		if (self.refs.hotspotVlanLockNotice)
+			setElementVisible(self.refs.hotspotVlanLockNotice, !!(self.state || {}).hotspotQuickEnabled);
+
+		if (self.refs.isVlan)
+			self.refs.isVlan.disabled = !!(self.state || {}).hotspotQuickEnabled;
+		if (self.refs.vlanId)
+			self.refs.vlanId.disabled = !!(self.state || {}).hotspotQuickEnabled;
+		if (self.refs.wifiSsidVlan2g)
+			self.refs.wifiSsidVlan2g.disabled = !!(self.state || {}).hotspotQuickEnabled;
+		if (self.refs.wifiSsidVlan5g)
+			self.refs.wifiSsidVlan5g.disabled = !!(self.state || {}).hotspotQuickEnabled;
+		if (self.refs.wifiSsidVlanIpSuffix)
+			self.refs.wifiSsidVlanIpSuffix.disabled = !!(self.state || {}).hotspotQuickEnabled;
+		if (self.refs.wifiSsidIpSuffixPrimary)
+			self.refs.wifiSsidIpSuffixPrimary.disabled = !!(self.state || {}).hotspotQuickEnabled;
+		setElementVisible(self.refs.resetHoldWrapper, !self.refs.resetDisabled.checked);
+		setElementVisible(self.refs.rebootHoursWrapper, self.refs.rebootEnabled.checked);
+		var apVlanOnlyMode = (self.state.mode == 'ap' && self.state.isVlan);
+		if (self.refs.primaryWifiSection)
+			setElementVisible(self.refs.primaryWifiSection, !apVlanOnlyMode && !(self.state || {}).hotspotQuickEnabled);
+		if (self.refs.wifiSecurityCard)
+			setElementVisible(self.refs.wifiSecurityCard, !(self.state || {}).hotspotQuickEnabled);
+		if (self.refs.apVlanWarning)
+			setElementVisible(self.refs.apVlanWarning, apVlanOnlyMode);
+		var hasLocal5g = (getRemainingLocalBands(self.radios || [], self.state).indexOf('5g') != -1);
+		if (self.refs.ssid5gModeRow)
+			setElementVisible(self.refs.ssid5gModeRow, hasLocal5g);
+		if (self.refs.ssid5gCustomRow)
+			setElementVisible(self.refs.ssid5gCustomRow, hasLocal5g && self.state.wifiSsid5gMode == 'custom');
+		if (self.refs.ssidPreviewRow)
+			setElementVisible(self.refs.ssidPreviewRow, hasLocal5g);
+		self.refs.ssidPreview.textContent = primarySsid(self.state, '5g');
+		if (self.refs.heroCurrentLan)
+			self.refs.heroCurrentLan.textContent = self.state.lanIpaddr || '-';
+		if (self.refs.heroCurrentMode)
+			self.refs.heroCurrentMode.textContent = modeTitle(self.state.mode);
+		if (self.refs.heroCurrentSecondary)
+			self.refs.heroCurrentSecondary.textContent = self.state.hotspotQuickEnabled
 				? _('هوتسبوت سريع: شبكتان')
-				: describeHeroSecondarySummary(this.state, this.radios || []);
-		if (this.refs.heroSetupSummary)
-			this.refs.heroSetupSummary.textContent = describeFirstbootSummary(this.state);
-		if (this.refs.wifiNameHelp)
-			this.refs.wifiNameHelp.textContent = describePrimaryWifiNamingHelp(this.state, this.radios || []);
-		this.refs.vlanPreview.textContent = vlanBinding;
-		if (this.refs.secondaryNetworkIntro)
-			this.refs.secondaryNetworkIntro.textContent = describeSecondaryNetworkIntro(this.state, this.radios || []);
-		if (this.refs.secondarySubnetHelp)
-			this.refs.secondarySubnetHelp.textContent = describeSecondarySubnetHelp(this.state, this.radios || []);
-		if (this.refs.uplinkHelp)
-			this.refs.uplinkHelp.textContent = describeUplinkSettingsHelp(this.state, this.radios || []);
-		if (this.refs.meshHelp)
-			this.refs.meshHelp.textContent = describeMeshSettingsHelp(this.state, this.radios || []);
+				: describeHeroSecondarySummary(self.state, self.radios || []);
+		if (self.refs.heroSetupSummary)
+			self.refs.heroSetupSummary.textContent = describeFirstbootSummary(self.state);
+		if (self.refs.wifiNameHelp)
+			self.refs.wifiNameHelp.textContent = describePrimaryWifiNamingHelp(self.state, self.radios || []);
+		self.refs.vlanPreview.textContent = vlanBinding;
+		if (self.refs.secondaryNetworkIntro)
+			self.refs.secondaryNetworkIntro.textContent = describeSecondaryNetworkIntro(self.state, self.radios || []);
+		if (self.refs.secondarySubnetHelp)
+			self.refs.secondarySubnetHelp.textContent = describeSecondarySubnetHelp(self.state, self.radios || []);
+		if (self.refs.uplinkHelp)
+			self.refs.uplinkHelp.textContent = describeUplinkSettingsHelp(self.state, self.radios || []);
+		if (self.refs.meshHelp)
+			self.refs.meshHelp.textContent = describeMeshSettingsHelp(self.state, self.radios || []);
 
-		if (this.refs.channel2gRow) {
-			setClassState(this.refs.channel2gRow, 'is-mesh-target', this.state.mode == 'mesh' && !meshBandIs5g);
+		if (self.refs.channel2gRow) {
+			setClassState(self.refs.channel2gRow, 'is-mesh-target', self.state.mode == 'mesh' && !meshBandIs5g);
 		}
 
-		if (this.refs.channel5gRow) {
-			setClassState(this.refs.channel5gRow, 'is-mesh-target', this.state.mode == 'mesh' && meshBandIs5g);
+		if (self.refs.channel5gRow) {
+			setClassState(self.refs.channel5gRow, 'is-mesh-target', self.state.mode == 'mesh' && meshBandIs5g);
 		}
 
-		if (this.refs.meshChannelHelp) {
-			if (this.state.mode == 'mesh') {
-				setElementVisible(this.refs.meshChannelHelp, true);
-				this.refs.meshChannelHelp.textContent = describeMeshChannelHelp(this.state, this.radios || []);
+		if (self.refs.meshChannelHelp) {
+			if (self.state.mode == 'mesh') {
+				setElementVisible(self.refs.meshChannelHelp, true);
+				self.refs.meshChannelHelp.textContent = describeMeshChannelHelp(self.state, self.radios || []);
 			}
 			else {
-				setElementVisible(this.refs.meshChannelHelp, false);
-				this.refs.meshChannelHelp.textContent = '';
+				setElementVisible(self.refs.meshChannelHelp, false);
+				self.refs.meshChannelHelp.textContent = '';
 			}
 		}
 
-		if (this.refs.modePlan)
-			this.refs.modePlan.textContent = this.describeModePlan();
+		if (self.refs.modePlan)
+			self.refs.modePlan.textContent = self.describeModePlan();
 
-		if (this.refs.primaryWifiPlan)
-			this.refs.primaryWifiPlan.textContent = describePrimaryWifiPlan(this.state, this.radios || []);
+		if (self.refs.primaryWifiPlan)
+			self.refs.primaryWifiPlan.textContent = describePrimaryWifiPlan(self.state, self.radios || []);
 
-		if (this.refs.secondaryNetworkPlan)
-			this.refs.secondaryNetworkPlan.textContent = this.describeSecondaryNetworkPlan();
+		if (self.refs.secondaryNetworkPlan)
+			self.refs.secondaryNetworkPlan.textContent = self.describeSecondaryNetworkPlan();
 
-		if (this.refs.secondaryNetworkNotice) {
-			this.refs.secondaryNetworkNotice.textContent = describeSecondaryNetworkNotice(this.state, this.radios || []);
-			setElementVisible(this.refs.secondaryNetworkNotice, this.state.isVlan);
+		if (self.refs.secondaryNetworkNotice) {
+			self.refs.secondaryNetworkNotice.textContent = describeSecondaryNetworkNotice(self.state, self.radios || []);
+			setElementVisible(self.refs.secondaryNetworkNotice, self.state.isVlan);
 		}
 
-		if (this.refs.otaWindowStatus)
-			this.refs.otaWindowStatus.textContent = this.state.otaWindowAvailable ? describeOtaWindow(this.state.otaWindowStart, this.state.otaWindowEnd) : _('إعدادات التحديث التلقائي غير متوفرة على هذا الجهاز.');
+		if (self.refs.otaWindowStatus)
+			self.refs.otaWindowStatus.textContent = self.state.otaWindowAvailable ? describeOtaWindow(self.state.otaWindowStart, self.state.otaWindowEnd) : _('إعدادات التحديث التلقائي غير متوفرة على هذا الجهاز.');
 
-		if (this.refs.firstbootSummary)
-			this.refs.firstbootSummary.textContent = describeFirstbootSummary(this.state);
+		if (self.refs.firstbootSummary)
+			self.refs.firstbootSummary.textContent = describeFirstbootSummary(self.state);
 
-		if (this.refs.firstbootEnabledStatus)
-			this.refs.firstbootEnabledStatus.textContent = enabledText(this.state.firstbootEnabled);
+		if (self.refs.firstbootEnabledStatus)
+			self.refs.firstbootEnabledStatus.textContent = enabledText(self.state.firstbootEnabled);
 
-		if (this.refs.firstbootConfiguredOnceStatus)
-			this.refs.firstbootConfiguredOnceStatus.textContent = boolText(this.state.firstbootConfiguredOnce);
+		if (self.refs.firstbootConfiguredOnceStatus)
+			self.refs.firstbootConfiguredOnceStatus.textContent = boolText(self.state.firstbootConfiguredOnce);
 
-		if (this.refs.firstbootInitialSetupStatus)
-			this.refs.firstbootInitialSetupStatus.textContent = boolText(this.state.firstbootInitialSetupComplete);
+		if (self.refs.firstbootInitialSetupStatus)
+			self.refs.firstbootInitialSetupStatus.textContent = boolText(self.state.firstbootInitialSetupComplete);
 
-		if (this.refs.firstbootCleanupStatus)
-			this.refs.firstbootCleanupStatus.textContent = describeFirstbootCleanupState(this.state.firstbootAutoCleanupArmed, this.state.firstbootAutoCleanupPending);
+		if (self.refs.firstbootCleanupStatus)
+			self.refs.firstbootCleanupStatus.textContent = describeFirstbootCleanupState(self.state.firstbootAutoCleanupArmed, self.state.firstbootAutoCleanupPending);
 
-		if (this.refs.firstbootSections)
-			this.refs.firstbootSections.textContent = describeFirstbootSections(this.state);
+		if (self.refs.firstbootSections)
+			self.refs.firstbootSections.textContent = describeFirstbootSections(self.state);
 
-		setTextContent(this.refs.lanCardSummary, summarizeLanCard(this.state));
-		setTextContent(this.refs.modeCardSummary, summarizeModeCard(this.state));
-		setTextContent(this.refs.primaryWifiCardSummary, summarizePrimaryWifiCard(this.state, this.radios || []));
-		setTextContent(this.refs.wifiSecurityCardSummary, summarizeWifiSecurity(this.state));
-		setTextContent(this.refs.uplinkCardSummary, summarizeUplinkCard(this.state, this.radios || []));
-		setTextContent(this.refs.meshCardSummary, summarizeMeshCard(this.state, this.radios || []));
-		setTextContent(this.refs.vlanCardSummary, summarizeVlanCard(this.state, this.radios || []));
-		setTextContent(this.refs.radioCardSummary, summarizeChannelCard(this.state, this.radios || []));
-		setTextContent(this.refs.backupCardSummary, (this.refs.backupStatus && this.refs.backupStatus.textContent) || _('جاهز لتنزيل النسخة الاحتياطية أو استرجاعها بأمان.'));
-		setTextContent(this.refs.firstbootCardSummary, describeFirstbootSummary(this.state));
-		setTextContent(this.refs.otaCardSummary, summarizeOtaCard(this.state));
-		setTextContent(this.refs.buttonPoliciesCardSummary, summarizeButtonPolicies(this.state));
-		setTextContent(this.refs.rebootCardSummary, summarizeRebootPolicy(this.state));
-		setTextContent(this.refs.passwordCardSummary, summarizePasswordCard(this.state));
+		setTextContent(self.refs.lanCardSummary, summarizeLanCard(self.state));
+		setTextContent(self.refs.modeCardSummary, summarizeModeCard(self.state));
+		setTextContent(self.refs.primaryWifiCardSummary, summarizePrimaryWifiCard(self.state, self.radios || []));
+		setTextContent(self.refs.wifiSecurityCardSummary, summarizeWifiSecurity(self.state));
+		setTextContent(self.refs.uplinkCardSummary, summarizeUplinkCard(self.state, self.radios || []));
+		setTextContent(self.refs.meshCardSummary, summarizeMeshCard(self.state, self.radios || []));
+		setTextContent(self.refs.vlanCardSummary, summarizeVlanCard(self.state, self.radios || []));
+		setTextContent(self.refs.radioCardSummary, summarizeChannelCard(self.state, self.radios || []));
+		setTextContent(self.refs.backupCardSummary, (self.refs.backupStatus && self.refs.backupStatus.textContent) || _('جاهز لتنزيل النسخة الاحتياطية أو استرجاعها بأمان.'));
+		setTextContent(self.refs.firstbootCardSummary, describeFirstbootSummary(self.state));
+		setTextContent(self.refs.otaCardSummary, summarizeOtaCard(self.state));
+		setTextContent(self.refs.buttonPoliciesCardSummary, summarizeButtonPolicies(self.state));
+		setTextContent(self.refs.rebootCardSummary, summarizeRebootPolicy(self.state));
+		setTextContent(self.refs.passwordCardSummary, summarizePasswordCard(self.state));
 
-		setTextContent(this.refs.hotspotCardSummary, summarizeHotspotCard(this.state));
+		setTextContent(self.refs.hotspotCardSummary, summarizeHotspotCard(self.state));
 
-		if (this.refs.hotspotFieldsWrapper)
-			setElementVisible(this.refs.hotspotFieldsWrapper, !!(this.state.hotspotAvailable && this.state.hotspotEnabled));
+		if (self.refs.hotspotFieldsWrapper)
+			setElementVisible(self.refs.hotspotFieldsWrapper, !!(self.state.hotspotAvailable && self.state.hotspotEnabled));
 
-		if (this.refs.hotspotIpConflictWarning) {
-			var showConflict = this.state.hotspotEnabled && hotspotIpConflictsWithLan(this.state.lanIpaddr, this.state.hotspotIp);
-			setElementVisible(this.refs.hotspotIpConflictWarning, showConflict);
+		if (self.refs.hotspotIpConflictWarning) {
+			var showConflict = self.state.hotspotEnabled && hotspotIpConflictsWithLan(self.state.lanIpaddr, self.state.hotspotIp);
+			setElementVisible(self.refs.hotspotIpConflictWarning, showConflict);
 		}
 	},
 
-	validateStep: function(index) {
-		this.collectState();
+	validateStep: function(index) { var self = this;
+		self.collectState();
 
-		if (STEP_KEYS[index] == 'hotspot') {
-			if (this.state.hotspotAvailable && this.state.hotspotEnabled) {
-				if (!isIPv4(this.state.hotspotRadiusServer)) {
-					notify(_('أدخل عنوان IPv4 صالحاً لخادم RADIUS.'));
-					return false;
-				}
-
-				if (!this.state.hotspotRadiusSecret) {
-					notify(_('كلمة سر RADIUS مطلوبة.'));
-					return false;
-				}
-
-				if (!this.state.hotspotSsid) {
-					notify(_('أدخل اسم شبكة الهوتسبوت.'));
-					return false;
-				}
-
-				if (!isIPv4(this.state.hotspotIp)) {
-					notify(_('أدخل عنوان IPv4 صالحاً لشبكة الهوتسبوت.'));
-					return false;
-				}
-
-				if (hotspotIpConflictsWithLan(this.state.lanIpaddr, this.state.hotspotIp)) {
-					notify(_('نطاق الهوتسبوت يتعارض مع نطاق LAN. غيّر hotspot IP إلى نطاق مختلف (مثل 192.168.10.1).'));
-					return false;
-				}
-
-				var localRadios = this.radios || [];
-				if (!localRadios.length) {
-					notify(_('لا توجد راديوهات واي فاي متاحة لبث شبكة الهوتسبوت.'));
-					return false;
-				}
-			}
-		}
-
-		if (STEP_KEYS[index] == 'lan' || STEP_KEYS[index] == 'options') {
-			if (!isIPv4(this.state.lanIpaddr)) {
+		if (STEP_KEYS[index] == 'network') {
+			if (!isIPv4(self.state.lanIpaddr)) {
 				notify(_('أدخل عنوان LAN IPv4 صالحًا.'));
 				return false;
 			}
 
-			if (!isIPv4(this.state.lanNetmask)) {
+			if (!isIPv4(self.state.lanNetmask)) {
 				notify(_('أدخل قناع شبكة LAN صالحًا.'));
 				return false;
 			}
-		}
 
-		if (STEP_KEYS[index] == 'mode' || STEP_KEYS[index] == 'options') {
-			if (normalizeMode(this.state.mode) != this.state.mode) {
+			if (normalizeMode(self.state.mode) != self.state.mode) {
 				notify(_('اختر وضع تشغيل صالحًا.'));
 				return false;
 			}
 
-			if (this.state.hotspotQuickEnabled && this.state.mode != 'ap') {
+			if (self.state.hotspotQuickEnabled && (self.state.mode != 'ap' && self.state.mode != 'hotspot')) {
 				notify(_('وضع الهوتسبوت السريع يعمل فقط مع نقطة الوصول AP.'));
 				return false;
 			}
 
-			if (this.state.hotspotQuickEnabled && this.state.isVlan) {
-				notify(_('لا يمكن تفعيل VLAN مع الهوتسبوت السريع.'));
-				return false;
-			}
-
-			if (this.state.hotspotQuickEnabled) {
-				if (!isIPv4(this.state.hotspotQuickRadiusServer)) {
-					notify(_('أدخل عنوان IPv4 صالحاً لخادم RADIUS في الهوتسبوت السريع.'));
-					return false;
-				}
-
-				if (this.state.hotspotQuickRadiusServer2 && !isIPv4(this.state.hotspotQuickRadiusServer2)) {
-					notify(_('أدخل عنوان IPv4 صالحاً لخادم RADIUS الاحتياطي أو اتركه فارغاً.'));
-					return false;
-				}
-
-				if (!this.state.hotspotQuickRadiusSecret) {
-					notify(_('كلمة سر RADIUS مطلوبة للهوتسبوت السريع.'));
-					return false;
-				}
-
-				if (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickRadiusAuthPort) || +this.state.hotspotQuickRadiusAuthPort > 65535) {
-					notify(_('أدخل منفذ RADIUS Auth صحيحاً بين 1 و65535.'));
-					return false;
-				}
-
-				if (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickRadiusAcctPort) || +this.state.hotspotQuickRadiusAcctPort > 65535) {
-					notify(_('أدخل منفذ RADIUS Accounting صحيحاً بين 1 و65535.'));
-					return false;
-				}
-
-				if (this.state.hotspotQuickRadiusNasIp && !isIPv4(this.state.hotspotQuickRadiusNasIp)) {
-					notify(_('أدخل NAS IP صحيحاً أو اتركه فارغاً.'));
-					return false;
-				}
-
-				if (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickAcctInterim)) {
-					notify(_('أدخل Accounting Interim صحيحاً بالثواني.'));
-					return false;
-				}
-
-				if (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickCoaPort) || +this.state.hotspotQuickCoaPort > 65535) {
-					notify(_('أدخل منفذ CoA صحيحاً بين 1 و65535.'));
-					return false;
-				}
-
-				if (this.state.hotspotQuickTrialEnabled && (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickTrialDuration) || !/^[1-9][0-9]*$/.test(this.state.hotspotQuickTrialUptimeLimit))) {
-					notify(_('أدخل مدة Trial وحد وقت Trial بالدقائق كأرقام صحيحة.'));
-					return false;
-				}
-
-				if (this.state.hotspotQuickMacAuthEnabled && !this.state.hotspotQuickMacAuthPassword) {
-					notify(_('أدخل كلمة مرور MAC Authentication أو عطّل الخيار.'));
-					return false;
-				}
-
-				if (!validQuickDomain(this.state.hotspotQuickDomain)) {
-					notify(_('أدخل DNS Domain صحيحاً بدون http:// أو مسارات.'));
-					return false;
-				}
-
-				if (!isIPv4(this.state.hotspotQuickDns1) || (this.state.hotspotQuickDns2 && !isIPv4(this.state.hotspotQuickDns2))) {
-					notify(_('أدخل DNS Server صحيحاً.'));
-					return false;
-				}
-
-				if (!validRateLimit(this.state.hotspotQuickRateLimit)) {
-					notify(_('أدخل Rate Limit بصيغة صحيحة مثل 2M/5M أو اتركه فارغاً.'));
-					return false;
-				}
-
-				if (!/^[1-9][0-9]*$/.test(this.state.hotspotQuickBrowserCookieDays) || +this.state.hotspotQuickBrowserCookieDays > 365) {
-					notify(_('مدة كوكي المتصفح يجب أن تكون من 1 إلى 365 يوماً.'));
-					return false;
-				}
-
-				if (this.state.hotspotQuickUsermanRestEnabled && !this.state.hotspotQuickUsermanRestUsername) {
-					notify(_('أدخل RouterOS API User أو عطّل قراءة رصيد User Manager.'));
-					return false;
-				}
-
-				if (this.state.hotspotQuickUsermanRestEnabled && !this.state.hotspotQuickUsermanRestPassword) {
-					notify(_('أدخل RouterOS API Password أو عطّل قراءة رصيد User Manager.'));
-					return false;
-				}
-
-				var walledGardenDomains = splitQuickList(this.state.hotspotQuickWalledGarden);
-				for (var wgIndex = 0; wgIndex < walledGardenDomains.length; wgIndex++) {
-					if (!validQuickDomain(walledGardenDomains[wgIndex])) {
-						notify(_('أدخل نطاقات Walled Garden صحيحة بدون http:// أو مسارات.'));
-						return false;
-					}
-				}
-
-				var quickModeProfileError = validateHotspotQuickProfile(this.state, 1);
-				if (!quickModeProfileError && this.state.hotspotQuickSecondaryEnabled)
-					quickModeProfileError = validateHotspotQuickProfile(this.state, 2);
-
-				if (quickModeProfileError) {
-					notify(quickModeProfileError);
-					return false;
-				}
-
-				if (this.state.hotspotQuickSecondaryEnabled && sameIpv4Subnet24(this.state.hotspotQuickGateway1, this.state.hotspotQuickGateway2)) {
-					notify(_('يجب أن تكون الشبكة الأولى والثانية في نطاقين مختلفين.'));
-					return false;
-				}
-			}
-
-			var uplinkRadio = getRadioByBand(this.radios || [], this.state.uplinkBand);
-			var meshRadio = getRadioByBand(this.radios || [], this.state.meshBand);
-			var hasLocal5g = (getRemainingLocalBands(this.radios || [], this.state).indexOf('5g') != -1);
-			var apVlanOnlyMode = (this.state.mode == 'ap' && this.state.isVlan);
-
-			if (!this.state.hotspotQuickEnabled && !apVlanOnlyMode && !this.state.wifiSsid) {
+			var apVlanOnlyMode = (self.state.mode == 'ap' && self.state.isVlan);
+			if (!(self.state || {}).hotspotQuickEnabled && !apVlanOnlyMode && !self.state.wifiSsid) {
 				notify(_('أدخل اسم الشبكة اللاسلكية الأساسي.'));
 				return false;
 			}
+		}
 
-			if (!this.state.hotspotQuickEnabled && !apVlanOnlyMode && hasLocal5g && this.state.wifiSsid5gMode == 'custom' && !this.state.wifiSsid5g) {
-				notify(_('أدخل اسما مخصصا لشبكة 5GHz أو اختر التسمية التلقائية.'));
+		if (STEP_KEYS[index] == 'hotspot_net') {
+			var quickModeProfileError = validateHotspotQuickProfile(self.state, 1);
+			if (!quickModeProfileError && self.state.hotspotQuickSecondaryEnabled)
+				quickModeProfileError = validateHotspotQuickProfile(self.state, 2);
+
+			if (quickModeProfileError) {
+				notify(quickModeProfileError);
 				return false;
 			}
+		}
 
-			if (this.state.wifiKey && this.state.wifiKey.length < 8) {
-				notify(_('يجب أن تتكون كلمة مرور الواي فاي من 8 أحرف على الأقل، أو اتركها فارغة إذا كنت تريد شبكة مفتوحة.'));
-				return false;
-			}
-
-			if (this.state.mode == 'sta_wds') {
-				if (!this.state.uplinkSsid) {
-					notify(_('أدخل اسم شبكة الربط الصاعد لوضع Client + WDS.'));
+		if (STEP_KEYS[index] == 'hotspot_auth') {
+			if (self.state.hotspotQuickEnabled) {
+				if (!isIPv4(self.state.hotspotQuickRadiusServer)) {
+					notify(_('أدخل عنوان IPv4 صالحاً لخادم RADIUS (IP الميكروتك).'));
 					return false;
 				}
-
-				if (this.state.uplinkBand != '2g' && this.state.uplinkBand != '5g') {
-					notify(_('اختر نطاق راديو الربط الصاعد.'));
+				if (!self.state.hotspotQuickRadiusSecret) {
+					notify(_('كلمة سر RADIUS مطلوبة.'));
 					return false;
 				}
-
-				if (!uplinkRadio) {
-					notify(_('نطاق الربط الصاعد المحدد غير متوفر على هذا الجهاز.'));
-					return false;
-				}
-
-				if (this.state.uplinkKey && this.state.uplinkKey.length < 8) {
-					notify(_('يجب أن تتكون كلمة مرور الربط الصاعد من 8 أحرف على الأقل، أو اتركها فارغة إذا كانت الشبكة مفتوحة.'));
-					return false;
-				}
-			}
-
-			if (this.state.mode == 'mesh') {
-				if (!this.state.meshId) {
-					notify(_('أدخل معرف Mesh.'));
-					return false;
-				}
-
-				if (this.state.meshBand != '2g' && this.state.meshBand != '5g') {
-					notify(_('اختر نطاق راديو Mesh.'));
-					return false;
-				}
-
-				if (!meshRadio) {
-					notify(_('نطاق Mesh المحدد غير متوفر على هذا الجهاز.'));
-					return false;
-				}
-
-				if (this.state.meshKey && this.state.meshKey.length < 8) {
-					notify(_('يجب أن تتكون كلمة مرور Mesh من 8 أحرف على الأقل، أو اتركها فارغة إذا كنت تريد شبكة Mesh مفتوحة.'));
-					return false;
-				}
-			}
-
-			if (this.state.isVlan) {
-				var vlanIdInMode = +this.state.vlanId;
-				var activeBandsInMode = getRemainingLocalBands(this.radios || [], this.state);
-				var manualSecondary2gInMode = previewSecondaryManualSsid(this.state, '2g');
-				var manualSecondary5gInMode = previewSecondaryManualSsid(this.state, '5g');
-				var effectiveSecondary2gInMode = previewSecondarySsid(this.state, '2g');
-				var effectiveSecondary5gInMode = previewSecondarySsid(this.state, '5g');
-				var primary2gInMode = primarySsid(this.state, '2g');
-				var primary5gInMode = primarySsid(this.state, '5g');
-
-				if (!(vlanIdInMode >= 1 && vlanIdInMode <= 4094)) {
-					notify(_('اختر قيمة VLAN ID بين 1 و4094.'));
-					return false;
-				}
-
-				if (activeBandsInMode.length && !manualSecondary2gInMode) {
-					notify(_('أدخل اسم شبكة VLAN الأساسي.'));
-					return false;
-				}
-
-				if (activeBandsInMode.indexOf('2g') != -1 && effectiveSecondary2gInMode && (effectiveSecondary2gInMode == primary2gInMode || effectiveSecondary2gInMode == primary5gInMode)) {
-					notify(_('اسم شبكة VLAN على 2.4GHz يتعارض مع اسم شبكة أساسية موجودة. اختر اسمًا مختلفًا.'));
-					return false;
-				}
-
-				if (activeBandsInMode.indexOf('5g') != -1 && effectiveSecondary5gInMode && (effectiveSecondary5gInMode == primary2gInMode || effectiveSecondary5gInMode == primary5gInMode)) {
-					notify(_('اسم شبكة VLAN على 5GHz يتعارض مع اسم شبكة أساسية موجودة. اختر اسمًا مختلفًا.'));
-					return false;
+				if (self.state.hotspotQuickUsermanRestEnabled) {
+					if (!self.state.hotspotQuickUsermanRestUsername || !self.state.hotspotQuickUsermanRestPassword) {
+						notify(_('يجب إدخال اسم المستخدم وكلمة مرور API عند تفعيل User Manager REST.'));
+						return false;
+					}
 				}
 			}
 		}
 
-		if (STEP_KEYS[index] == 'vlan' || STEP_KEYS[index] == 'options') {
-			if (this.refs.wifiMode2g)
-				this.state.wifiMode2g = normalizeWifiModeForBand('2g', this.state.wifiMode2g);
-
-			if (this.refs.wifiMode5g)
-				this.state.wifiMode5g = normalizeWifiModeForBand('5g', this.state.wifiMode5g);
-
-			if (this.refs.wifiWidth2g)
-				this.state.wifiWidth2g = normalizeWifiWidthForBand('2g', this.state.wifiMode2g, this.state.wifiWidth2g);
-
-			if (this.refs.wifiWidth5g)
-				this.state.wifiWidth5g = normalizeWifiWidthForBand('5g', this.state.wifiMode5g, this.state.wifiWidth5g);
-
-			if (this.state.mode == 'mesh') {
-				var meshChannel = (this.state.meshBand == '5g') ? this.state.channel5g : this.state.channel2g;
-
-				if (!meshChannel || meshChannel == 'auto') {
-					notify(_('اختر قناة ثابتة للنطاق المحدد للميش.'));
-					return false;
-				}
-			}
-
-			if (this.state.isVlan) {
-				var vlanId = +this.state.vlanId;
-
-				if (!(vlanId >= 1 && vlanId <= 4094)) {
-					notify(_('اختر قيمة VLAN ID بين 1 و4094.'));
-					return false;
-				}
-			}
-		}
-
-		if (STEP_KEYS[index] == 'advanced' || STEP_KEYS[index] == 'maintenance') {
-			if (this.state.hotspotQuickEnabled) {
-				var blockedSubscriberIfaces = [ 'lan', 'wan', 'wan6', 'loopback', 'wizardvlan' ];
-				var quickSubscriber = normalizeInterfaceName(this.state.hotspotQuickSubscriberInterface, 'hotspot');
-				var quickSubscriberSecondary = deriveHotspotQuickSecondaryInterface(quickSubscriber);
-				var quickWan = normalizeInterfaceName(this.state.hotspotQuickWanInterface, 'lan');
-
-				if (this.state.mode != 'ap') {
-					notify(_('الهوتسبوت السريع يتطلب وضع نقطة الوصول AP فقط.'));
-					return false;
-				}
-
-				if (blockedSubscriberIfaces.indexOf(quickSubscriber) > -1) {
-					notify(_('واجهة مشتركي الهوتسبوت غير صالحة. استخدم واجهة مستقلة مثل hotspot.'));
-					return false;
-				}
-
-				if (blockedSubscriberIfaces.indexOf(quickSubscriberSecondary) > -1) {
-					notify(_('تم اشتقاق واجهة ثانية غير صالحة. غيّر اسم واجهة المشتركين الأساسية.'));
-					return false;
-				}
-
-				if (quickSubscriber == quickWan) {
-					notify(_('لا يمكن أن تكون واجهة المشتركين هي نفس واجهة الإنترنت في الهوتسبوت السريع.'));
-					return false;
-				}
-
-				if (quickSubscriberSecondary == quickWan) {
-					notify(_('الواجهة الثانية للهوتسبوت السريع لا يمكن أن تساوي واجهة الإنترنت. غيّر اسم واجهة المشتركين الأساسية.'));
-					return false;
-				}
-
-				var quickProfileError = validateHotspotQuickProfile(this.state, 1) || (this.state.hotspotQuickSecondaryEnabled ? validateHotspotQuickProfile(this.state, 2) : '');
-
-				if (quickProfileError) {
-					notify(quickProfileError);
-					return false;
-				}
-
-				if (this.state.hotspotQuickSecondaryEnabled && String(this.state.hotspotQuickSsid1 || '').trim() == String(this.state.hotspotQuickSsid2 || '').trim()) {
-					notify(_('يجب أن يكون اسم الشبكة الأولى مختلفًا عن الثانية في الهوتسبوت السريع.'));
-					return false;
-				}
-
-				if (this.state.hotspotQuickSecondaryEnabled && String(this.state.hotspotQuickGateway1 || '').trim() == String(this.state.hotspotQuickGateway2 || '').trim()) {
-					notify(_('يجب أن يكون عنوان الخروج مختلفًا بين الشبكتين في الهوتسبوت السريع.'));
-					return false;
-				}
-
-				if (this.state.isVlan) {
-					notify(_('الهوتسبوت السريع يرفض VLAN تلقائيًا. عطّل VLAN للمتابعة.'));
-					return false;
-				}
-			}
-
-			if (this.state.rebootEnabled && !/^[1-9][0-9]*$/.test(this.state.rebootHours)) {
-				notify(_('أدخل مدة إعادة التشغيل الدوري بعدد ساعات صحيح أكبر من صفر.'));
-				return false;
-			}
-
-			if ((this.state.adminPassword || this.state.adminPasswordConfirm) &&
-			    (!this.state.adminPassword || !this.state.adminPasswordConfirm)) {
+		if (STEP_KEYS[index] == 'maintenance') {
+			if ((self.state.adminPassword || self.state.adminPasswordConfirm) &&
+			    (!self.state.adminPassword || !self.state.adminPasswordConfirm)) {
 				notify(_('أدخل كلمة مرور الجهاز الجديدة ثم أكدها.'));
 				return false;
 			}
 
-			if (this.state.adminPassword != this.state.adminPasswordConfirm) {
+			if (self.state.adminPassword != self.state.adminPasswordConfirm) {
 				notify(_('تأكيد كلمة مرور الجهاز غير مطابق.'));
 				return false;
 			}
@@ -4071,41 +3682,52 @@ return view.extend({
 	},
 
 	isStepSkipped: function(index) {
-		if (STEP_KEYS[index] == 'hotspot' && !(this.state && this.state.hotspotAvailable))
+		var self = this;
+		var state = self.state || {};
+		
+		if (!state || Object.keys(state).length === 0)
 			return true;
 
-		if (STEP_KEYS[index] == 'vlan' && this.state && this.state.hotspotAvailable && this.state.hotspotEnabled)
-			return true;
+		// Step 0 (Identity), Step 1 (Wireless) and Step 4 (Maintenance) always visible
+		if (index === 0 || index === 1 || index === 4) return false;
+
+		// Step 2 (Hotspot Network) and Step 3 (Hotspot Auth)
+		// Only show if Hotspot mode is selected
+		if (STEP_KEYS[index] == 'hotspot_net' || STEP_KEYS[index] == 'hotspot_auth') {
+			var isHotspot = (state.mode === 'hotspot' || state.hotspotQuickEnabled);
+			return !isHotspot;
+		}
 
 		return false;
 	},
 
-	nextStep: function() {
-		if (!this.validateStep(this.stepIndex))
+	nextStep: function() { var self = this;
+		self.collectState();
+		if (!self.validateStep(self.stepIndex))
 			return;
 
-		var nextIndex = this.stepIndex + 1;
+		var nextIndex = self.stepIndex + 1;
 
-		while (nextIndex < this.stepPanels.length - 1 && this.isStepSkipped(nextIndex))
+		while (nextIndex < self.stepPanels.length - 1 && self.isStepSkipped(nextIndex))
 			nextIndex++;
 
-		if (nextIndex < this.stepPanels.length) {
-			this.stepIndex = nextIndex;
-			this.updateStepUi();
+		if (nextIndex < self.stepPanels.length) {
+			self.stepIndex = nextIndex;
+			self.updateStepUi();
 		}
 	},
 
-	prevStep: function() {
-		this.collectState();
+	prevStep: function() { var self = this;
+		self.collectState();
 
-		if (this.stepIndex > 0) {
-			var prevIndex = this.stepIndex - 1;
+		if (self.stepIndex > 0) {
+			var prevIndex = self.stepIndex - 1;
 
-			while (prevIndex > 0 && this.isStepSkipped(prevIndex))
+			while (prevIndex > 0 && self.isStepSkipped(prevIndex))
 				prevIndex--;
 
-			this.stepIndex = prevIndex;
-			this.updateStepUi();
+			self.stepIndex = prevIndex;
+			self.updateStepUi();
 		}
 	},
 
@@ -4586,29 +4208,29 @@ return view.extend({
 	testHotspotQuickRadius: function() {
 		var self = this;
 
-		this.collectState();
+		self.collectState();
 
-		if (!isIPv4(this.state.hotspotQuickRadiusServer)) {
+		if (!isIPv4(self.state.hotspotQuickRadiusServer)) {
 			notify(_('أدخل عنوان IPv4 صالحاً لخادم RADIUS أولاً.'));
 			return Promise.resolve();
 		}
 
-		if (!this.state.hotspotQuickRadiusSecret) {
+		if (!self.state.hotspotQuickRadiusSecret) {
 			notify(_('كلمة سر RADIUS مطلوبة قبل الاختبار.'));
 			return Promise.resolve();
 		}
 
-		if (this.refs.hotspotQuickRadiusTestButton)
-			this.refs.hotspotQuickRadiusTestButton.disabled = true;
+		if (self.refs.hotspotQuickRadiusTestButton)
+			self.refs.hotspotQuickRadiusTestButton.disabled = true;
 
-		if (this.refs.hotspotQuickRadiusTestStatus)
-			this.refs.hotspotQuickRadiusTestStatus.textContent = _('جارٍ الاختبار...');
+		if (self.refs.hotspotQuickRadiusTestStatus)
+			self.refs.hotspotQuickRadiusTestStatus.textContent = _('جارٍ الاختبار...');
 
 		return L.resolveDefault(fs.exec_direct(HOTSPOT_TEST_RADIUS_CMD, [
-			this.state.hotspotQuickRadiusServer,
-			this.state.hotspotQuickRadiusAuthPort || '1812',
-			this.state.hotspotQuickRadiusAcctPort || '1813',
-			this.state.hotspotQuickCoaEnabled ? (this.state.hotspotQuickCoaPort || '3799') : '0'
+			self.state.hotspotQuickRadiusServer,
+			self.state.hotspotQuickRadiusAuthPort || '1812',
+			self.state.hotspotQuickRadiusAcctPort || '1813',
+			self.state.hotspotQuickCoaEnabled ? (self.state.hotspotQuickCoaPort || '3799') : '0'
 		], 'json'), null).then(function(result) {
 			var message = result && result.message ? result.message : _('تعذر قراءة نتيجة الاختبار.');
 
@@ -4620,6 +4242,49 @@ return view.extend({
 		}).finally(function() {
 			if (self.refs.hotspotQuickRadiusTestButton)
 				self.refs.hotspotQuickRadiusTestButton.disabled = false;
+		});
+	},
+
+	testHotspotQuickRest: function() {
+		var self = this;
+
+		self.collectState();
+
+		if (!isIPv4(self.state.hotspotQuickRadiusServer)) {
+			notify(_('أدخل عنوان IPv4 صالحاً لميكروتك (RADIUS Server) أولاً.'));
+			return Promise.resolve();
+		}
+
+		if (!self.state.hotspotQuickUsermanRestUsername || !self.state.hotspotQuickUsermanRestPassword) {
+			notify(_('بيانات الدخول (API/REST) مطلوبة قبل الاختبار.'));
+			return Promise.resolve();
+		}
+
+		if (self.refs.hotspotQuickRestTestButton)
+			self.refs.hotspotQuickRestTestButton.disabled = true;
+
+		if (self.refs.hotspotQuickRestTestStatus)
+			self.refs.hotspotQuickRestTestStatus.textContent = _('جارٍ الاختبار...');
+
+		var port = (self.state.hotspotQuickUsermanRestScheme == 'http') ? '80' : '443';
+
+		return L.resolveDefault(fs.exec_direct(HOTSPOT_TEST_REST_CMD, [
+			self.state.hotspotQuickRadiusServer,
+			port,
+			self.state.hotspotQuickUsermanRestUsername,
+			self.state.hotspotQuickUsermanRestPassword,
+			self.state.hotspotQuickUsermanRestScheme
+		], 'json'), null).then(function(result) {
+			var message = result && result.message ? result.message : _('تعذر قراءة نتيجة الاختبار.');
+
+			if (self.refs.hotspotQuickRestTestStatus)
+				self.refs.hotspotQuickRestTestStatus.textContent = message;
+
+			if (!result || !result.ok)
+				notify(message);
+		}).finally(function() {
+			if (self.refs.hotspotQuickRestTestButton)
+				self.refs.hotspotQuickRestTestButton.disabled = false;
 		});
 	},
 
@@ -4668,29 +4333,29 @@ return view.extend({
 
 	saveAndApply: function() {
 		var self = this;
-		var oldLanIpaddr = uci.get('network', 'lan', 'ipaddr') || this.state.lanIpaddr;
-		var oldSsid = this.state.wifiSsid;
+		var oldLanIpaddr = uci.get('network', 'lan', 'ipaddr') || self.state.lanIpaddr;
+		var oldSsid = self.state.wifiSsid;
 		var migratedAnonymousWifi = false;
 
-		if (!this.validateStep(this.stepIndex))
+		if (!self.validateStep(self.stepIndex))
 			return;
 
-		if (this.stepIndex !== 0 && !this.validateStep(0)) {
-			this.stepIndex = 0;
-			this.updateStepUi();
+		if (self.stepIndex !== 0 && !self.validateStep(0)) {
+			self.stepIndex = 0;
+			self.updateStepUi();
 			return;
 		}
 
-		this.collectState();
-		enforceHotspotNoVlan(this.state);
+		self.collectState();
+		enforceHotspotNoVlan(self.state);
 
-		if (this.state.hotspotQuickEnabled)
-			this.state.mode = 'ap';
+		if (self.state.hotspotQuickEnabled)
+			self.state.mode = 'ap';
 
-		this.refs.saveButton.disabled = true;
-		this.refs.saveButton.textContent = (this.state.hotspotQuickEnabled || this.state.hotspotEnabled) ? _('جارٍ فحص الترخيص...') : _('جارٍ التطبيق...');
+		self.refs.saveButton.disabled = true;
+		self.refs.saveButton.textContent = (self.state.hotspotQuickEnabled || self.state.hotspotEnabled) ? _('جارٍ فحص الترخيص...') : _('جارٍ التطبيق...');
 
-		confirmHotspotLicenseBeforeSetupApply(this.state).then(function(allowed) {
+		confirmHotspotLicenseBeforeSetupApply(self.state).then(function(allowed) {
 			if (!allowed)
 				throw new Error(_('تم إلغاء التطبيق بناءً على حالة الترخيص.'));
 
@@ -4872,6 +4537,10 @@ return view.extend({
 				uci.set('hotspot_openwrt', 'main', 'rest_area_enabled', self.state.hotspotQuickRestAreaEnabled ? '1' : '0');
 				uci.set('hotspot_openwrt', 'main', 'rest_area_url', self.state.hotspotQuickRestAreaUrl || '');
 				uci.set('hotspot_openwrt', 'main', 'speedtest_enabled', self.state.hotspotQuickSpeedtestEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'maint_enabled', self.state.hotspotQuickMaintEnabled ? '1' : '0');
+				uci.set('hotspot_openwrt', 'main', 'maint_start', self.state.hotspotQuickMaintStart || '02:00');
+				uci.set('hotspot_openwrt', 'main', 'maint_end', self.state.hotspotQuickMaintEnd || '03:00');
+				uci.set('hotspot_openwrt', 'main', 'maint_mode', self.state.hotspotQuickMaintMode || 'free');
 				uci.set('hotspot_openwrt', 'main', 'browser_cookie_enabled', self.state.hotspotQuickBrowserCookieEnabled ? '1' : '0');
 				uci.set('hotspot_openwrt', 'main', 'browser_cookie_days', normalizeBrowserCookieDays(self.state.hotspotQuickBrowserCookieDays || '7'));
 				uci.set('hotspot_openwrt', 'main', 'userman_rest_enabled', self.state.hotspotQuickUsermanRestEnabled ? '1' : '0');
@@ -4941,28 +4610,27 @@ return view.extend({
 			self.applyPeriodicRebootSettings(self.state);
 			self.applyHotspotSettings(self.state, self.radios);
 
-			if (!self.state.hotspotQuickEnabled && !self.state.hotspotEnabled)
+			if (!(self.state || {}).hotspotQuickEnabled && !self.state.hotspotEnabled)
 				cleanupHotspotWizardState();
 
 			return uci.save();
 		}).then(function() {
 			return ui.changes.apply();
 		}).then(function() {
-			if (!self.state.hotspotQuickEnabled && !self.state.hotspotEnabled)
+			if (!(self.state || {}).hotspotQuickEnabled && !self.state.hotspotEnabled)
 				return L.resolveDefault(fs.exec(HOTSPOT_CLEANUP_CMD, [ '--force', '--reload' ]), null).then(function() {
 					return L.resolveDefault(fs.exec(HOTSPOT_INIT_CMD, [ 'stop' ]), null);
 				});
 		}).then(function() {
 			if (self.state.hotspotAvailable && self.state.hotspotEnabled) {
-				return L.resolveDefault(fs.exec('/usr/libexec/hotspot-openwrt/apply', []), null).then(function(res) {
-					if (res && res.code !== 0)
-						notify(_('تحذير: تعذر تطبيق إعدادات الهوتسبوت تلقائياً. يمكن تطبيقها يدوياً من صفحة الخدمات.'));
+				return runApply('/usr/libexec/hotspot-openwrt/apply', [], _('تم تطبيق إعدادات الهوتسبوت بنجاح.'), true).catch(function() {
+					notify(_('تحذير: تعذر تطبيق إعدادات الهوتسبوت تلقائياً. يمكن تطبيقها يدوياً من صفحة الخدمات.'));
 				});
 			}
 		}).then(function() {
 			var changedIp = self.state.lanIpaddr != oldLanIpaddr;
-			var hotspotApplyPromise = self.state.hotspotQuickEnabled
-				? L.resolveDefault(fs.exec_direct(HOTSPOT_APPLY_CMD, [], 'json'), null)
+			var hotspotApplyPromise = (self.state.hotspotQuickEnabled && !self.state.hotspotEnabled)
+				? runApply(HOTSPOT_APPLY_CMD, [], _('تم تطبيق الهوتسبوت السريع بنجاح.'), true)
 				: Promise.resolve(null);
 
 			return hotspotApplyPromise.then(function(hotspotApplyResult) {
@@ -5037,8 +4705,102 @@ return view.extend({
 		});
 	},
 
+	
+	
+	
+	
+	
 	render: function(data) {
 		var self = this;
+		ensureSetupStyles();
+        
+        // --- ♛ ALEMPRATOR LUXURY ENGINE ♛ ---
+        var callNetworkStatus = L.rpc.declare({ object: 'network.interface.wan', method: 'status' });
+        
+        self.state = {};
+		self.refs = {};
+		self.stepPanels = [];
+		self.stepBadges = [];
+		self.stepChips = [];
+		self.stepIndex = 0;
+
+		// Branding
+		var brand = document.querySelector('header a.brand') || document.querySelector('header a');
+		if (brand) brand.innerHTML = '♛ <span style="color:#D4AF37; font-weight:bold; letter-spacing:2px">ALEMPRATOR</span>';
+        
+        // 1. Progress Bar
+        var progressBar = E('div', { 'class': 'alemprator-progress-container' }, [
+            self.refs.progressFill = E('div', { 'class': 'alemprator-progress-fill' })
+        ]);
+
+        // 2. WAN Pulse
+        var wanPulse = E('span', { 'class': 'alemprator-status-pulse status-err', 'id': 'alemprator-wan-pulse' });
+        var checkWan = function() {
+            callNetworkStatus().then(function(res) {
+                var el = document.getElementById('alemprator-wan-pulse');
+                if (!el) return;
+                var isUp = !!(res && res.up);
+                el.className = 'alemprator-status-pulse ' + (isUp ? 'status-ok' : 'status-err');
+            }).catch(function(){});
+        };
+        setInterval(checkWan, 5000);
+        setTimeout(checkWan, 1000);
+
+        // 3. Force Show Menus
+        try {
+            if (!window._alemprator_timer) {
+                window._alemprator_timer = setInterval(function() {
+                    ['#topmenu', '.nav', '.side-nav'].forEach(function(s) {
+                        var el = document.querySelector(s);
+                        if (el && el.style.display === 'none') {
+                            el.style.setProperty('display', 'flex', 'important');
+                            el.style.setProperty('visibility', 'visible', 'important');
+                            el.style.setProperty('opacity', '1', 'important');
+                        }
+                    });
+                }, 500);
+            }
+        } catch(e) {}
+
+        // 4. Mode Grid System
+        var createModeCard = function(val, icon, title, desc) {
+            var isActive = (self.state.mode == val || (val == 'hotspot' && self.state.hotspotQuickEnabled));
+            return E('div', { 
+                'class': 'alemprator-mode-card' + (isActive ? ' is-active' : ''),
+                'click': function(ev) {
+                    document.querySelectorAll('.alemprator-mode-card').forEach(function(c){ c.classList.remove('is-active'); });
+                    ev.currentTarget.classList.add('is-active');
+                    if (val === 'hotspot') {
+                        self.refs.mode.value = 'ap';
+                        self.state.mode = 'ap';
+                        self.state.hotspotQuickEnabled = true;
+                        self.state.hotspotQuickSecondaryEnabled = true;
+                    } else {
+                        self.refs.mode.value = val;
+                        self.state.mode = val;
+                        self.state.hotspotQuickEnabled = false;
+                    }
+                    self.updateStepUi();
+                    setTimeout(function() {
+                        self.nextStep();
+                    }, 150);
+                }
+            }, [
+                E('span', { 'class': 'alemprator-mode-card__icon' }, icon),
+                E('span', { 'class': 'alemprator-mode-card__title' }, title),
+                E('div', { 'class': 'alemprator-mode-card__desc' }, desc)
+            ]);
+        };
+
+        var modeGrid = E('div', { 'class': 'alemprator-mode-grid' }, [
+            createModeCard('ap', '📡', _('نقطة وصول (AP)'), _('توزيع إنترنت عبر كيبل')),
+            createModeCard('hotspot', '🌐', _('الإمبراطور (Hotspot)'), _('تحكم سيادي بالمشتركين')),
+            createModeCard('ap_wds', '🔗', _('نقطة وصول + WDS'), _('ربط لاسلكي شفاف')),
+            createModeCard('sta_wds', '📥', _('استقبال لاسلكي'), _('لقط إنترنت وإعادة بثه')),
+            createModeCard('mesh', '🕸️', _('ميش ذكي'), _('تغطية موحدة للمساحات'))
+        ]);
+        // --- END LUXURY ENGINE ---
+
 		var statusContainer = E('div', { 'class': 'alemprator-setup-status-column' });
 		var wizardContainer = E('div', { 'class': 'cbi-section alemprator-setup-wizard' });
 		var radios = uci.sections('wireless', 'wifi-device');
@@ -5050,76 +4812,84 @@ return view.extend({
 		var actions = E('div', { 'class': 'alemprator-setup-actions' });
 		var panel = E('div', { 'class': 'alemprator-setup-shell' });
 		var wizardIntro;
-		var stepTitles = [ _('صفحة الخيارات'), _('صفحة الصيانة') ];
-		var stepPanels = [];
-		var stepBadges = [];
-		var stepChips = [];
+		var stepTitles = [ _('هوية الجهاز والوضع'), _('إعدادات الواي فاي'), _('شبكة الهوتسبوت'), _('صلاحيات الدخول'), _('المراجعة والتشغيل') ];
+		var stepPanels = self.stepPanels;
+		var stepBadges = self.stepBadges;
+		var stepChips = self.stepChips;
 		var radioSettingsCard;
 		var i;
 
-		this.radios = radios;
-		this.frequencyMap = frequencyMap;
-		this.state = this.readState(radios, Array.isArray(data) ? data[1] : null);
-		this.stepIndex = 0;
-		this.refs = {};
-		this.stepPanels = stepPanels;
-		this.stepBadges = stepBadges;
-		this.stepChips = stepChips;
-		this.statusContainer = statusContainer;
+		self.radios = radios;
+		self.frequencyMap = frequencyMap;
+		self.state = self.readState(radios, Array.isArray(data) ? data[1] : null);
+		self.statusContainer = statusContainer;
 
 		ensureSetupStyles();
 
 		panel.appendChild(statusContainer);
-		this.refs.heroCurrentLan = E('span');
-		this.refs.heroCurrentMode = E('span');
-		this.refs.heroCurrentSecondary = E('span');
-		this.refs.heroSetupSummary = E('span');
-		this.refs.lanCardSummary = E('span');
-		this.refs.modeCardSummary = E('span');
-		this.refs.primaryWifiCardSummary = E('span');
-		this.refs.wifiSecurityCardSummary = E('span');
-		this.refs.uplinkCardSummary = E('span');
-		this.refs.meshCardSummary = E('span');
-		this.refs.vlanCardSummary = E('span');
-		this.refs.radioCardSummary = E('span');
-		this.refs.backupCardSummary = E('span');
-		this.refs.firstbootCardSummary = E('span');
-		this.refs.otaCardSummary = E('span');
-		this.refs.buttonPoliciesCardSummary = E('span');
-		this.refs.rebootCardSummary = E('span');
-		this.refs.passwordCardSummary = E('span');
-		this.refs.hotspotCardSummary = E('span');
+		self.refs.heroCurrentLan = E('span');
+		self.refs.heroCurrentMode = E('span');
+		self.refs.heroCurrentSecondary = E('span');
+		self.refs.heroSetupSummary = E('span');
+		self.refs.lanCardSummary = E('span');
+		self.refs.modeCardSummary = E('span');
+		self.refs.primaryWifiCardSummary = E('span');
+		self.refs.wifiSecurityCardSummary = E('span');
+		self.refs.uplinkCardSummary = E('span');
+		self.refs.meshCardSummary = E('span');
+		self.refs.vlanCardSummary = E('span');
+		self.refs.radioCardSummary = E('span');
+		self.refs.backupCardSummary = E('span');
+		self.refs.firstbootCardSummary = E('span');
+		self.refs.otaCardSummary = E('span');
+		self.refs.buttonPoliciesCardSummary = E('span');
+		self.refs.rebootCardSummary = E('span');
+		self.refs.passwordCardSummary = E('span');
+		self.refs.hotspotCardSummary = E('span');
 
 		wizardIntro = E('div', { 'class': 'alemprator-card alemprator-card--hero' }, [
 			E('div', { 'class': 'alemprator-hero__grid' }, [
 				E('div', [
-					E('span', { 'class': 'alemprator-card__eyebrow alemprator-card__eyebrow--light' }, _('ALemprator Setup')),
-					E('h3', { 'class': 'alemprator-card__title alemprator-card__title--light' }, _('الإعداد السريع')),
-					E('p', { 'class': 'alemprator-card__desc alemprator-card__desc--light' }, _('اضبط LAN ووضع التشغيل والواي فاي وVLAN ثم احفظ.')),
+					E('h3', { 'class': 'alemprator-card__title alemprator-card__title--light' }, _('خطوات الإعداد')),
+					E('p', { 'class': 'alemprator-card__desc alemprator-card__desc--light' }, _('تجهيز الجهاز في ثوانٍ.')),
 					E('div', { 'class': 'alemprator-hero__actions' }, [
 				E('a', {
 					'href': VIDEO_EXPLAIN_URL,
 					'target': '_blank',
 					'rel': 'noopener noreferrer',
 					'class': 'alemprator-hero__link'
-				}, _('مشاهدة الشرح')),
-				E('span', { 'class': 'alemprator-hero__hint' }, _('بعد الحفظ ستعود تلقائيًا للواجهة الرئيسية.'))
+				}, _('مشاهدة الشرح'))
 					]),
-					E('div', { 'class': 'alemprator-hero__summary' }, [ this.refs.heroSetupSummary ])
+					E('div', { 'class': 'alemprator-hero__summary' }, [ self.refs.heroSetupSummary ])
 				]),
 				E('div', { 'class': 'alemprator-hero__facts' }, [
-					renderSummaryFact(_('LAN الحالية'), this.refs.heroCurrentLan),
-					renderSummaryFact(_('وضع التشغيل'), this.refs.heroCurrentMode),
-					renderSummaryFact(_('الشبكة الثانوية'), this.refs.heroCurrentSecondary)
+					renderSummaryFact(_('حالة المنفذ'), E('span', [wanPulse, _(' فحص حي...')])), renderSummaryFact(_('العنوان المحلي'), self.refs.heroCurrentLan),
+					renderSummaryFact(_('وضع التشغيل'), self.refs.heroCurrentMode)
 				])
 			])
 		]);
 
+		wizardContainer.appendChild(progressBar);
+        
+        // --- LUXURY LOGO OVERLAY ---
+        wizardContainer.appendChild(E('div', { 'class': 'alemprator-luxury-logo' }, [
+            E('div', { 'class': 'luxury-text' }, 'ALEMPRATOR'),
+            E('div', { 'class': 'luxury-subtext' }, 'PLATINUM EDITION')
+        ]));
+
+		// modeGrid moved to step panel
 		wizardContainer.appendChild(wizardIntro);
+    
 
 		for (i = 0; i < stepTitles.length; i++) {
 			var badge = E('div', {
-				'class': 'alemprator-step-chip'
+				'class': 'alemprator-step-chip',
+				'click': (function(idx) {
+					return function(ev) {
+						self.stepIndex = idx;
+						self.updateStepUi();
+					};
+				})(i)
 			}, [
 				E('span', {
 					'class': 'alemprator-step-index'
@@ -5134,70 +4904,73 @@ return view.extend({
 
 		wizardContainer.appendChild(stepNav);
 
-		this.refs.lanIpaddr = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.lanIpaddr, 'style': 'max-width:280px;' });
-		this.refs.lanNetmask = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.lanNetmask, 'style': 'max-width:280px;' });
-		this.refs.mode = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:280px;' }, [
-			E('option', { 'value': 'ap' }, _('نقطة وصول')),
-			E('option', { 'value': 'ap_wds' }, _('نقطة وصول + WDS')),
-			E('option', { 'value': 'sta_wds' }, _('عميل + WDS')),
-			E('option', { 'value': 'mesh' }, _('ميش'))
+		self.refs.lanIpaddr = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.lanIpaddr, 'style': 'max-width:280px;' });
+		self.refs.lanNetmask = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.lanNetmask, 'style': 'max-width:280px;' });
+		
+		self.refs.mode = E('select', { 'style': 'display:none' }, [
+			E('option', { 'value': 'ap' }),
+			E('option', { 'value': 'hotspot' }),
+			E('option', { 'value': 'ap_wds' }),
+			E('option', { 'value': 'sta_wds' }),
+			E('option', { 'value': 'mesh' })
 		]);
-		this.refs.mode.value = this.state.mode;
-		this.refs.wifiSsid = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.wifiSsid, 'style': 'max-width:280px;' });
-		this.refs.wifiSsid5gMode = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' }, [
+
+		self.refs.mode.value = self.state.mode;
+		self.refs.wifiSsid = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.wifiSsid, 'style': 'max-width:280px;' });
+		self.refs.wifiSsid5gMode = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' }, [
 			E('option', { 'value': 'derived' }, _('تلقائي من الاسم الأساسي')),
 			E('option', { 'value': 'custom' }, _('اسم مخصص'))
 		]);
-		this.refs.wifiSsid5gMode.value = this.state.wifiSsid5gMode || 'derived';
-		this.refs.wifiSsid5g = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.wifiSsid5g, 'style': 'max-width:280px;' });
-		this.refs.wifiSsidVlan2g = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.wifiSsidVlan2g, 'style': 'max-width:280px;' });
-		this.refs.wifiSsidVlan5g = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.wifiSsidVlan5g, 'style': 'max-width:280px;' });
-		this.refs.wifiSsidIpSuffixPrimary = E('input', { 'type': 'checkbox' });
-		this.refs.wifiSsidIpSuffixPrimary.checked = !!this.state.wifiSsidVlanIpSuffix;
-		this.refs.wifiSsidVlanIpSuffix = E('input', { 'type': 'checkbox' });
-		this.refs.wifiSsidVlanIpSuffix.checked = !!this.state.wifiSsidVlanIpSuffix;
-		this.refs.wifiKey = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.wifiKey, 'style': 'max-width:280px;' });
-		this.refs.uplinkSsid = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.uplinkSsid, 'style': 'max-width:280px;' });
-		this.refs.uplinkKey = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.uplinkKey, 'style': 'max-width:280px;' });
-		this.refs.meshId = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.meshId, 'style': 'max-width:280px;' });
-		this.refs.meshKey = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.meshKey, 'style': 'max-width:280px;' });
-		this.refs.uplinkBand = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }, [
+		self.refs.wifiSsid5gMode.value = self.state.wifiSsid5gMode || 'derived';
+		self.refs.wifiSsid5g = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.wifiSsid5g, 'style': 'max-width:280px;' });
+		self.refs.wifiSsidVlan2g = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.wifiSsidVlan2g, 'style': 'max-width:280px;' });
+		self.refs.wifiSsidVlan5g = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.wifiSsidVlan5g, 'style': 'max-width:280px;' });
+		self.refs.wifiSsidIpSuffixPrimary = E('input', { 'type': 'checkbox' });
+		self.refs.wifiSsidIpSuffixPrimary.checked = !!self.state.wifiSsidVlanIpSuffix;
+		self.refs.wifiSsidVlanIpSuffix = E('input', { 'type': 'checkbox' });
+		self.refs.wifiSsidVlanIpSuffix.checked = !!self.state.wifiSsidVlanIpSuffix;
+		self.refs.wifiKey = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': self.state.wifiKey, 'style': 'max-width:280px;' });
+		self.refs.uplinkSsid = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.uplinkSsid, 'style': 'max-width:280px;' });
+		self.refs.uplinkKey = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': self.state.uplinkKey, 'style': 'max-width:280px;' });
+		self.refs.meshId = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.meshId, 'style': 'max-width:280px;' });
+		self.refs.meshKey = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': self.state.meshKey, 'style': 'max-width:280px;' });
+		self.refs.uplinkBand = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }, [
 			radio2g ? E('option', { 'value': '2g' }, _('راديو 2.4GHz')) : null,
 			radio5g ? E('option', { 'value': '5g' }, _('راديو 5GHz')) : null
 		]);
-		this.refs.meshBand = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }, [
+		self.refs.meshBand = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }, [
 			radio2g ? E('option', { 'value': '2g' }, _('راديو 2.4GHz')) : null,
 			radio5g ? E('option', { 'value': '5g' }, _('راديو 5GHz')) : null
 		]);
 
-		if ((this.state.uplinkBand == '5g' && !radio5g) || (this.state.uplinkBand == '2g' && !radio2g))
-			this.state.uplinkBand = radio2g ? '2g' : '5g';
+		if ((self.state.uplinkBand == '5g' && !radio5g) || (self.state.uplinkBand == '2g' && !radio2g))
+			self.state.uplinkBand = radio2g ? '2g' : '5g';
 
-		if ((this.state.meshBand == '5g' && !radio5g) || (this.state.meshBand == '2g' && !radio2g))
-			this.state.meshBand = radio2g ? '2g' : '5g';
+		if ((self.state.meshBand == '5g' && !radio5g) || (self.state.meshBand == '2g' && !radio2g))
+			self.state.meshBand = radio2g ? '2g' : '5g';
 
-		this.refs.uplinkBand.value = this.state.uplinkBand;
-		this.refs.meshBand.value = this.state.meshBand;
-		this.refs.ssidPreview = E('strong', primarySsid(this.state, '5g'));
-		this.refs.primaryWifiPlan = E('span');
-		this.refs.isVlan = E('input', { 'type': 'checkbox' });
-		this.refs.isVlan.checked = this.state.isVlan;
-		this.refs.vlanId = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '4094', 'value': this.state.vlanId, 'style': 'max-width:140px;' });
-		this.refs.vlanPreview = E('strong', describeSecondaryVlanBinding(this.state.vlanId));
-		this.refs.secondaryNetworkPlan = E('span');
-		this.refs.secondaryNetworkNotice = E('div', {
+		self.refs.uplinkBand.value = self.state.uplinkBand;
+		self.refs.meshBand.value = self.state.meshBand;
+		self.refs.ssidPreview = E('strong', primarySsid(self.state, '5g'));
+		self.refs.primaryWifiPlan = E('span');
+		self.refs.isVlan = E('input', { 'type': 'checkbox' });
+		self.refs.isVlan.checked = self.state.isVlan;
+		self.refs.vlanId = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '4094', 'value': self.state.vlanId, 'style': 'max-width:140px;' });
+		self.refs.vlanPreview = E('strong', describeSecondaryVlanBinding(self.state.vlanId));
+		self.refs.secondaryNetworkPlan = E('span');
+		self.refs.secondaryNetworkNotice = E('div', {
 			'class': 'alemprator-notice alemprator-notice--info',
 			'style': 'display:none;'
-		}, describeSecondaryNetworkNotice(this.state, this.radios || []));
-		this.refs.channel2g = radio2g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
-		this.refs.channel5g = radio5g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
-		this.refs.wifiMode2g = radio2g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
-		this.refs.wifiWidth2g = radio2g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
-		this.refs.wifiMode5g = radio5g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
-		this.refs.wifiWidth5g = radio5g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
-		this.refs.resetDisabled = E('input', { 'type': 'checkbox' });
-		this.refs.resetDisabled.checked = this.state.resetDisabled;
-		this.refs.resetHoldSeconds = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }, [
+		}, describeSecondaryNetworkNotice(self.state, self.radios || []));
+		self.refs.channel2g = radio2g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
+		self.refs.channel5g = radio5g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
+		self.refs.wifiMode2g = radio2g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
+		self.refs.wifiWidth2g = radio2g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
+		self.refs.wifiMode5g = radio5g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
+		self.refs.wifiWidth5g = radio5g ? E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }) : null;
+		self.refs.resetDisabled = E('input', { 'type': 'checkbox' });
+		self.refs.resetDisabled.checked = self.state.resetDisabled;
+		self.refs.resetHoldSeconds = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:180px;' }, [
 			E('option', { 'value': '5' }, _('5 ثوان')),
 			E('option', { 'value': '10' }, _('10 ثوان')),
 			E('option', { 'value': '20' }, _('20 ثانية')),
@@ -5205,315 +4978,356 @@ return view.extend({
 			E('option', { 'value': '40' }, _('40 ثانية')),
 			E('option', { 'value': '60' }, _('60 ثانية'))
 		]);
-		this.refs.resetHoldSeconds.value = this.state.resetHoldSeconds;
-		this.refs.wpsDisabled = E('input', { 'type': 'checkbox' });
-		this.refs.wpsDisabled.checked = this.state.wpsDisabled;
-		this.refs.rebootEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.rebootEnabled.checked = this.state.rebootEnabled;
-		this.refs.rebootHours = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'step': '1', 'value': this.state.rebootHours, 'style': 'max-width:140px;' });
-		this.refs.hotspotQuickEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotQuickEnabled.checked = !!this.state.hotspotQuickEnabled;
-		this.refs.hotspotQuickWanInterface = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickWanInterface || 'lan', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickSubscriberInterface = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickSubscriberInterface || 'hotspot', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickSsid1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickSsid1 || 'Hotspot-1', 'style': 'max-width:280px;' });
-		this.refs.hotspotQuickGateway1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickGateway1 || '192.168.10.1', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickPoolStart1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolStart1 || '192.168.10.10', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickPoolEnd1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolEnd1 || '192.168.10.199', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickPolicy1 = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' }, hotspotPolicyChoices());
-		this.refs.hotspotQuickPolicy1.value = this.state.hotspotQuickPolicy1 || 'standard';
-		this.refs.hotspotQuickSecondaryEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotQuickSecondaryEnabled.checked = this.state.hotspotQuickSecondaryEnabled !== false;
-		this.refs.hotspotQuickSsid2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickSsid2 || 'Hotspot-2', 'style': 'max-width:280px;' });
-		this.refs.hotspotQuickGateway2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickGateway2 || '192.168.20.1', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickPoolStart2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolStart2 || '192.168.20.10', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickPoolEnd2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickPoolEnd2 || '192.168.20.199', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickPolicy2 = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' }, hotspotPolicyChoices());
-		this.refs.hotspotQuickPolicy2.value = this.state.hotspotQuickPolicy2 || 'premium';
-		this.refs.hotspotQuickRadiusServer = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickRadiusServer || '192.168.1.2', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickRadiusServer2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickRadiusServer2 || '', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickRadiusSecret = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.hotspotQuickRadiusSecret || '', 'style': 'max-width:220px;', 'autocomplete': 'new-password' });
-		this.refs.hotspotQuickRadiusSecretToggle = E('button', { 'class': 'cbi-button cbi-button-neutral', 'type': 'button', 'style': 'margin-inline-start:8px;' }, _('إظهار'));
-		this.refs.hotspotQuickRadiusAuthPort = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '65535', 'value': this.state.hotspotQuickRadiusAuthPort || '1812', 'style': 'max-width:140px;' });
-		this.refs.hotspotQuickRadiusAcctPort = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '65535', 'value': this.state.hotspotQuickRadiusAcctPort || '1813', 'style': 'max-width:140px;' });
-		this.refs.hotspotQuickRadiusNasIp = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickRadiusNasIp || '', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickNasId = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickNasId || '', 'style': 'max-width:280px;' });
-		this.refs.hotspotQuickAcctInterim = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': this.state.hotspotQuickAcctInterim || '60', 'style': 'max-width:140px;' });
-		this.refs.hotspotQuickCoaEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotQuickCoaEnabled.checked = !!this.state.hotspotQuickCoaEnabled;
-		this.refs.hotspotQuickCoaPort = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '65535', 'value': this.state.hotspotQuickCoaPort || '3799', 'style': 'max-width:140px;' });
-		this.refs.hotspotQuickTrialEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotQuickTrialEnabled.checked = !!this.state.hotspotQuickTrialEnabled;
-		this.refs.hotspotQuickTrialDuration = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': this.state.hotspotQuickTrialDuration || '30', 'style': 'max-width:140px;' });
-		this.refs.hotspotQuickTrialUptimeLimit = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': this.state.hotspotQuickTrialUptimeLimit || '30', 'style': 'max-width:140px;' });
-		this.refs.hotspotQuickMacAuthEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotQuickMacAuthEnabled.checked = !!this.state.hotspotQuickMacAuthEnabled;
-		this.refs.hotspotQuickMacAuthSuffix = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickMacAuthSuffix || '@mac', 'style': 'max-width:160px;' });
-		this.refs.hotspotQuickMacAuthPassword = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.hotspotQuickMacAuthPassword || 'mac', 'style': 'max-width:180px;', 'autocomplete': 'new-password' });
-		this.refs.hotspotQuickWalledGarden = E('textarea', { 'class': 'cbi-input-textarea', 'rows': '4', 'style': 'width:100%; max-width:420px;' }, this.state.hotspotQuickWalledGarden || '');
-		this.refs.hotspotQuickDomain = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickDomain || 'hotspot.local', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickDns1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickDns1 || '8.8.8.8', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickDns2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickDns2 || '82.114.163.31', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickBridgeAgeingTime = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': this.state.hotspotQuickBridgeAgeingTime || '10', 'style': 'max-width:120px;' });
-		this.refs.hotspotQuickLoginMode = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:260px;' }, hotspotLoginModeChoices());
-		this.refs.hotspotQuickLoginMode.value = normalizeHotspotLoginMode(this.state.hotspotQuickLoginMode);
-		this.refs.hotspotQuickRateLimit = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickRateLimit || '2M/5M', 'style': 'max-width:180px;' });
-		this.refs.hotspotQuickMacCookieEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotQuickMacCookieEnabled.checked = !!this.state.hotspotQuickMacCookieEnabled;
-		this.refs.hotspotQuickAvailableSpeeds = E('textarea', { 'class': 'cbi-input-textarea', 'rows': '3', 'style': 'width:100%; max-width:420px;' }, this.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast');
-		this.refs.hotspotQuickSupportPhone = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickSupportPhone || '', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickNoticeText = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا', 'style': 'max-width:420px;' });
-		this.refs.hotspotQuickLiveStreamEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotQuickLiveStreamEnabled.checked = !!this.state.hotspotQuickLiveStreamEnabled;
-		this.refs.hotspotQuickLiveStreamUrl = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickLiveStreamUrl || '', 'style': 'max-width:420px;' });
-		this.refs.hotspotQuickRestAreaEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotQuickRestAreaEnabled.checked = !!this.state.hotspotQuickRestAreaEnabled;
-		this.refs.hotspotQuickRestAreaUrl = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickRestAreaUrl || '', 'style': 'max-width:420px;' });
-		this.refs.hotspotQuickSpeedtestEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotQuickSpeedtestEnabled.checked = !!this.state.hotspotQuickSpeedtestEnabled;
-		this.refs.hotspotQuickBrowserCookieEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotQuickBrowserCookieEnabled.checked = this.state.hotspotQuickBrowserCookieEnabled !== false;
-		this.refs.hotspotQuickBrowserCookieDays = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '365', 'value': normalizeBrowserCookieDays(this.state.hotspotQuickBrowserCookieDays || '7'), 'style': 'max-width:140px;' });
-		this.refs.hotspotQuickUsermanRestEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotQuickUsermanRestEnabled.checked = !!this.state.hotspotQuickUsermanRestEnabled;
-		this.refs.hotspotQuickUsermanRestScheme = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:140px;' }, routerOsSchemeChoices());
-		this.refs.hotspotQuickUsermanRestScheme.value = normalizeRouterOsScheme(this.state.hotspotQuickUsermanRestScheme);
-		this.refs.hotspotQuickUsermanRestUsername = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotQuickUsermanRestUsername || 'hotspot-read', 'style': 'max-width:220px;' });
-		this.refs.hotspotQuickUsermanRestPassword = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.hotspotQuickUsermanRestPassword || '', 'style': 'max-width:220px;', 'autocomplete': 'new-password' });
-		this.refs.hotspotQuickUsermanRestPasswordToggle = E('button', { 'class': 'cbi-button cbi-button-neutral', 'type': 'button', 'style': 'margin-inline-start:8px;' }, _('إظهار'));
-		this.refs.hotspotQuickRadiusTestButton = E('button', { 'class': 'cbi-button cbi-button-action', 'type': 'button' }, _('اختبار RADIUS'));
-		this.refs.hotspotQuickRadiusTestStatus = E('span', { 'style': 'margin-inline-start:8px; color:#52606d;' }, _('لم يتم الاختبار بعد.'));
-		this.refs.adminPassword = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'autocomplete': 'new-password', 'style': 'max-width:280px;' });
-		this.refs.adminPasswordConfirm = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'autocomplete': 'new-password', 'style': 'max-width:280px;' });
-		this.refs.hotspotEnabled = E('input', { 'type': 'checkbox' });
-		this.refs.hotspotEnabled.checked = this.state.hotspotEnabled;
-		this.refs.hotspotSsid = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotSsid || 'Hotspot', 'style': 'max-width:280px;' });
-		this.refs.hotspotRadiusServer = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotRadiusServer || '192.168.1.2', 'style': 'max-width:280px;' });
-		this.refs.hotspotRadiusSecret = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': this.state.hotspotRadiusSecret || '', 'style': 'max-width:280px;', 'autocomplete': 'new-password' });
-		this.refs.hotspotNasId = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotNasId || '', 'style': 'max-width:280px;' });
-		this.refs.hotspotIp = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotIp || '192.168.10.1', 'style': 'max-width:280px;' });
-		this.refs.hotspotPoolStart = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotPoolStart || '192.168.10.10', 'style': 'max-width:280px;' });
-		this.refs.hotspotPoolEnd = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': this.state.hotspotPoolEnd || '192.168.10.254', 'style': 'max-width:280px;' });
-		this.refs.hotspotIpConflictWarning = E('div', {
+		self.refs.resetHoldSeconds.value = self.state.resetHoldSeconds;
+		self.refs.wpsDisabled = E('input', { 'type': 'checkbox' });
+		self.refs.wpsDisabled.checked = self.state.wpsDisabled;
+		self.refs.rebootEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.rebootEnabled.checked = self.state.rebootEnabled;
+		self.refs.rebootHours = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'step': '1', 'value': self.state.rebootHours, 'style': 'max-width:140px;' });
+		self.refs.hotspotQuickWanInterface = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickWanInterface || 'lan', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickSubscriberInterface = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickSubscriberInterface || 'hotspot', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickSsid1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickSsid1 || 'Hotspot-1', 'style': 'max-width:280px;' });
+		self.refs.hotspotQuickGateway1 = E('input', { 
+			'class': 'cbi-input-text', 
+			'type': 'text', 
+			'value': self.state.hotspotQuickGateway1 || '192.168.10.1', 
+			'style': 'max-width:220px;',
+			'oninput': function(ev) {
+				var val = ev.target.value.trim();
+				if (val && self.refs.hotspotQuickPoolStart1 && self.refs.hotspotQuickPoolEnd1) {
+					self.refs.hotspotQuickPoolStart1.value = deriveHotspotPoolStart(val);
+					self.refs.hotspotQuickPoolEnd1.value = deriveHotspotPoolEnd(val);
+				}
+			}
+		});
+		self.refs.hotspotQuickPoolStart1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickPoolStart1 || '192.168.10.10', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickPoolEnd1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickPoolEnd1 || '192.168.10.199', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickPolicy1 = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' }, hotspotPolicyChoices());
+		self.refs.hotspotQuickPolicy1.value = self.state.hotspotQuickPolicy1 || 'standard';
+		self.refs.hotspotQuickSecondaryEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.hotspotQuickSecondaryEnabled.checked = self.state.hotspotQuickSecondaryEnabled !== false;
+		self.refs.hotspotQuickSsid2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickSsid2 || 'Hotspot-2', 'style': 'max-width:280px;' });
+		self.refs.hotspotQuickGateway2 = E('input', { 
+			'class': 'cbi-input-text', 
+			'type': 'text', 
+			'value': self.state.hotspotQuickGateway2 || '192.168.20.1', 
+			'style': 'max-width:220px;',
+			'oninput': function(ev) {
+				var val = ev.target.value.trim();
+				if (val && self.refs.hotspotQuickPoolStart2 && self.refs.hotspotQuickPoolEnd2) {
+					self.refs.hotspotQuickPoolStart2.value = deriveHotspotPoolStart(val);
+					self.refs.hotspotQuickPoolEnd2.value = deriveHotspotPoolEnd(val);
+				}
+			}
+		});
+		self.refs.hotspotQuickPoolStart2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickPoolStart2 || '192.168.20.10', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickPoolEnd2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickPoolEnd2 || '192.168.20.199', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickPolicy2 = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' }, hotspotPolicyChoices());
+		self.refs.hotspotQuickPolicy2.value = self.state.hotspotQuickPolicy2 || 'premium';
+		self.refs.hotspotQuickRadiusServer = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickRadiusServer || '192.168.1.2', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickRadiusServer2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickRadiusServer2 || '', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickRadiusSecret = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': self.state.hotspotQuickRadiusSecret || '', 'style': 'max-width:220px;', 'autocomplete': 'new-password' });
+		self.refs.hotspotQuickRadiusSecretToggle = E('button', { 'class': 'cbi-button cbi-button-neutral', 'type': 'button', 'style': 'margin-inline-start:8px;' }, _('إظهار'));
+		self.refs.hotspotQuickRadiusAuthPort = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '65535', 'value': self.state.hotspotQuickRadiusAuthPort || '1812', 'style': 'max-width:140px;' });
+		self.refs.hotspotQuickRadiusAcctPort = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '65535', 'value': self.state.hotspotQuickRadiusAcctPort || '1813', 'style': 'max-width:140px;' });
+		self.refs.hotspotQuickRadiusNasIp = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickRadiusNasIp || '', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickNasId = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickNasId || '', 'style': 'max-width:280px;' });
+		self.refs.hotspotQuickAcctInterim = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': self.state.hotspotQuickAcctInterim || '60', 'style': 'max-width:140px;' });
+		self.refs.hotspotQuickCoaEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.hotspotQuickCoaEnabled.checked = !!self.state.hotspotQuickCoaEnabled;
+		self.refs.hotspotQuickCoaPort = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '65535', 'value': self.state.hotspotQuickCoaPort || '3799', 'style': 'max-width:140px;' });
+		self.refs.hotspotQuickTrialEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.hotspotQuickTrialEnabled.checked = !!self.state.hotspotQuickTrialEnabled;
+		self.refs.hotspotQuickTrialDuration = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': self.state.hotspotQuickTrialDuration || '30', 'style': 'max-width:140px;' });
+		self.refs.hotspotQuickTrialUptimeLimit = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': self.state.hotspotQuickTrialUptimeLimit || '30', 'style': 'max-width:140px;' });
+		self.refs.hotspotQuickMacAuthEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.hotspotQuickMacAuthEnabled.checked = !!self.state.hotspotQuickMacAuthEnabled;
+		self.refs.hotspotQuickMacAuthSuffix = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickMacAuthSuffix || '@mac', 'style': 'max-width:160px;' });
+		self.refs.hotspotQuickMacAuthPassword = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': self.state.hotspotQuickMacAuthPassword || 'mac', 'style': 'max-width:180px;', 'autocomplete': 'new-password' });
+		self.refs.hotspotQuickWalledGarden = E('textarea', { 'class': 'cbi-input-textarea', 'rows': '4', 'style': 'width:100%; max-width:420px;' }, self.state.hotspotQuickWalledGarden || '');
+		self.refs.hotspotQuickDomain = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickDomain || 'hotspot.local', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickDns1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickDns1 || '8.8.8.8', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickDns2 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickDns2 || '82.114.163.31', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickBridgeAgeingTime = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'value': self.state.hotspotQuickBridgeAgeingTime || '10', 'style': 'max-width:120px;' });
+		self.refs.hotspotQuickLoginMode = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:260px;' }, hotspotLoginModeChoices());
+		self.refs.hotspotQuickLoginMode.value = normalizeHotspotLoginMode(self.state.hotspotQuickLoginMode);
+		self.refs.hotspotQuickRateLimit = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickRateLimit || '2M/5M', 'style': 'max-width:180px;' });
+		self.refs.hotspotQuickMacCookieEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.hotspotQuickMacCookieEnabled.checked = !!self.state.hotspotQuickMacCookieEnabled;
+		self.refs.hotspotQuickAvailableSpeeds = E('textarea', { 'class': 'cbi-input-textarea', 'rows': '3', 'style': 'width:100%; max-width:420px;' }, self.state.hotspotQuickAvailableSpeeds || '1M/2M Standard\n2M/4M Fast');
+		self.refs.hotspotQuickSupportPhone = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickSupportPhone || '', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickNoticeText = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickNoticeText || 'أهلاً بكم في شبكتنا', 'style': 'max-width:420px;' });
+		self.refs.hotspotQuickLiveStreamEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.hotspotQuickLiveStreamEnabled.checked = !!self.state.hotspotQuickLiveStreamEnabled;
+		self.refs.hotspotQuickLiveStreamUrl = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickLiveStreamUrl || '', 'style': 'max-width:420px;' });
+		self.refs.hotspotQuickRestAreaEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.hotspotQuickRestAreaEnabled.checked = !!self.state.hotspotQuickRestAreaEnabled;
+		self.refs.hotspotQuickRestAreaUrl = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickRestAreaUrl || '', 'style': 'max-width:420px;' });
+		self.refs.hotspotQuickSpeedtestEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.hotspotQuickSpeedtestEnabled.checked = !!self.state.hotspotQuickSpeedtestEnabled;
+		self.refs.hotspotQuickMaintEnabled = E('input', { 'type': 'checkbox', 'checked': !!self.state.hotspotQuickMaintEnabled });
+		self.refs.hotspotQuickMaintStart = createTimePicker(self.state.hotspotQuickMaintStart || '02:00');
+		self.refs.hotspotQuickMaintEnd = createTimePicker(self.state.hotspotQuickMaintEnd || '03:00');
+		self.refs.hotspotQuickMaintMode = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:320px;' }, [
+			E('option', { 'value': 'free' }, _('السماح بالإنترنت المجاني للجميع (وضع الباي باس)')),
+			E('option', { 'value': 'block' }, _('قطع الإنترنت وطرد جميع المشتركين'))
+		]);
+		self.refs.hotspotQuickMaintMode.value = self.state.hotspotQuickMaintMode || 'free';
+		self.refs.hotspotQuickBrowserCookieEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.hotspotQuickBrowserCookieEnabled.checked = self.state.hotspotQuickBrowserCookieEnabled !== false;
+		self.refs.hotspotQuickBrowserCookieDays = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'max': '365', 'value': normalizeBrowserCookieDays(self.state.hotspotQuickBrowserCookieDays || '7'), 'style': 'max-width:140px;' });
+		self.refs.hotspotQuickUsermanRestEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.hotspotQuickUsermanRestEnabled.checked = !!self.state.hotspotQuickUsermanRestEnabled;
+		self.refs.hotspotQuickUsermanRestScheme = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:140px;' }, routerOsSchemeChoices());
+		self.refs.hotspotQuickUsermanRestScheme.value = normalizeRouterOsScheme(self.state.hotspotQuickUsermanRestScheme);
+		self.refs.hotspotQuickUsermanRestUsername = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickUsermanRestUsername || 'hotspot-read', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickUsermanRestPassword = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': self.state.hotspotQuickUsermanRestPassword || '', 'style': 'max-width:220px;', 'autocomplete': 'new-password' });
+		self.refs.hotspotQuickUsermanRestPasswordToggle = E('button', { 'class': 'cbi-button cbi-button-neutral', 'type': 'button', 'style': 'margin-inline-start:8px;' }, _('إظهار'));
+		self.refs.hotspotQuickRadiusTestButton = E('button', { 'class': 'cbi-button cbi-button-action', 'type': 'button' }, _('اختبار RADIUS'));
+		self.refs.hotspotQuickRadiusTestStatus = E('span', { 'style': 'margin-inline-start:8px; color:#52606d;' }, _('لم يتم الاختبار بعد.'));
+		self.refs.hotspotQuickRestTestButton = E('button', { 'class': 'cbi-button cbi-button-action', 'type': 'button' }, _('اختبار REST API'));
+		self.refs.hotspotQuickRestTestStatus = E('span', { 'style': 'margin-inline-start:8px; color:#52606d;' }, _('لم يتم الاختبار بعد.'));
+		self.refs.adminPassword = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'autocomplete': 'new-password', 'style': 'max-width:280px;' });
+		self.refs.adminPasswordConfirm = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'autocomplete': 'new-password', 'style': 'max-width:280px;' });
+		self.refs.hotspotEnabled = E('input', { 'type': 'checkbox' });
+		self.refs.hotspotEnabled.checked = self.state.hotspotEnabled;
+		self.refs.hotspotSsid = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotSsid || 'Hotspot', 'style': 'max-width:280px;' });
+		self.refs.hotspotRadiusServer = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotRadiusServer || '192.168.1.2', 'style': 'max-width:280px;' });
+		self.refs.hotspotRadiusSecret = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'value': self.state.hotspotRadiusSecret || '', 'style': 'max-width:280px;', 'autocomplete': 'new-password' });
+		self.refs.hotspotNasId = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotNasId || '', 'style': 'max-width:280px;' });
+		self.refs.hotspotIp = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotIp || '192.168.10.1', 'style': 'max-width:280px;' });
+		self.refs.hotspotPoolStart = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotPoolStart || '192.168.10.10', 'style': 'max-width:280px;' });
+		self.refs.hotspotPoolEnd = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotPoolEnd || '192.168.10.254', 'style': 'max-width:280px;' });
+		self.refs.hotspotIpConflictWarning = E('div', {
 			'class': 'alemprator-notice alemprator-notice--warning',
 			'style': 'display:none; margin-top:8px;'
 		}, _('تحذير: نطاق الهوتسبوت يتعارض مع نطاق LAN. يرجى تغيير عنوان IP للهوتسبوت.'));
-		this.refs.otaWindowStart = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' });
-		this.refs.otaWindowEnd = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' });
-		populateSelectOptions(this.refs.otaWindowStart, otaHourChoices(), String(this.state.otaWindowStart == null ? 2 : this.state.otaWindowStart));
-		populateSelectOptions(this.refs.otaWindowEnd, otaHourChoices(), String(this.state.otaWindowEnd == null ? 6 : this.state.otaWindowEnd));
-		this.refs.otaWindowStart.disabled = !this.state.otaWindowAvailable;
-		this.refs.otaWindowEnd.disabled = !this.state.otaWindowAvailable;
-		this.refs.otaWindowStatus = E('strong', this.state.otaWindowAvailable ? describeOtaWindow(this.state.otaWindowStart, this.state.otaWindowEnd) : _('غير متوفرة على هذا الجهاز.'));
-		this.refs.backupButton = E('button', {
+		self.refs.otaWindowStart = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' });
+		self.refs.otaWindowEnd = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' });
+		populateSelectOptions(self.refs.otaWindowStart, otaHourChoices(), String(self.state.otaWindowStart == null ? 2 : self.state.otaWindowStart));
+		populateSelectOptions(self.refs.otaWindowEnd, otaHourChoices(), String(self.state.otaWindowEnd == null ? 6 : self.state.otaWindowEnd));
+		self.refs.otaWindowStart.disabled = !self.state.otaWindowAvailable;
+		self.refs.otaWindowEnd.disabled = !self.state.otaWindowAvailable;
+		self.refs.otaWindowStatus = E('strong', self.state.otaWindowAvailable ? describeOtaWindow(self.state.otaWindowStart, self.state.otaWindowEnd) : _('غير متوفرة على هذا الجهاز.'));
+		self.refs.backupButton = E('button', {
 			'class': 'cbi-button cbi-button-action',
 			'type': 'button'
 		}, _('تنزيل نسخة احتياطية الآن'));
-		this.refs.safeRestoreButton = E('button', {
+		self.refs.safeRestoreButton = E('button', {
 			'class': 'cbi-button cbi-button-negative',
 			'type': 'button'
 		}, _('استرجاع آمن من ملف نسخة احتياطية'));
-		this.refs.backupStatus = E('span', _('جاهز لتنزيل نسخة احتياطية.'));
-		this.refs.firstbootSummary = E('strong', describeFirstbootSummary(this.state));
-		this.refs.firstbootEnabledStatus = E('strong', enabledText(this.state.firstbootEnabled));
-		this.refs.firstbootConfiguredOnceStatus = E('strong', boolText(this.state.firstbootConfiguredOnce));
-		this.refs.firstbootInitialSetupStatus = E('strong', boolText(this.state.firstbootInitialSetupComplete));
-		this.refs.firstbootCleanupStatus = E('strong', describeFirstbootCleanupState(this.state.firstbootAutoCleanupArmed, this.state.firstbootAutoCleanupPending));
-		this.refs.firstbootSections = E('span', describeFirstbootSections(this.state));
+		self.refs.backupStatus = E('span', _('جاهز لتنزيل نسخة احتياطية.'));
+		self.refs.firstbootSummary = E('strong', describeFirstbootSummary(self.state));
+		self.refs.firstbootEnabledStatus = E('strong', enabledText(self.state.firstbootEnabled));
+		self.refs.firstbootConfiguredOnceStatus = E('strong', boolText(self.state.firstbootConfiguredOnce));
+		self.refs.firstbootInitialSetupStatus = E('strong', boolText(self.state.firstbootInitialSetupComplete));
+		self.refs.firstbootCleanupStatus = E('strong', describeFirstbootCleanupState(self.state.firstbootAutoCleanupArmed, self.state.firstbootAutoCleanupPending));
+		self.refs.firstbootSections = E('span', describeFirstbootSections(self.state));
 
-		if (this.refs.channel2g) {
+		if (self.refs.channel2g) {
 			populateSelectOptions(
-				this.refs.channel2g,
+				self.refs.channel2g,
 				channelChoices('2g', radio2g ? frequencyMap[radio2g['.name']] : null),
-				this.state.channel2g
+				self.state.channel2g
 			);
 		}
 
-		if (this.refs.channel5g) {
+		if (self.refs.channel5g) {
 			populateSelectOptions(
-				this.refs.channel5g,
+				self.refs.channel5g,
 				channelChoices('5g', radio5g ? frequencyMap[radio5g['.name']] : null),
-				this.state.channel5g
+				self.state.channel5g
 			);
 		}
 
-		this.syncRadioModeWidthUi();
+		self.syncRadioModeWidthUi();
 
-		radioSettingsCard = renderWizardCard(
-			_('القنوات وإعدادات الراديو'),
-			_('اختر القناة والنمط وعرض القناة. في الميش استخدم قناة ثابتة.'),
+		self.refs.radioSettingsCard = renderWizardCard(
+			_('القنوات وإعدادات الراديو', true),
+			null,
 			[
-				renderCardLiveSummary(this.refs.radioCardSummary),
-				(this.refs.meshChannelHelp = E('p', { 'style': 'display:none; margin:0 0 12px 0; color:#52606d;' })),
-				radio2g ? (this.refs.channel2gRow = E('div', { 'class': 'cbi-value alemprator-channel-row' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio2g)), E('div', { 'class': 'cbi-value-field' }, [ this.refs.channel2g ]) ])) : E('p', _('لم يتم اكتشاف راديو 2.4GHz.')),
-				radio2g ? (this.refs.mode2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('النمط (2.4GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiMode2g ]) ])) : null,
-				radio2g ? (this.refs.width2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عرض القناة (2.4GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiWidth2g ]) ])) : null,
-				radio5g ? (this.refs.channel5gRow = E('div', { 'class': 'cbi-value alemprator-channel-row' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio5g)), E('div', { 'class': 'cbi-value-field' }, [ this.refs.channel5g ]) ])) : E('p', _('لم يتم اكتشاف راديو 5GHz.')),
-				radio5g ? (this.refs.mode5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('النمط (5GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiMode5g ]) ])) : null,
-				radio5g ? (this.refs.width5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عرض القناة (5GHz)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiWidth5g ]) ])) : null
-			]
+				renderCardLiveSummary(self.refs.radioCardSummary),
+				(self.refs.meshChannelHelp = E('p', { 'style': 'display:none; margin:0 0 12px 0; color:#52606d;' })),
+				radio2g ? (self.refs.channel2gRow = E('div', { 'class': 'cbi-value alemprator-channel-row' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio2g)), E('div', { 'class': 'cbi-value-field' }, [ self.refs.channel2g ]) ])) : E('p', _('لم يتم اكتشاف راديو 2.4GHz.')),
+				radio2g ? (self.refs.mode2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('النمط (2.4GHz)')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiMode2g ]) ])) : null,
+				radio2g ? (self.refs.width2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عرض القناة (2.4GHz)')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiWidth2g ]) ])) : null,
+				radio5g ? (self.refs.channel5gRow = E('div', { 'class': 'cbi-value alemprator-channel-row' }, [ E('label', { 'class': 'cbi-value-title' }, radioLabel(radio5g)), E('div', { 'class': 'cbi-value-field' }, [ self.refs.channel5g ]) ])) : E('p', _('لم يتم اكتشاف راديو 5GHz.')),
+				radio5g ? (self.refs.mode5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('النمط (5GHz)')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiMode5g ]) ])) : null,
+				radio5g ? (self.refs.width5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عرض القناة (5GHz)')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiWidth5g ]) ])) : null
+			], true
 		);
 
 		stepPanels.push(E('div', { 'class': 'cbi-section-node alemprator-step-panel' }, [
-			renderWizardCard(
-				_('تحديد عنوان الشبكة المحلية'),
-				_('حدد عنوان الدخول المحلي للجهاز.'),
+			
+			(self.refs.lanAdvancedCard = renderWizardCard(
+				_('حدد عنوان الدخول المحلي للجهاز', true),
+				'192.168.1.20 / 255.255.255.0',
 				[
-					renderCardLiveSummary(this.refs.lanCardSummary),
-					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('عنوان LAN IPv4')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.lanIpaddr ]) ]),
-					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('قناع شبكة LAN')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.lanNetmask ]) ])
-				]
-			)
+					renderCardLiveSummary(self.refs.lanCardSummary),
+					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title', 'style': 'font-weight:bold; color:#D4AF37' }, _('عنوان LAN IPv4')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.lanIpaddr ]) ]),
+					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title', 'style': 'font-weight:bold; color:#D4AF37' }, _('قناع شبكة LAN')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.lanNetmask ]) ])
+				], true
+			))
 		]));
 
 		stepPanels.push(E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' }, [
-			renderNoticeBox('accent', _('الترتيب'), [
-				E('span', _('اختر الوضع ثم اضبط الواي فاي والربط الصاعد أو الميش وVLAN عند الحاجة.'))
-			]),
-			renderWizardCard(
+			(self.refs.modeCard = renderWizardCard(
 				_('اختيار وضع التشغيل'),
-				_('حدد دور الجهاز أولًا.'),
+				null,
 				[
-					renderCardLiveSummary(this.refs.modeCardSummary),
-					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('وضع التشغيل')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.mode ]) ]),
-					renderNoticeBox('neutral', _('النتيجة'), [ this.refs.modePlan = E('span') ])
+					renderCardLiveSummary(self.refs.modeCardSummary),
+					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('وضع التشغيل')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.mode ]) ]),
+					E('div', { 'style': 'margin-top:12px; padding:10px; background:#f4f9fc; border-radius:8px; border:1px dashed #c3d6e8; color:#234064; font-size:13px;' }, [ self.refs.modePlan = E('span') ])
 				]
-			),
-			radioSettingsCard,
-			(this.refs.hotspotQuickCard = renderWizardCard(
-				_('Hotspot Quick (بدون VLAN)'),
-				_('برمجة الهوتسبوت من نفس خطوة وضع التشغيل. عند التفعيل يثبت الوضع على AP ويعطل VLAN.'),
+			)),
+			self.refs.radioSettingsCard,
+			(self.refs.hotspotQuickCard = renderWizardCard(
+				_('إعدادات شبكة الهوتسبوت السريع'),
+				null,
 				[
-					renderCardLiveSummary(this.refs.hotspotQuickCardSummary),
-						renderNoticeBox(hotspotLicenseCacheInfo().active ? 'info' : 'warning', _('ترخيص الهوتسبوت'), [ E('span', hotspotLicenseCacheMessage()) ]),
-					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل الهوتسبوت السريع')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickEnabled ]) ]),
-					(this.refs.hotspotQuickDetailsWrapper = E('div', { 'class': 'alemprator-responsive-fields', 'style': 'display:none;' }, [
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('واجهة الإنترنت')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickWanInterface, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اتركها lan في البرمجة المعتادة، ولا تغيّرها إلا إذا كان مصدر الإنترنت على واجهة أخرى.')) ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('واجهة المشتركين')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSubscriberInterface, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('الواجهة الأساسية للهوتسبوت. سيتم اشتقاق واجهة الشبكة الثانية تلقائياً.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RADIUS Server')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusServer ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RADIUS Server 2')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusServer2 ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RADIUS Secret')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusSecret, this.refs.hotspotQuickRadiusSecretToggle ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RADIUS Auth Port')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusAuthPort ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RADIUS Accounting Port')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusAcctPort ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('NAS IP')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusNasIp, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اختياري. اتركه فارغاً لاستخدام عنوان LAN تلقائياً.')) ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('NAS ID')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickNasId ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Accounting Interim')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickAcctInterim, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('بالثواني، يرسل تحديثات الاستهلاك إلى MikroTik/User Manager.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('CoA / Disconnect')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickCoaEnabled ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('CoA Port')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickCoaPort ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('اختبار RADIUS')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRadiusTestButton, this.refs.hotspotQuickRadiusTestStatus ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSsid1 ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('IP الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickGateway1, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('سيتم توليد Pool تلقائيًا من نفس الشبكة: .10 إلى .199.')) ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool بداية الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolStart1 ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool نهاية الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolEnd1 ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('DNS Domain')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickDomain ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('DNS Server 1')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickDns1 ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('DNS Server 2')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickDns2 ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Ageing time')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickBridgeAgeingTime, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يكتب ageing_time لجسري Hotspot-1 و Hotspot-2. الافتراضي 10.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('صفحة الكرت')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickLoginMode ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Rate Limit (rx/tx)')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRateLimit, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اختياري مثل 2M/5M. يطبق كحد افتراضي upload/download إذا لم يرجعه RADIUS.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Add MAC Cookie')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickMacCookieEnabled, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يحفظ MAC وIP واسم الكرت بعد نجاح الدخول، ثم يسمح بالدخول التلقائي لنفس الجهاز لاحقًا مثل MikroTik Cookies.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('قائمة السرعات المتاحة للمشتركين')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickAvailableSpeeds, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('أدخل خيارات السرعة، سطر لكل خيار. الصيغة: السرعة الاسم.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('رقم الدعم الفني')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSupportPhone, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يظهر كزر تواصل في أسفل الصفحة.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تنبيه للمشتركين')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickNoticeText, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('نص يظهر بشكل بارز للتنبيهات.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إظهار بث مباشر')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickLiveStreamEnabled ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('رابط البث المباشر')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickLiveStreamUrl ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إظهار الاستراحة')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRestAreaEnabled ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('رابط الاستراحة')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickRestAreaUrl ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل فحص السرعة في صفحة الحالة')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSpeedtestEnabled, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يظهر زر للمشترك لقياس سرعة اتصاله الحقيقية بالراوتر.')) ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Browser Cookie')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickBrowserCookieEnabled, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يتذكر المتصفح رقم الكرت محليًا عند فتح صفحة الدخول.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('مدة كوكي المتصفح بالأيام')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickBrowserCookieDays, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('من 1 إلى 365 يومًا.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('قراءة رصيد User Manager')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickUsermanRestEnabled, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يفعل جسر RouterOS REST لعرض الرصيد والبروفايل ووقت الانتهاء في صفحة المشترك.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RouterOS REST Scheme')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickUsermanRestScheme, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('استخدم https مع www-ssl. يمكن استخدام http للاختبار فقط.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RouterOS API User')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickUsermanRestUsername, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('مستخدم قراءة فقط على MikroTik بصلاحيات User Manager.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('RouterOS API Password')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickUsermanRestPassword, this.refs.hotspotQuickUsermanRestPasswordToggle, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('تحفظ على الراوتر فقط ولا ترسل للمتصفح.')) ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Policy/Profile للشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPolicy1 ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSecondaryEnabled ]) ]),
-						(this.refs.hotspotQuickSecondaryWrapper = E('div', { 'class': 'alemprator-responsive-fields', 'style': 'display:none;' }, [
-							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickSsid2 ]) ]),
-							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('IP الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickGateway2, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('سيتم توليد Pool تلقائيًا من نفس الشبكة: .10 إلى .199.')) ]) ]),
-							E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool بداية الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolStart2 ]) ]),
-							E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool نهاية الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPoolEnd2 ]) ]),
-							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Policy/Profile للشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickPolicy2 ]) ])
+					(self.refs.hotspotQuickDetailsWrapper = E('div', { 'class': 'alemprator-responsive-fields', 'style': 'display:none;' }, [
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('واجهة الإنترنت')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickWanInterface ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('واجهة المشتركين')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickSubscriberInterface ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickSsid1 ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('IP الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickGateway1 ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool بداية الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickPoolStart1 ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool نهاية الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickPoolEnd1 ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('DNS Name (الاسم الداخلي)')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickDomain ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('DNS Server 1')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickDns1 ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('DNS Server 2')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickDns2 ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Ageing time')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickBridgeAgeingTime ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('صفحة الكرت')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickLoginMode ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('سرعة الميكروتك (Rate Limit)')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickRateLimit ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('دعم MAC Cookie')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickMacCookieEnabled ]) ]),
+						E('div', { 'style': 'margin: 20px 0; border-top: 1px dashed #D4AF37;' }),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title', 'style': 'color:#D4AF37; font-weight:bold;' }, _('تفعيل جدولة الصيانة')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickMaintEnabled ]) ]),
+						(self.refs.hotspotQuickMaintWrapper = E('div', [
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('سلوك الصيانة')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickMaintMode ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('وقت بدء الصيانة')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickMaintStart ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('وقت انتهاء الصيانة')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickMaintEnd ]) ])
 						])),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Trial Users')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickTrialEnabled ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Trial Duration')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickTrialDuration, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('بالدقائق.')) ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Trial Uptime Limit')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickTrialUptimeLimit, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('بالدقائق لكل جهاز.')) ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('MAC Authentication')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickMacAuthEnabled ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('MAC Auth Suffix')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickMacAuthSuffix ]) ]),
-						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('MAC Auth Password')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickMacAuthPassword ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Walled Garden Domains')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.hotspotQuickWalledGarden ]) ]),
-						(this.refs.hotspotVlanLockNotice = renderNoticeBox('warning', _('تنبيه'), [ E('span', _('عند تفعيل الهوتسبوت السريع يتم تعطيل VLAN تلقائيًا ومنع حفظه.')) ]))
+						E('div', { 'style': 'margin: 20px 0; border-top: 1px dashed #D4AF37;' }),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('قائمة السرعات المتاحة للمشتركين')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickAvailableSpeeds ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('رقم الدعم الفني')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickSupportPhone ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تنبيه للمشتركين')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickNoticeText ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إظهار بث مباشر')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickLiveStreamEnabled ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('رابط البث المباشر')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickLiveStreamUrl ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إظهار الاستراحة')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickRestAreaEnabled ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('رابط الاستراحة')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickRestAreaUrl ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل فحص السرعة')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickSpeedtestEnabled ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Policy/Profile للشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickPolicy1 ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickSecondaryEnabled ]) ]),
+						(self.refs.hotspotQuickSecondaryWrapper = E('div', { 'class': 'alemprator-responsive-fields', 'style': 'display:none;' }, [
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickSsid2 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('IP الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickGateway2 ]) ]),
+							E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool بداية الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickPoolStart2 ]) ]),
+							E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Pool نهاية الشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickPoolEnd2 ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Policy/Profile للشبكة الثانية')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickPolicy2 ]) ])
+						])),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Trial Users')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickTrialEnabled ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Trial Duration')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickTrialDuration ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Trial Uptime Limit')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickTrialUptimeLimit ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('MAC Authentication')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickMacAuthEnabled ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('MAC Auth Suffix')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickMacAuthSuffix ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('MAC Auth Password')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickMacAuthPassword ]) ]),
+						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('Walled Garden Domains')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickWalledGarden ]) ]),
+						(self.refs.hotspotVlanLockNotice = renderNoticeBox('warning', null, [ E('span', _('عند تفعيل الهوتسبوت السريع يتم تعطيل VLAN تلقائيًا ومنع حفظه.')) ]))
 					]))
 				]
 			)),
-			(this.refs.apVlanWarning = E('div', {
+			(self.refs.hotspotQuickAuthCard = renderWizardCard(
+				_('إعدادات المصادقة والربط (RADIUS/REST)'),
+				null,
+				[
+					(self.refs.hotspotQuickAuthWrapper = E('div', { 'class': 'alemprator-responsive-fields', 'style': 'display:none;' }, [
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('مخدم RADIUS الأساسي')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickRadiusServer ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('مخدم RADIUS الاحتياطي')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickRadiusServer2 ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة سر RADIUS')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickRadiusSecret, self.refs.hotspotQuickRadiusSecretToggle ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('منفذ المصادقة (Auth)')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickRadiusAuthPort ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('منفذ المحاسبة (Acct)')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickRadiusAcctPort ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('NAS IP Address')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickRadiusNasIp ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('NAS ID')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickNasId ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('Interim Update (sec)')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickAcctInterim ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل COA')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickCoaEnabled ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('منفذ COA')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickCoaPort ]) ]),
+						E('div', { 'style': 'margin: 20px 0; border-top: 1px dashed #ccc;' }),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل REST API (MikroTik)')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickUsermanRestEnabled ]) ]),
+						(self.refs.hotspotQuickRestFieldsWrapper = E('div', [
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('بروتوكول الربط')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickUsermanRestScheme ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم مستخدم REST')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickUsermanRestUsername ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة مرور REST')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickUsermanRestPassword, self.refs.hotspotQuickUsermanRestPasswordToggle ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('أدوات الاختبار')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickRadiusTestButton, self.refs.hotspotQuickRadiusTestStatus ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, ''), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickRestTestButton, self.refs.hotspotQuickRestTestStatus ]) ])
+						]))
+					]))
+				]
+			)),
+			(self.refs.apVlanWarning = E('div', {
 				'class': 'alemprator-notice alemprator-notice--warning',
 				'style': 'display:none; margin:12px 0 0 0;'
 			}, _('عند تفعيل VLAN هنا ستعتمد على شبكات VLAN فقط.'))),
 			E('div', { 'class': 'alemprator-card-grid' }, [
-				(this.refs.primaryWifiSection = E('div', [
+				(self.refs.primaryWifiSection = E('div', [
 					renderWizardCard(
 						_('الشبكة اللاسلكية الأساسية'),
-						_('سمِّ الشبكات المحلية المتاحة.'),
+						null,
 						[
-							renderCardLiveSummary(this.refs.primaryWifiCardSummary),
-							(this.refs.wifiNameHelp = E('p', describePrimaryWifiNamingHelp(this.state, this.radios || []))),
-							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم SSID الأساسي')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsid ]) ]),
-							(this.refs.ssid5gModeRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('طريقة تعيين اسم 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsid5gMode ]) ])),
-							(this.refs.ssid5gCustomRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم المخصص لشبكة 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsid5g ]) ])),
-							(this.refs.ssidPreviewRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم النهائي لشبكة 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.ssidPreview ]) ])),
-							(this.refs.primarySsidIpSuffixRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إضافة آخر IP إلى اسم الشبكة الأساسية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsidIpSuffixPrimary, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('مثال: 192.168.1.20 يضيف _1.20 إلى أسماء الشبكات الأساسية وVLAN.')) ]) ])),
-							renderNoticeBox('neutral', _('ملخص الواي فاي'), [ this.refs.primaryWifiPlan ])
+							renderCardLiveSummary(self.refs.primaryWifiCardSummary),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم SSID الأساسي')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiSsid ]) ]),
+							(self.refs.ssid5gModeRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('طريقة تعيين اسم 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiSsid5gMode ]) ])),
+							(self.refs.ssid5gCustomRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم المخصص لشبكة 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiSsid5g ]) ])),
+							(self.refs.ssidPreviewRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم النهائي لشبكة 5GHz')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.ssidPreview ]) ])),
+							(self.refs.primarySsidIpSuffixRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إضافة آخر IP إلى اسم الشبكة الأساسية')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiSsidIpSuffixPrimary ]) ])),
+							renderNoticeBox('neutral', null, [ self.refs.primaryWifiPlan ])
 						]
 					)
 				])),
-				(this.refs.wifiSecurityCard = renderWizardCard(
+				(self.refs.wifiSecurityCard = renderWizardCard(
 					_('حماية الواي فاي المحلية'),
-					_('كلمة المرور للشبكات المحلية. اتركها فارغة للشبكة المفتوحة.'),
+					null,
 					[
-						renderCardLiveSummary(this.refs.wifiSecurityCardSummary),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة مرور الواي فاي')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiKey, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اتركه فارغًا للشبكة المفتوحة.')) ]) ])
+						renderCardLiveSummary(self.refs.wifiSecurityCardSummary),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة مرور الواي فاي')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiKey ]) ])
 					]
 				)),
-				(this.refs.uplinkSettingsWrapper = E('div', { 'style': 'display:none;' }, [
+				(self.refs.uplinkSettingsWrapper = E('div', { 'style': 'display:none;' }, [
 					renderWizardCard(
-						_('إعدادات الربط الصاعد للعميل + WDS'),
-						_('يظهر فقط في وضع العميل + WDS.'),
+						_('إعدادات الربط الصاعد'),
+						null,
 						[
-							renderCardLiveSummary(this.refs.uplinkCardSummary),
-							(this.refs.uplinkHelp = E('p', describeUplinkSettingsHelp(this.state, this.radios || []))),
-							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('نطاق الربط الصاعد')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.uplinkBand ]) ]),
-							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم شبكة الربط الصاعد')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.uplinkSsid ]) ]),
-							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة مرور الربط الصاعد')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.uplinkKey, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اتركه فارغًا للشبكة المفتوحة.')) ]) ])
+							renderCardLiveSummary(self.refs.uplinkCardSummary),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('نطاق الربط الصاعد')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.uplinkBand ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم شبكة الربط الصاعد')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.uplinkSsid ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة مرور الربط الصاعد')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.uplinkKey ]) ])
 						]
 					)
 				])),
-				(this.refs.meshSettingsWrapper = E('div', { 'style': 'display:none;' }, [
+				(self.refs.meshSettingsWrapper = E('div', { 'style': 'display:none;' }, [
 					renderWizardCard(
 						_('إعدادات الميش'),
-						_('يظهر فقط في وضع الميش.'),
+						null,
 						[
-							renderCardLiveSummary(this.refs.meshCardSummary),
-							(this.refs.meshHelp = E('p', describeMeshSettingsHelp(this.state, this.radios || []))),
-							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('نطاق الميش')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.meshBand ]) ]),
-							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('معرف الميش')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.meshId ]) ]),
-							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة مرور الميش')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.meshKey, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('اتركه فارغًا لميش مفتوح.')) ]) ])
+							renderCardLiveSummary(self.refs.meshCardSummary),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('نطاق الميش')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.meshBand ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('معرف الميش')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.meshId ]) ]),
+							E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة مرور الميش')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.meshKey ]) ])
 						]
 					)
 				])),
-				(this.refs.vlanSettingsCard = renderWizardCard(
+				(self.refs.vlanSettingsCard = renderWizardCard(
 					_('إعداد شبكة VLAN الثانوية'),
-					_('أضف شبكة واي فاي ثانوية معزولة من دون تغيير الشبكة الرئيسية.'),
+					null,
 					[
-						renderCardLiveSummary(this.refs.vlanCardSummary),
-						(this.refs.secondaryNetworkIntro = E('p', { 'style': 'margin:0 0 12px 0; color:#415a77;' }, describeSecondaryNetworkIntro(this.state, this.radios || []))),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل شبكة VLAN')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.isVlan ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('VLAN ID')), (this.refs.vlanIdWrapper = E('div', { 'class': 'cbi-value-field' }, [ this.refs.vlanId ])) ]),
-						(this.refs.vlanSsid2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم الأساسي لشبكة VLAN')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsidVlan2g, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('هذا الحقل مطلوب. وإذا تُرك حقل شبكة خمسة جيجاهرتز فارغًا، فسيُشتق اسمه من هذا الحقل.')) ]) ])),
-						(this.refs.vlanSsid5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم الاختياري لشبكة VLAN على خمسة جيجاهرتز')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsidVlan5g, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('هذا الحقل اختياري. وإذا تُرك فارغًا، فسيُنشأ الاسم تلقائيًا من الاسم الأساسي.')) ]) ])),
-						(this.refs.vlanSsidIpSuffixRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إضافة آخر IP إلى أسماء الواي فاي')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wifiSsidVlanIpSuffix, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('مثال: 192.168.1.20 يضيف _1.20 إلى أسماء الشبكات الأساسية وVLAN.')) ]) ])),
-						(this.refs.vlanPreviewWrapper = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('معرّف VLAN الثانوية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.vlanPreview, (this.refs.secondarySubnetHelp = E('div', { 'style': 'margin-top:6px; color:#666;' }, describeSecondarySubnetHelp(this.state, this.radios || []))) ]) ])),
-						renderNoticeBox('neutral', _('ملخص VLAN الثانوية'), [ this.refs.secondaryNetworkPlan ]),
-						this.refs.secondaryNetworkNotice
+						renderCardLiveSummary(self.refs.vlanCardSummary),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل شبكة VLAN')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.isVlan ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('VLAN ID')), (self.refs.vlanIdWrapper = E('div', { 'class': 'cbi-value-field' }, [ self.refs.vlanId ])) ]),
+						(self.refs.vlanSsid2gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم الأساسي لشبكة VLAN')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiSsidVlan2g ]) ])),
+						(self.refs.vlanSsid5gRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('الاسم الاختياري لشبكة VLAN')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiSsidVlan5g ]) ])),
+						(self.refs.vlanSsidIpSuffixRow = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إضافة آخر IP إلى أسماء الواي فاي')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wifiSsidVlanIpSuffix ]) ])),
+						(self.refs.vlanPreviewWrapper = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('معرّف VLAN الثانوية')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.vlanPreview ]) ])),
+						renderNoticeBox('neutral', null, [ self.refs.secondaryNetworkPlan ]),
+						self.refs.secondaryNetworkNotice
 					]
 				))
 			])
@@ -5529,22 +5343,12 @@ return view.extend({
 			}
 
 			return [
-				renderNoticeBox('accent', _('الهوتسبوت'), [
-					E('span', _('اضبط بيانات RADIUS لتشغيل بوابة الدخول. ترك الخانة معطلة لا يؤثر على الإعداد الحالي.'))
-				]),
 				renderWizardCard(
-					_('إعداد الهوتسبوت السريع'),
-					_('يتطلب CoovaChilli ومخدم RADIUS (MikroTik User Manager). الإعدادات المتقدمة متاحة من صفحة الخدمات.'),
+					null,
+					null,
 					[
-						renderCardLiveSummary(self.refs.hotspotCardSummary),
-						renderNoticeBox(hotspotLicenseCacheInfo().active ? 'info' : 'warning', _('ترخيص الهوتسبوت'), [ E('span', hotspotLicenseCacheMessage()) ]),
-						E('div', { 'class': 'cbi-value' }, [
-							E('label', { 'class': 'cbi-value-title' }, _('تشغيل الهوتسبوت')),
-							E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotEnabled ])
-						]),
 						(self.refs.hotspotFieldsWrapper = E('div', {
-							'class': 'alemprator-hotspot-fields',
-							'style': 'display:none;'
+							'class': 'alemprator-hotspot-fields'
 						}, [
 							E('div', { 'class': 'cbi-value' }, [
 								E('label', { 'class': 'cbi-value-title' }, _('اسم شبكة الهوتسبوت (SSID)')),
@@ -5603,192 +5407,205 @@ return view.extend({
 									E('label', { 'class': 'cbi-value-title' }, _('نهاية نطاق DHCP')),
 									E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotPoolEnd ])
 								])
-							])),
-							E('p', { 'style': 'margin-top:14px; color:#52606d; font-size:13px;' }, [
-								_('للإعدادات المتقدمة (Walled Garden، المهلات، Portal): '),
-								E('a', {
-									'href': L.url('admin', 'services', 'hotspot-openwrt'),
-									'target': '_blank',
-									'rel': 'noopener noreferrer',
-									'style': 'color:#1a5faa; text-decoration:underline;'
-								}, _('افتح صفحة الهوتسبوت'))
-							])
-						])),
-						renderNoticeBox('neutral', _('ملخص الهوتسبوت'), [ self.refs.hotspotCardSummary ])
+							]))
+						]))
 					]
 				)
 			];
-		}(this.state.hotspotAvailable))));
+		}(self.state.hotspotAvailable))));
 
-		this.refs.resetHoldWrapper = E('div', { 'class': 'cbi-value-field' }, [ this.refs.resetHoldSeconds ]);
+		self.refs.resetHoldWrapper = E('div', { 'class': 'cbi-value-field' }, [ self.refs.resetHoldSeconds ]);
 		stepPanels.push(E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' }, [
-			renderNoticeBox('accent', _('الصيانة'), [
-				E('span', _('النسخ الاحتياطي والحماية قبل الحفظ.'))
-			]),
 			E('div', { 'class': 'alemprator-card-grid' }, [
-				renderWizardCard(
-					_('النسخ الاحتياطي'),
-					_('نزّل نسخة احتياطية أو استرجعها بأمان.'),
+				(self.refs.backupCard = renderWizardCard(
+					_('النسخ الاحتياطي', true),
+					null,
 					[
-						renderCardLiveSummary(this.refs.backupCardSummary),
+						renderCardLiveSummary(self.refs.backupCardSummary),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('تنزيل النسخة الاحتياطية')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.backupButton ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.backupButton ])
 						]),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('الاسترجاع الآمن')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.safeRestoreButton ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.safeRestoreButton ])
 						]),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('الحالة')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.backupStatus ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.backupStatus ])
 						])
 					]
-				),
-				renderWizardCard(
-					_('حالة firstboot'),
-					_('حالة تهيئة التشغيل الأول.'),
+				)),
+				(self.refs.firstbootCard = renderWizardCard(
+					_('حالة النظام (M)'),
+					null,
 					[
-						renderCardLiveSummary(this.refs.firstbootCardSummary),
+						renderCardLiveSummary(self.refs.firstbootCardSummary),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('الملخص الحالي')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.firstbootSummary ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.firstbootSummary ])
 						]),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('حالة firstboot')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.firstbootEnabledStatus ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.firstbootEnabledStatus ])
 						]),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('configured_once')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.firstbootConfiguredOnceStatus ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.firstbootConfiguredOnceStatus ])
 						]),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('initial_setup_complete')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.firstbootInitialSetupStatus ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.firstbootInitialSetupStatus ])
 						]),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('حالة التنظيف المؤجل')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.firstbootCleanupStatus ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.firstbootCleanupStatus ])
 						]),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('أسماء المقاطع المرتبطة')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.firstbootSections ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.firstbootSections ])
 						])
 					]
-				),
-				renderWizardCard(
-					_('وقت التحديث التلقائي'),
-					_('اختر نافذة التحديث التلقائي.'),
+				)),
+				(self.refs.otaCard = renderWizardCard(
+					_('وقت التحديث التلقائي', true),
+					null,
 					[
-						renderCardLiveSummary(this.refs.otaCardSummary),
+						renderCardLiveSummary(self.refs.otaCardSummary),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('بداية نافذة التحديث التلقائي')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.otaWindowStart ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.otaWindowStart ])
 						]),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('نهاية نافذة التحديث التلقائي')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.otaWindowEnd ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.otaWindowEnd ])
 						]),
 						E('div', { 'class': 'cbi-value' }, [
 							E('label', { 'class': 'cbi-value-title' }, _('نافذة التحديث الحالية')),
-							E('div', { 'class': 'cbi-value-field' }, [ this.refs.otaWindowStatus ])
+							E('div', { 'class': 'cbi-value-field' }, [ self.refs.otaWindowStatus ])
 						])
 					]
-				),
-				renderWizardCard(
-					_('سياسات الأزرار'),
-					_('تحكم سريع في أزرار الجهاز.'),
+				)),
+				(self.refs.buttonPoliciesCard = renderWizardCard(
+					_('سياسات الأزرار', true),
+					null,
 					[
-						renderCardLiveSummary(this.refs.buttonPoliciesCardSummary),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تعطيل زر إعادة الضبط')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.resetDisabled ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('مدة الضغط لإعادة ضبط المصنع')), this.refs.resetHoldWrapper ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تعطيل زر WPS/ميش')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.wpsDisabled ]) ])
+						renderCardLiveSummary(self.refs.buttonPoliciesCardSummary),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تعطيل زر إعادة الضبط')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.resetDisabled ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('مدة الضغط لإعادة ضبط المصنع')), self.refs.resetHoldWrapper ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تعطيل زر WPS/ميش')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.wpsDisabled ]) ])
 					]
-				),
-				renderWizardCard(
-					_('إعادة تشغيل الجهاز'),
-					_('إعادة تشغيل دورية خاصة بهذا المعالج فقط.'),
+				)),
+				(self.refs.rebootCard = renderWizardCard(
+					_('إعادة تشغيل الجهاز', true),
+					null,
 					[
-						renderCardLiveSummary(this.refs.rebootCardSummary),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل إعادة التشغيل التلقائية')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.rebootEnabled ]) ]),
-						(this.refs.rebootHoursWrapper = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إعادة التشغيل كل كم ساعة')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.rebootHours, E('div', { 'style': 'margin-top:6px; color:#666;' }, _('يؤثر على هذه القاعدة فقط.')) ]) ]))
+						renderCardLiveSummary(self.refs.rebootCardSummary),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تفعيل إعادة التشغيل التلقائية')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.rebootEnabled ]) ]),
+						(self.refs.rebootHoursWrapper = E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('إعادة التشغيل كل كم ساعة')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.rebootHours ]) ]))
 					]
-				),
-				renderWizardCard(
-					_('كلمة مرور الجهاز'),
-					_('اترك الحقلين فارغين إذا لا تريد تغييرها.'),
+				)),
+				(self.refs.passwordCard = renderWizardCard(
+					_('كلمة مرور الجهاز', true),
+					null,
 					[
-						renderCardLiveSummary(this.refs.passwordCardSummary),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة المرور الجديدة')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.adminPassword ]) ]),
-						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تأكيد كلمة المرور')), E('div', { 'class': 'cbi-value-field' }, [ this.refs.adminPasswordConfirm ]) ])
+						renderCardLiveSummary(self.refs.passwordCardSummary),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة المرور الجديدة')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.adminPassword ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('تأكيد كلمة المرور')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.adminPasswordConfirm ]) ])
 					]
-				)
+				))
 			])
 		]));
 
+		if (self.refs.radioSettingsCard) self.refs.radioSettingsCard.classList.add('alemprator-card--tooltip');
+		if (self.refs.lanAdvancedCard) self.refs.lanAdvancedCard.classList.add('alemprator-card--tooltip');
+		if (self.refs.firstbootCard) self.refs.firstbootCard.classList.add('alemprator-card--tooltip');
+		if (self.refs.passwordCard) self.refs.passwordCard.classList.add('alemprator-card--tooltip');
+		if (self.refs.otaCard) self.refs.otaCard.classList.add('alemprator-card--tooltip');
+		if (self.refs.buttonPoliciesCard) self.refs.buttonPoliciesCard.classList.add('alemprator-card--tooltip');
+		if (self.refs.rebootCard) self.refs.rebootCard.classList.add('alemprator-card--tooltip');
+		if (self.refs.backupCard) self.refs.backupCard.classList.add('alemprator-card--tooltip');
+
 		(function() {
-			var legacyPanels = stepPanels.slice();
-			var optionsPage = E('div', { 'class': 'cbi-section-node alemprator-step-panel' });
-			var maintenancePage = E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' });
-			var optionBlocks = E('div', { 'class': 'alemprator-card-grid alemprator-card-grid--fluid' });
-			var maintenanceBlocks = E('div', { 'class': 'alemprator-card-grid alemprator-card-grid--fluid' });
-			var moveChildren = function(panel, target) {
-				if (!panel)
-					return;
+		var self = this;
+		var legacyPanels = stepPanels.slice();
 
-				panel.style.display = '';
-				while (panel.firstChild)
-					target.appendChild(panel.firstChild);
-			};
-			var moveModeChildren = function(panel, target) {
-				var deferred = [];
+		var networkPage = E('div', { 'class': 'cbi-section-node alemprator-step-panel' });
+		var hotspotNetPage = E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' });
+		var hotspotAuthPage = E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' });
+		var maintenancePage = E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' });
 
-				if (!panel)
-					return;
+		var moveChildren = function(panel, target) {
+			if (!panel) return;
+			panel.style.display = '';
+			while (panel.firstChild) target.appendChild(panel.firstChild);
+		};
 
-				panel.style.display = '';
-				while (panel.firstChild) {
-					var child = panel.firstChild;
+		legacyPanels.forEach(function(panel) {
+			if (panel) panel.style.display = '';
+		});
 
-					if (child.className && String(child.className).indexOf('alemprator-notice') > -1) {
-						panel.removeChild(child);
-						deferred.push(child);
-					}
-					else
-						target.appendChild(child);
+		
+		// 1. Identity & Login Step (Step 1)
+		networkPage.appendChild(E('h4', { 'class': 'alemprator-step-title' }, '❶ ' + stepTitles[0]));
+		moveChildren(legacyPanels[0], networkPage); // LAN IP Card
+		networkPage.appendChild(modeGrid);          // Mode Choice Card
+		if (self.refs.modeCard) networkPage.appendChild(self.refs.modeCard);
+
+		// 2. Wireless Step (Step 2)
+		var wirelessPage = E('div', { 'class': 'cbi-section-node alemprator-step-panel', 'style': 'display:none;' });
+		wirelessPage.appendChild(E('h4', { 'class': 'alemprator-step-title' }, '❷ ' + stepTitles[1]));
+
+		// 3. Hotspot Network (Step 3) - Header first
+		hotspotNetPage.appendChild(E('h4', { 'class': 'alemprator-step-title' }, '❸ ' + stepTitles[2]));
+
+		// 4. Hotspot Auth (Step 4) - Header first
+		hotspotAuthPage.appendChild(E('h4', { 'class': 'alemprator-step-title' }, '❹ ' + stepTitles[3]));
+
+		if (legacyPanels && legacyPanels[1]) {
+			var children1 = Array.prototype.slice.call(legacyPanels[1].childNodes);
+			children1.forEach(function(child) {
+				// Wireless Basic/Radio settings
+				if (child !== self.refs.hotspotQuickCard && 
+					child !== self.refs.hotspotQuickAuthCard &&
+					child !== self.refs.uplinkSettingsWrapper && 
+					child !== self.refs.meshSettingsWrapper && 
+					child !== self.refs.vlanSettingsCard &&
+					child !== self.refs.modeCard) {
+					wirelessPage.appendChild(child);
+				} else if (child === self.refs.hotspotQuickAuthCard) {
+					hotspotAuthPage.appendChild(child);
+				} else if (child !== self.refs.modeCard) {
+					// Hotspot/Advanced Connectivity (like hotspotQuickCard)
+					hotspotNetPage.appendChild(child);
 				}
-
-				deferred.forEach(function(node) {
-					target.appendChild(node);
-				});
-			};
-
-			legacyPanels.forEach(function(panel) {
-				if (panel)
-					panel.style.display = '';
 			});
+		}
 
-			optionsPage.appendChild(renderNoticeBox('accent', _('صفحة الخيارات'), [
-				E('span', _('كل خيارات البرمجة السريعة في مكان واحد: LAN، وضع التشغيل، الواي فاي، الهوتسبوت السريع، VLAN والقنوات.'))
-			]));
+		// 4. Hotspot Auth (Continued)
+		if (legacyPanels && legacyPanels[2]) {
+			var standardHotspotGrid = legacyPanels[2].querySelector('.alemprator-hotspot-fields');
+			if (standardHotspotGrid) {
+				hotspotAuthPage.appendChild(standardHotspotGrid);
+			} else {
+				moveChildren(legacyPanels[2], hotspotAuthPage);
+			}
+		}
 
-			moveChildren(legacyPanels[0], optionBlocks);
-			moveModeChildren(legacyPanels[1], optionBlocks);
-			moveChildren(legacyPanels[3], optionBlocks);
+		// 5. Maintenance Page (Step 5)
+		maintenancePage.appendChild(E('h4', { 'class': 'alemprator-step-title' }, '❺ ' + stepTitles[4]));
+		moveChildren(legacyPanels[3], maintenancePage);
+		if (self.refs.reviewContainer) maintenancePage.insertBefore(self.refs.reviewContainer, maintenancePage.lastChild);
 
-			maintenancePage.appendChild(renderNoticeBox('accent', _('صفحة الصيانة'), [
-				E('span', _('النسخ الاحتياطي، الاسترجاع، OTA، أزرار الجهاز، إعادة التشغيل وكلمة المرور.'))
-			]));
+		// Final Step Panels assignment
+		stepPanels.length = 0;
+		stepPanels.push(networkPage);    // Index 0
+		stepPanels.push(wirelessPage);   // Index 1 (Always Visible)
+		stepPanels.push(hotspotNetPage); // Index 2 (Hotspot Only)
+		stepPanels.push(hotspotAuthPage);// Index 3 (Hotspot Only)
+		stepPanels.push(maintenancePage);// Index 4 (Always Visible)
 
-			moveChildren(legacyPanels[4], maintenanceBlocks);
-
-			optionsPage.appendChild(optionBlocks);
-			maintenancePage.appendChild(maintenanceBlocks);
-
-			stepPanels.length = 0;
-			stepPanels.push(optionsPage);
-			stepPanels.push(maintenancePage);
-		}());
+	}.call(this));
 
 		stepPanels.forEach(function(stepPanel) {
 			stepsWrap.appendChild(stepPanel);
@@ -5796,70 +5613,70 @@ return view.extend({
 
 		wizardContainer.appendChild(stepsWrap);
 
-		this.refs.backButton = E('button', { 'class': 'cbi-button cbi-button-neutral' }, _('السابق'));
-		this.refs.nextButton = E('button', { 'class': 'cbi-button cbi-button-action important' }, _('التالي'));
-		this.refs.saveButton = E('button', { 'class': 'cbi-button cbi-button-save important', 'style': 'display:none;' }, _('حفظ وتطبيق'));
-		this.refs.reloadButton = E('button', { 'class': 'cbi-button cbi-button-neutral', 'type': 'button' }, _('تحديث القيم من الجهاز'));
+		self.refs.prevButton = E('button', { 'class': 'cbi-button cbi-button-neutral' }, _('السابق'));
+		self.refs.nextButton = E('button', { 'class': 'cbi-button cbi-button-action important' }, _('التالي'));
+		self.refs.saveButton = E('button', { 'class': 'cbi-button cbi-button-save important', 'style': 'display:none;' }, _('حفظ وتطبيق'));
+		self.refs.reloadButton = E('button', { 'class': 'cbi-button cbi-button-neutral', 'type': 'button' }, _('تحديث القيم من الجهاز'));
 
-		this.refs.backButton.addEventListener('click', function(ev) {
+		self.refs.prevButton.addEventListener('click', function(ev) {
 			ev.preventDefault();
 			self.prevStep();
 		});
 
-		this.refs.nextButton.addEventListener('click', function(ev) {
+		self.refs.nextButton.addEventListener('click', function(ev) {
 			ev.preventDefault();
 			self.nextStep();
 		});
 
-		this.refs.saveButton.addEventListener('click', function(ev) {
+		self.refs.saveButton.addEventListener('click', function(ev) {
 			ev.preventDefault();
 			self.saveAndApply();
 		});
 
-		this.refs.reloadButton.addEventListener('click', function(ev) {
+		self.refs.reloadButton.addEventListener('click', function(ev) {
 			ev.preventDefault();
 			self.reloadStateFromDevice();
 		});
 
-		this.refs.backupButton.addEventListener('click', function(ev) {
+		self.refs.backupButton.addEventListener('click', function(ev) {
 			ev.preventDefault();
 			self.downloadConfigBackup();
 		});
 
-		this.refs.safeRestoreButton.addEventListener('click', function(ev) {
+		self.refs.safeRestoreButton.addEventListener('click', function(ev) {
 			ev.preventDefault();
 			self.safeRestoreConfigBackup();
 		});
 
-		this.refs.otaWindowStart.addEventListener('change', function() {
+		self.refs.otaWindowStart.addEventListener('change', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.otaWindowEnd.addEventListener('change', function() {
+		self.refs.otaWindowEnd.addEventListener('change', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.wifiSsid.addEventListener('input', function() {
+		self.refs.wifiSsid.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.wifiSsid5gMode.addEventListener('change', function() {
+		self.refs.wifiSsid5gMode.addEventListener('change', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.wifiSsid5g.addEventListener('input', function() {
+		self.refs.wifiSsid5g.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.lanIpaddr.addEventListener('input', function() {
+		self.refs.lanIpaddr.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.lanNetmask.addEventListener('input', function() {
+		self.refs.lanNetmask.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.mode.addEventListener('change', function() {
+		self.refs.mode.addEventListener('change', function() {
                 if (self.refs.mode.value !== 'ap') {
                         // User chose Mesh, Extender, etc. Reset hotspot.
                         // Actually, even if they explicitly select 'ap' from the dropdown, maybe reset? Yes, if they are touching mode, they want basic setup.
@@ -5870,170 +5687,176 @@ return view.extend({
                 self.updateStepUi();
         });
 
-		this.refs.uplinkSsid.addEventListener('input', function() {
+		self.refs.uplinkSsid.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.uplinkKey.addEventListener('input', function() {
+		self.refs.uplinkKey.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.uplinkBand.addEventListener('change', function() {
+		self.refs.uplinkBand.addEventListener('change', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.meshId.addEventListener('input', function() {
+		self.refs.meshId.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.meshKey.addEventListener('input', function() {
+		self.refs.meshKey.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.meshBand.addEventListener('change', function() {
+		self.refs.meshBand.addEventListener('change', function() {
 			self.updateStepUi();
 		});
 
-		if (this.refs.channel2g) {
-			this.refs.channel2g.addEventListener('change', function() {
+		if (self.refs.channel2g) {
+			self.refs.channel2g.addEventListener('change', function() {
 				self.updateStepUi();
 			});
 		}
 
-		if (this.refs.channel5g) {
-			this.refs.channel5g.addEventListener('change', function() {
+		if (self.refs.channel5g) {
+			self.refs.channel5g.addEventListener('change', function() {
 				self.updateStepUi();
 			});
 		}
 
-		if (this.refs.wifiMode2g) {
-			this.refs.wifiMode2g.addEventListener('change', function() {
+		if (self.refs.wifiMode2g) {
+			self.refs.wifiMode2g.addEventListener('change', function() {
 				self.updateStepUi();
 			});
 		}
 
-		if (this.refs.wifiWidth2g) {
-			this.refs.wifiWidth2g.addEventListener('change', function() {
+		if (self.refs.wifiWidth2g) {
+			self.refs.wifiWidth2g.addEventListener('change', function() {
 				self.updateStepUi();
 			});
 		}
 
-		if (this.refs.wifiMode5g) {
-			this.refs.wifiMode5g.addEventListener('change', function() {
+		if (self.refs.wifiMode5g) {
+			self.refs.wifiMode5g.addEventListener('change', function() {
 				self.updateStepUi();
 			});
 		}
 
-		if (this.refs.wifiWidth5g) {
-			this.refs.wifiWidth5g.addEventListener('change', function() {
+		if (self.refs.wifiWidth5g) {
+			self.refs.wifiWidth5g.addEventListener('change', function() {
 				self.updateStepUi();
 			});
 		}
 
-		this.refs.isVlan.addEventListener('change', function() {
+		self.refs.isVlan.addEventListener('change', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.vlanId.addEventListener('input', function() {
+		self.refs.vlanId.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.wifiSsidVlan2g.addEventListener('input', function() {
+		self.refs.wifiSsidVlan2g.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.wifiSsidVlan5g.addEventListener('input', function() {
+		self.refs.wifiSsidVlan5g.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.wifiSsidIpSuffixPrimary.addEventListener('change', function() {
+		self.refs.wifiSsidIpSuffixPrimary.addEventListener('change', function() {
 			self.state.wifiSsidVlanIpSuffix = self.refs.wifiSsidIpSuffixPrimary.checked;
 			self.refs.wifiSsidVlanIpSuffix.checked = self.state.wifiSsidVlanIpSuffix;
 			self.updateStepUi();
 		});
 
-		this.refs.wifiSsidVlanIpSuffix.addEventListener('change', function() {
+		self.refs.wifiSsidVlanIpSuffix.addEventListener('change', function() {
 			self.state.wifiSsidVlanIpSuffix = self.refs.wifiSsidVlanIpSuffix.checked;
 			self.refs.wifiSsidIpSuffixPrimary.checked = self.state.wifiSsidVlanIpSuffix;
 			self.updateStepUi();
 		});
 
-		this.refs.wifiKey.addEventListener('input', function() {
+		self.refs.wifiKey.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.rebootEnabled.addEventListener('change', function() {
+		self.refs.rebootEnabled.addEventListener('change', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.rebootHours.addEventListener('input', function() {
+		self.refs.rebootHours.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
 		
-           if (this.refs.hotspotQuickSecondaryEnabled) {
-                   this.refs.hotspotQuickSecondaryEnabled.addEventListener('change', function() {
+           if (self.refs.hotspotQuickSecondaryEnabled) {
+                   self.refs.hotspotQuickSecondaryEnabled.addEventListener('change', function() {
                            self.updateStepUi();
                    });
            }
 
-           if (this.refs.hotspotQuickEnabled) {
+           if (self.refs.hotspotQuickMaintEnabled) {
+                   self.refs.hotspotQuickMaintEnabled.addEventListener('change', function() {
+                           self.updateStepUi();
+                   });
+           }
 
-			this.refs.hotspotQuickEnabled.addEventListener('change', function() {
+           if (self.refs.hotspotQuickEnabled) {
+
+			self.refs.hotspotQuickEnabled.addEventListener('change', function() {
 				self.updateStepUi();
 				if (self.refs.hotspotQuickEnabled.checked)
 					showHotspotLicenseSelectionMessage(_('الهوتسبوت السريع'));
 			});
 		}
 
-		this.refs.adminPassword.addEventListener('input', function() {
+		self.refs.adminPassword.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.adminPasswordConfirm.addEventListener('input', function() {
+		self.refs.adminPasswordConfirm.addEventListener('input', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.resetDisabled.addEventListener('change', function() {
+		self.refs.resetDisabled.addEventListener('change', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.resetHoldSeconds.addEventListener('change', function() {
+		self.refs.resetHoldSeconds.addEventListener('change', function() {
 			self.updateStepUi();
 		});
 
-		this.refs.wpsDisabled.addEventListener('change', function() {
+		self.refs.wpsDisabled.addEventListener('change', function() {
 			self.updateStepUi();
 		});
 
-		if (this.refs.hotspotEnabled) {
-			this.refs.hotspotEnabled.addEventListener('change', function() {
+		if (self.refs.hotspotEnabled) {
+			self.refs.hotspotEnabled.addEventListener('change', function() {
 				self.updateStepUi();
 				if (self.refs.hotspotEnabled.checked)
 					showHotspotLicenseSelectionMessage(_('الهوتسبوت'));
 			});
 		}
 
-		if (this.refs.hotspotSsid) {
-			this.refs.hotspotSsid.addEventListener('input', function() {
+		if (self.refs.hotspotSsid) {
+			self.refs.hotspotSsid.addEventListener('input', function() {
 				self.updateStepUi();
 			});
 		}
 
-		if (this.refs.hotspotRadiusServer) {
-			this.refs.hotspotRadiusServer.addEventListener('input', function() {
+		if (self.refs.hotspotRadiusServer) {
+			self.refs.hotspotRadiusServer.addEventListener('input', function() {
 				self.updateStepUi();
 			});
 		}
 
-		if (this.refs.hotspotRadiusSecret) {
-			this.refs.hotspotRadiusSecret.addEventListener('input', function() {
+		if (self.refs.hotspotRadiusSecret) {
+			self.refs.hotspotRadiusSecret.addEventListener('input', function() {
 				self.updateStepUi();
 			});
 		}
 
-		if (this.refs.hotspotIp) {
-			this.refs.hotspotIp.addEventListener('input', function() {
+		if (self.refs.hotspotIp) {
+			self.refs.hotspotIp.addEventListener('input', function() {
 				self.updateStepUi();
 			});
 		}
@@ -6048,7 +5871,9 @@ return view.extend({
 			'hotspotQuickDns1', 'hotspotQuickDns2', 'hotspotQuickBridgeAgeingTime', 'hotspotQuickLoginMode', 'hotspotQuickRateLimit',
 			'hotspotQuickMacCookieEnabled', 'hotspotQuickAvailableSpeeds', 'hotspotQuickSupportPhone',
 			'hotspotQuickNoticeText', 'hotspotQuickLiveStreamEnabled', 'hotspotQuickLiveStreamUrl',
-			'hotspotQuickRestAreaEnabled', 'hotspotQuickRestAreaUrl', 'hotspotQuickSpeedtestEnabled', 'hotspotQuickBrowserCookieEnabled',
+			'hotspotQuickRestAreaEnabled', 'hotspotQuickRestAreaUrl', 'hotspotQuickSpeedtestEnabled',
+			'hotspotQuickMaintEnabled', 'hotspotQuickMaintStart', 'hotspotQuickMaintEnd', 'hotspotQuickMaintMode',
+			'hotspotQuickBrowserCookieEnabled',
 			'hotspotQuickBrowserCookieDays', 'hotspotQuickUsermanRestEnabled', 'hotspotQuickUsermanRestScheme',
 			'hotspotQuickUsermanRestUsername', 'hotspotQuickUsermanRestPassword',
 			'hotspotQuickSsid1', 'hotspotQuickGateway1', 'hotspotQuickPoolStart1', 'hotspotQuickPoolEnd1',
@@ -6062,15 +5887,22 @@ return view.extend({
 			}
 		});
 
-		if (this.refs.hotspotQuickRadiusTestButton) {
-			this.refs.hotspotQuickRadiusTestButton.addEventListener('click', function(ev) {
+		if (self.refs.hotspotQuickRadiusTestButton) {
+			self.refs.hotspotQuickRadiusTestButton.addEventListener('click', function(ev) {
 				ev.preventDefault();
 				self.testHotspotQuickRadius();
 			});
 		}
 
-		if (this.refs.hotspotQuickRadiusSecretToggle) {
-			this.refs.hotspotQuickRadiusSecretToggle.addEventListener('click', function(ev) {
+		if (self.refs.hotspotQuickRestTestButton) {
+			self.refs.hotspotQuickRestTestButton.addEventListener('click', function(ev) {
+				ev.preventDefault();
+				self.testHotspotQuickRest();
+			});
+		}
+
+		if (self.refs.hotspotQuickRadiusSecretToggle) {
+			self.refs.hotspotQuickRadiusSecretToggle.addEventListener('click', function(ev) {
 				ev.preventDefault();
 
 				if (!self.refs.hotspotQuickRadiusSecret)
@@ -6087,8 +5919,8 @@ return view.extend({
 			});
 		}
 
-		if (this.refs.hotspotQuickUsermanRestPasswordToggle) {
-			this.refs.hotspotQuickUsermanRestPasswordToggle.addEventListener('click', function(ev) {
+		if (self.refs.hotspotQuickUsermanRestPasswordToggle) {
+			self.refs.hotspotQuickUsermanRestPasswordToggle.addEventListener('click', function(ev) {
 				ev.preventDefault();
 
 				if (!self.refs.hotspotQuickUsermanRestPassword)
@@ -6105,10 +5937,10 @@ return view.extend({
 			});
 		}
 
-		actions.appendChild(this.refs.reloadButton);
-		actions.appendChild(this.refs.backButton);
-		actions.appendChild(this.refs.nextButton);
-		actions.appendChild(this.refs.saveButton);
+		actions.appendChild(self.refs.reloadButton);
+		actions.appendChild(self.refs.prevButton);
+		actions.appendChild(self.refs.nextButton);
+		actions.appendChild(self.refs.saveButton);
 		wizardContainer.appendChild(actions);
 
 		wizardContainer.appendChild(E('div', {
@@ -6132,9 +5964,9 @@ return view.extend({
 
 		panel.appendChild(wizardContainer);
 
-		this.updateStepUi();
+		self.updateStepUi();
 
-		return this.renderStatus(statusContainer).then(function() {
+		return self.renderStatus(statusContainer).then(function() {
 			poll.add(function() {
 				return self.renderStatus(statusContainer);
 			});

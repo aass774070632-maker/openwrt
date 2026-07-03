@@ -1,0 +1,185 @@
+#!/bin/sh
+
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+urlencode() {
+	printf '%s' "$1" | awk '
+		BEGIN { for (i = 0; i < 256; i++) hex[sprintf("%c", i)] = sprintf("%%%02X", i) }
+		{
+			out = ""
+			for (i = 1; i <= length($0); i++) {
+				char = substr($0, i, 1)
+				if (char ~ /[A-Za-z0-9_.~-]/) out = out char
+				else if (char == " ") out = out "%20"
+				else out = out hex[char]
+			}
+			printf "%s", out
+		}
+	'
+}
+
+first_json_value() {
+	file="$1"
+	shift
+
+	for path in "$@"; do
+		value="$(jsonfilter -i "$file" -e "$path" 2>/dev/null | head -n 1)"
+		[ -n "$value" ] && { printf '%s' "$value"; return; }
+	done
+}
+
+human_bytes() {
+	awk -v bytes="${1:-0}" 'BEGIN {
+		split("B KB MB GB TB", unit)
+		value = bytes + 0
+		idx = 1
+		while (value >= 1024 && idx < 5) {
+			value = value / 1024
+			idx++
+		}
+		if (idx == 1) printf "%d %s", value, unit[idx]
+		else printf "%.1f %s", value, unit[idx]
+	}'
+}
+
+fetch_rest() {
+	path="$1"
+	query="$2"
+	output="$3"
+
+	url="$scheme://$host"
+	[ -n "$port" ] && url="$url:$port"
+	url="$url/rest/$path"
+	[ -n "$query" ] && url="$url?$query"
+
+	if [ "$scheme" = 'https' ] && [ "$insecure_ssl" = '1' ]; then
+		uclient-fetch -q -T "$timeout" --no-check-certificate --user="$username" --password="$password" -O "$output" "$url" >/dev/null 2>&1
+		# Automatic Fallback for all models: If HTTPS fails, retry with HTTP on port 80
+		if [ $? -ne 0 ]; then
+			url_http="http://$host:80/rest/$path"
+			[ -n "$query" ] && url_http="$url_http?$query"
+			uclient-fetch -q -T "$timeout" --user="$username" --password="$password" -O "$output" "$url_http" >/dev/null 2>&1
+		fi
+	elif [ "$scheme" = 'https' ] && [ -n "$cacert" ] && [ -f "$cacert" ]; then
+		uclient-fetch -q -T "$timeout" --ca-certificate="$cacert" --user="$username" --password="$password" -O "$output" "$url" >/dev/null 2>&1
+	else
+		uclient-fetch -q -T "$timeout" --user="$username" --password="$password" -O "$output" "$url" >/dev/null 2>&1
+	fi
+}
+
+card="$1"
+enabled="$(uci -q get hotspot_openwrt.main.userman_rest_enabled || echo 0)"
+scheme="$(uci -q get hotspot_openwrt.main.userman_rest_scheme || echo https)"
+host="$(uci -q get hotspot_openwrt.main.userman_rest_host || uci -q get hotspot_openwrt.main.radius_server || echo 192.168.1.2)"
+port="$(uci -q get hotspot_openwrt.main.userman_rest_port || echo 443)"
+username="$(uci -q get hotspot_openwrt.main.userman_rest_username || echo '')"
+password="$(uci -q get hotspot_openwrt.main.userman_rest_password || echo '')"
+insecure_ssl="$(uci -q get hotspot_openwrt.main.userman_rest_insecure_ssl || echo 1)"
+cacert="$(uci -q get hotspot_openwrt.main.userman_rest_cacert || echo '')"
+user_field="$(uci -q get hotspot_openwrt.main.userman_rest_user_field || echo name)"
+timeout="$(uci -q get hotspot_openwrt.main.userman_rest_timeout || echo 5)"
+
+[ -n "$timeout" ] || timeout='5'
+
+ok='false'
+source='disabled'
+message='RouterOS REST غير مفعل في إعدادات Hotspot OpenWrt.'
+profile=''
+balance=''
+expires_at=''
+validity=''
+disabled=''
+comment=''
+
+if [ -z "$card" ]; then
+	message='رقم الكرت غير متوفر للاستعلام من MikroTik User Manager.'
+elif [ "$enabled" != '1' ]; then
+	:
+elif [ -z "$username" ] || [ -z "$password" ]; then
+	source='missing_credentials'
+	message='أدخل مستخدم وكلمة مرور RouterOS بصلاحية قراءة User Manager.'
+elif ! command -v uclient-fetch >/dev/null 2>&1 || ! command -v jsonfilter >/dev/null 2>&1; then
+	source='missing_tools'
+	message='uclient-fetch أو jsonfilter غير متوفر على الراوتر.'
+else
+	encoded_card="$(urlencode "$card")"
+	tmp_user="/tmp/hotspot-userman-user.$$"
+	tmp_profile="/tmp/hotspot-userman-profile.$$"
+		tmp_profile_def="/tmp/hotspot-userman-profile-def.$$"
+		tmp_limitation="/tmp/hotspot-userman-limitation.$$"
+	query_field="$user_field"
+	[ -n "$query_field" ] || query_field='name'
+
+	if ! fetch_rest "user-manager/user" "$query_field=$encoded_card" "$tmp_user" || [ ! -s "$tmp_user" ] || grep -q '"error"' "$tmp_user"; then
+		fetch_rest "user-manager/user" "username=$encoded_card" "$tmp_user" || true
+	fi
+
+	if [ -s "$tmp_user" ] && ! grep -q '"error"' "$tmp_user"; then
+		profile="$(first_json_value "$tmp_user" '@[0].profile' '@[0]["actual-profile"]' '@[0].group' '@[0].customer' '@.profile' '@["actual-profile"]' '@.group' '@.customer')"
+		balance="$(first_json_value "$tmp_user" '@[0]["remaining-uptime"]' '@[0]["time-left"]' '@[0]["remaining-time"]' '@[0]["remaining-bytes"]' '@[0].credit' '@[0]["limit-uptime"]' '@["remaining-uptime"]' '@["time-left"]' '@["remaining-time"]' '@["remaining-bytes"]' '@.credit' '@["limit-uptime"]')"
+		expires_at="$(first_json_value "$tmp_user" '@[0]["expires-at"]' '@[0]["valid-until"]' '@[0]["end-time"]' '@[0]["till-time"]' '@["expires-at"]' '@["valid-until"]' '@["end-time"]' '@["till-time"]')"
+		validity="$(first_json_value "$tmp_user" '@[0].validity' '@[0]["valid-for"]' '@[0]["uptime-limit"]' '@.validity' '@["valid-for"]' '@["uptime-limit"]')"
+		disabled="$(first_json_value "$tmp_user" '@[0].disabled' '@.disabled')"
+		comment="$(first_json_value "$tmp_user" '@[0].comment' '@.comment')"
+
+		fetch_rest "user-manager/user-profile" "user=$encoded_card" "$tmp_profile" || true
+		if [ -s "$tmp_profile" ] && ! grep -q '"error"' "$tmp_profile"; then
+			assigned_profile="$(first_json_value "$tmp_profile" '@[0].profile' '@[0].name' '@.profile' '@.name')"
+			[ -n "$assigned_profile" ] && profile="$assigned_profile"
+			[ -n "$expires_at" ] || expires_at="$(first_json_value "$tmp_profile" '@[0]["expires-at"]' '@[0]["valid-until"]' '@[0]["end-time"]' '@[0]["till-time"]' '@["expires-at"]' '@["valid-until"]' '@["end-time"]' '@["till-time"]')"
+			[ -n "$validity" ] || validity="$(first_json_value "$tmp_profile" '@[0].validity' '@[0]["valid-for"]' '@.validity' '@["valid-for"]')"
+		fi
+
+		if [ -n "$profile" ]; then
+			encoded_profile="$(urlencode "$profile")"
+			fetch_rest "user-manager/profile" "name=$encoded_profile" "$tmp_profile_def" || true
+			if [ -s "$tmp_profile_def" ] && ! grep -q '"error"' "$tmp_profile_def"; then
+				price="$(first_json_value "$tmp_profile_def" '@[0].price' '@.price')"
+				[ -n "$validity" ] || validity="$(first_json_value "$tmp_profile_def" '@[0].validity' '@[0]["valid-for"]' '@.validity' '@["valid-for"]')"
+			fi
+
+			fetch_rest "user-manager/limitation" "name=$encoded_profile" "$tmp_limitation" || true
+			if [ -s "$tmp_limitation" ] && ! grep -q '"error"' "$tmp_limitation"; then
+				transfer_limit="$(first_json_value "$tmp_limitation" '@[0]["transfer-limit"]' '@[0]["download-limit"]' '@[0]["upload-limit"]' '@["transfer-limit"]' '@["download-limit"]' '@["upload-limit"]')"
+				uptime_limit="$(first_json_value "$tmp_limitation" '@[0]["uptime-limit"]' '@["uptime-limit"]')"
+				[ -n "$validity" ] || validity="$uptime_limit"
+				if [ -n "$transfer_limit" ] && [ "$transfer_limit" != '0' ]; then
+					balance="$(human_bytes "$transfer_limit")"
+				elif [ -n "$uptime_limit" ] && [ "$uptime_limit" != '0s' ]; then
+					balance="$uptime_limit"
+				elif [ -n "$price" ]; then
+					balance="$price"
+				fi
+			fi
+		fi
+
+		if [ -n "$profile$balance$expires_at$validity$disabled$comment" ]; then
+			ok='true'
+			source='routeros_rest'
+			message='تمت قراءة معلومات الكرت من MikroTik User Manager عبر RouterOS REST.'
+		else
+			source='routeros_rest_empty'
+			message='تم الاتصال بـ RouterOS REST لكن لم تظهر حقول رصيد أو بروفايل لهذا الكرت. قد تختلف أسماء حقول User Manager حسب الإصدار.'
+		fi
+	else
+		source='routeros_rest_unreachable'
+		message='تعذر الوصول إلى RouterOS REST. فعّل www-ssl أو www على MikroTik وافتح المنفذ من OpenWrt.'
+	fi
+	rm -f "$tmp_user" "$tmp_profile" "$tmp_profile_def" "$tmp_limitation"
+fi
+
+printf '{'
+printf '"enabled":%s,' "$([ "$enabled" = '1' ] && echo true || echo false)"
+printf '"ok":%s,' "$ok"
+printf '"source":"%s",' "$(json_escape "$source")"
+printf '"card_number":"%s",' "$(json_escape "$card")"
+printf '"profile":"%s",' "$(json_escape "$profile")"
+printf '"balance":"%s",' "$(json_escape "$balance")"
+printf '"expires_at":"%s",' "$(json_escape "$expires_at")"
+printf '"validity":"%s",' "$(json_escape "$validity")"
+printf '"disabled":"%s",' "$(json_escape "$disabled")"
+printf '"comment":"%s",' "$(json_escape "$comment")"
+printf '"message":"%s"' "$(json_escape "$message")"
+printf '}'

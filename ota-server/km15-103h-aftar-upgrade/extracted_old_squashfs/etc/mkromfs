@@ -1,0 +1,13 @@
+SQUASHFS_PF_LIST=/etc/romfs.txt
+
+while read line
+do
+    name=`echo $line |cut -d" " -f1`
+    type=`echo $line |cut -d" " -f2 `
+    major=`echo $line |cut -d" " -f6 `
+    minor=`echo $line |cut -d" " -f7 `
+    #echo $name $type $major $minor
+    mknod -m666 $name $type $major $minor
+    chmod 777 $name
+done < $SQUASHFS_PF_LIST
+

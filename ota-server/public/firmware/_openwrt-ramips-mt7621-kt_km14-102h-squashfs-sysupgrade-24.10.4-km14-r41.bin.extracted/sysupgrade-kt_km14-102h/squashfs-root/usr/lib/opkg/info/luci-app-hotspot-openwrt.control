@@ -1,0 +1,12 @@
+Package: luci-app-hotspot-openwrt
+Version: 1.0-r41
+Depends: libc, luci-base, rpcd, rpcd-mod-file, uhttpd, coova-chilli, kmod-tun, curl, ip-full, jsonfilter, unzip
+Source: feeds/base/luci-app-hotspot-openwrt
+SourceName: luci-app-hotspot-openwrt
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1779178909
+Architecture: mipsel_24kc
+Installed-Size: 307200
+Description:  LuCI wizard and backend engine for turning OpenWrt into a CoovaChilli
+ captive portal authenticated by MikroTik User Manager through RADIUS UDP.

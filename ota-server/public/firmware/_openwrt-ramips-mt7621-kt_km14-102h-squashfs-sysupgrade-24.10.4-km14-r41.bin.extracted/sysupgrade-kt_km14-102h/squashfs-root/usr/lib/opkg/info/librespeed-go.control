@@ -1,0 +1,18 @@
+Package: librespeed-go
+Version: 1.1.5-r5
+Depends: libc
+Source: feeds/packages/net/librespeed-go
+SourceName: librespeed-go
+License: LGPL-3.0-only
+LicenseFiles: LICENSE
+Section: net
+Require-User: librespeed:librespeed
+SourceDateEpoch: 1760974184
+URL: https://github.com/librespeed/speedtest-go
+Maintainer: Tianling Shen <cnsztl@immortalwrt.org>
+Architecture: mipsel_24kc
+Installed-Size: 14039040
+Description:  This is a very lightweight speed test implemented in JavaScript,
+ using XMLHttpRequest and Web Workers.
+ 
+ No Flash, No Java, No WebSocket, No Bullshit.

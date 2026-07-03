@@ -1,0 +1,17 @@
+Package: conntrack
+Version: 1.4.8-r1
+Depends: libc, libnetfilter-conntrack3, libnetfilter-cttimeout1, libnetfilter-cthelper0, libnetfilter-queue1
+Source: feeds/packages/net/conntrack-tools
+SourceName: conntrack-tools
+License: GPL-2.0-or-later
+LicenseFiles: COPYING
+Section: net
+SourceDateEpoch: 1760974184
+URL: https://conntrack-tools.netfilter.org/
+CPE-ID: cpe:/a:netfilter:conntrack-tools
+Maintainer: Jo-Philipp Wich <jo@mein.io>
+Architecture: mipsel_24kc
+Installed-Size: 81920
+Description:  Conntrack is a userspace command line program targeted at system
+ administrators. It enables them to view and manage the in-kernel
+ connection tracking state table.

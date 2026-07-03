@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-alemprator-ota
 PKG_VERSION:=1.0
-PKG_RELEASE:=39
+PKG_RELEASE:=47
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKG_LICENSE:=GPL-3.0-only
 PKG_MAINTAINER:=ALemprator

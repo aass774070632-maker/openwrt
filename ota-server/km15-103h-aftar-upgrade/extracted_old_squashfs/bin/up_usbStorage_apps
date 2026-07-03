@@ -1,0 +1,35 @@
+#!/bin/sh
+RESTART_DM="$1"
+
+/bin/kill_usbStorage_apps 2>/dev/null
+
+if [ "$RESTART_DM" == "dlna" ]; then
+	minidlna -f /etc/minidlna.conf &
+
+elif [ "$RESTART_DM" == "smb" ]; then
+	smbd -D
+	nmbd -D
+
+elif [ "$RESTART_DM" == "lighttpd" ]; then
+	lighttpd -D -f /var/lighttpd.conf &
+
+elif [ "$RESTART_DM" == "dlna_smb" ]; then
+	minidlna -f /etc/minidlna.conf &
+	smbd -D
+	nmbd -D
+
+elif [ "$RESTART_DM" == "smb_lighttpd" ]; then
+	smbd -D
+	nmbd -D
+	lighttpd -D -f /var/lighttpd.conf &
+
+elif [ "$RESTART_DM" == "dlna_lighttpd" ]; then
+	minidlna -f /etc/minidlna.conf &
+	lighttpd -D -f /var/lighttpd.conf &
+
+elif [ "$RESTART_DM" == "all" ]; then
+	minidlna -f /etc/minidlna.conf &
+	smbd -D
+	nmbd -D
+	lighttpd -D -f /var/lighttpd.conf &
+fi

@@ -1,0 +1,7 @@
+/usr/libexec/rpcd/luci.bandix_plus
+/usr/share/luci/status/bandix_plus.json
+/usr/share/luci/menu.d/luci-app-bandix-plus.json
+/www/luci-static/resources/view/bandix_plus/settings.js
+/usr/share/rpcd/acl.d/luci-app-bandix-plus.json
+/www/luci-static/resources/bandix_plus/status.css
+/www/luci-static/resources/view/bandix_plus/index.js

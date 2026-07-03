@@ -1,0 +1,12 @@
+Package: bandix-plus
+Version: 0.1.0-r1
+Depends: libc, zoneinfo-all, conntrack, iw
+Source: feeds/base/bandix-plus
+SourceName: bandix-plus
+License: Apache-2.0
+Section: net
+SourceDateEpoch: 1779002215
+Maintainer: timsaya
+Architecture: mipsel_24kc
+Installed-Size: 6522880
+Description:  Bandix Plus core service for network traffic monitoring

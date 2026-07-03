@@ -44,11 +44,35 @@ case "$filename" in
 		;;
 esac
 
+case "$filename" in
+	*.sh|*.py|*.bin|*.elf|*.so|*.php|*.lua)
+		rm -f "$upload_tmp"
+		reply false 'forbidden_extension' "$filename" || exit 1
+		;;
+esac
+
 dest="$storage_path/$filename"
 dest_dir="$(dirname "$dest")"
 
 mkdir -p "$dest_dir" || reply false 'mkdir_failed' "$dest_dir" || exit 1
 mv "$upload_tmp" "$dest" || reply false 'move_failed' "$dest" || exit 1
 chmod 0644 "$dest" 2>/dev/null || true
+
+case "$filename" in
+	*.zip)
+		if command -v unzip >/dev/null; then
+			# ZipSlip Guard: Inspect members before extraction
+			if unzip -l "$dest" | awk 'NR > 3 { print $4 }' | grep -qE '\.\./|^\.\.$|/^\.\.$'; then
+				rm -f "$dest"
+				reply false 'zip_slip_detected_traversal_refused' "$filename" && exit 1
+			fi
+			unzip -o "$dest" -d "$dest_dir" >/dev/null 2>&1
+			rm -f "$dest"
+			reply true 'extracted' "$dest_dir" && exit 0
+		else
+			reply false 'unzip_missing_on_router' "$dest" && exit 1
+		fi
+		;;
+esac
 
 reply true 'uploaded' "$dest"

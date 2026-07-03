@@ -34,4 +34,10 @@ uci commit uhttpd
 /etc/init.d/uhttpd restart >/dev/null 2>&1 || true
 /etc/init.d/firewall restart >/dev/null 2>&1 || true
 
+# Enable and start the hotspot-openwrt service on first boot
+[ -f /etc/init.d/hotspot-openwrt ] && {
+    /etc/init.d/hotspot-openwrt enable
+    /etc/init.d/hotspot-openwrt start
+}
+
 exit 0

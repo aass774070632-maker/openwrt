@@ -1,0 +1,8 @@
+Package: mcr-common
+Version: 1
+Depends: libc, base-files
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/mcr-common
+Section: common
+Architecture: mipsel_24kc
+Installed-Size: 9262
+Description:  Mercury common files

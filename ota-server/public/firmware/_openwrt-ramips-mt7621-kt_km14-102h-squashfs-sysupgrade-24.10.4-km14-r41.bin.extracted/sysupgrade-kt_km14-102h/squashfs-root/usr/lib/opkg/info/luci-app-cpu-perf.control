@@ -1,0 +1,13 @@
+Package: luci-app-cpu-perf
+Version: 0.6.1-r1
+Depends: libc, ucode, ucode-mod-fs
+Source: feeds/base/luci-app-cpu-perf
+SourceName: luci-app-cpu-perf
+License: MIT
+Section: luci
+SourceDateEpoch: 1778200540
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 51200
+Description:  CPU performance information and management for LuCI

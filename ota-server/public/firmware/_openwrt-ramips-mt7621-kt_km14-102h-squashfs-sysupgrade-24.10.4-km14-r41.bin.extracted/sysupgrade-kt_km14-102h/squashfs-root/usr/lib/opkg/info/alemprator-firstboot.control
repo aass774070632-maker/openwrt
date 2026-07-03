@@ -1,0 +1,13 @@
+Package: alemprator-firstboot
+Version: 1.0-r12
+Depends: libc, dnsmasq, firewall4, luci-app-setup
+Source: feeds/base/alemprator-firstboot
+SourceName: alemprator-firstboot
+License: GPL-3.0-only
+Section: utils
+SourceDateEpoch: 1779002215
+Architecture: mipsel_24kc
+Installed-Size: 30720
+Description:  Independent first-boot provisioning layer for ALemprator devices.
+ Provides a LAN bridge on 192.168.1.20 and a temporary isolated setup network on 192.168.8.1
+ and lets luci-app-setup disable it safely after the first successful apply.

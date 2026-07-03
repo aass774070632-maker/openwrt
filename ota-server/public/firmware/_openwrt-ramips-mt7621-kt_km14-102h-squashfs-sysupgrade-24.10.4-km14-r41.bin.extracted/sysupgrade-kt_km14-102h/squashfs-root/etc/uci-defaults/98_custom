@@ -1,0 +1,182 @@
+#!/bin/sh
+# Do not re-apply factory defaults after sysupgrade with "keep settings".
+if [ -f /sysupgrade.tgz ] || [ -f /tmp/sysupgrade.tar ]; then
+    exit 0
+fi
+
+board_name="$(ubus call system board 2>/dev/null | jsonfilter -e '@.board_name' 2>/dev/null)"
+device_lan_ipaddr='192.168.1.20'
+device_hostname='KT-KM12-007H'
+device_ssid_2g='KT-KM12-007H-2.4'
+device_ssid_5g='KT-KM12-007H-5G'
+device_bridge_ports='lan1 lan2 lan3 lan4 wan'
+
+case "$board_name" in
+    kt,km14-102h)
+        device_hostname='KT-KM14-102H'
+        device_ssid_2g='KT-KM14-102H-2.4GHz'
+        device_ssid_5g='KT-KM14-102H-5GHz'
+        device_bridge_ports='lan wan'
+        ;;
+    kt,km15-103h)
+        device_hostname='KT-KM15-103H'
+        device_ssid_2g='KT-KM15-103H-2.4'
+        device_ssid_5g='KT-KM15-103H-5G'
+        ;;
+    kt,km12-007h|'')
+        ;;
+esac
+
+##########################
+##########################
+# /etc/config/dhcp
+uci del dhcp.lan.ra
+uci del dhcp.lan.ra_slaac
+uci del dhcp.lan.ra_flags
+uci del dhcp.lan.dhcpv6
+uci set dhcp.lan.ignore='1'
+uci set dhcp.lan.dynamicdhcp='0'
+uci del dhcp.wan
+uci set dhcp.odhcpd.maindhcp='0'
+##########################
+# /etc/config/firewall
+uci del firewall.cfg02dc81.network
+uci del firewall.cfg03dc81.network
+uci add_list firewall.cfg03dc81.network='wan6'
+uci del firewall.cfg03dc81.network
+uci del firewall.cfg01e63d.syn_flood
+uci set firewall.cfg01e63d.input='ACCEPT'
+uci set firewall.cfg01e63d.forward='ACCEPT'
+uci set firewall.cfg03dc81.input='ACCEPT'
+uci set firewall.cfg03dc81.forward='ACCEPT'
+##########################
+# /etc/config/network
+uci del network.lan.ip6assign
+uci set network.lan.ipaddr="$device_lan_ipaddr"
+uci set network.lan.netmask='255.255.255.0'
+uci set network.lan.gateway='192.168.1.2'
+uci add_list network.lan.dns='8.8.8.8'
+uci add_list network.lan.dns='1.1.1.1'
+uci add_list network.lan.dns='82.114.163.31'
+uci set network.lan.delegate='0'
+uci set network.lan.defaultroute='1'
+uci del network.wan
+uci del network.wan6
+uci del network.cfg030f15.ports
+for bridge_port in $device_bridge_ports; do
+    uci add_list network.cfg030f15.ports="$bridge_port"
+done
+uci set network.cfg030f15.ageing_time='10'
+uci set network.cfg030f15.ipv6='0'
+# Direct DNS for the router itself (dnsmasq is disabled in bridge mode)
+cat > /etc/resolv.conf <<'RESOLVEOF'
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+nameserver 82.114.163.31
+RESOLVEOF
+
+##########################
+# /etc/config/wireless
+uci set wireless.@wifi-iface[1].ssid="${device_ssid_5g}_$(cat /sys/class/ieee80211/phy1/macaddress|awk -F ":" '{print $5""$6 }'| tr a-z A-Z)"
+uci set wireless.@wifi-device[1].disabled='0'
+uci set wireless.radio1.channel='36'
+uci set wireless.default_radio0.wds='1'
+uci set wireless.radio1.htmode='HE80'
+uci set wireless.radio1.country='PA'
+uci set wireless.radio1.cell_density='0'
+uci set wireless.radio1.txpower='36'
+uci set wireless.default_radio1.disassoc_low_ack='0'
+uci set wireless.@wifi-iface[0].ssid="${device_ssid_2g}_$(cat /sys/class/ieee80211/phy0/macaddress|awk -F ":" '{print $5""$6 }'| tr a-z A-Z)"
+uci set wireless.@wifi-device[0].disabled='0'
+uci set wireless.radio0.channel='auto'
+uci set wireless.default_radio1.wds='1'
+uci set wireless.radio0.htmode='HE20'
+uci set wireless.radio0.country='PA'
+uci set wireless.radio0.cell_density='0'
+uci set wireless.radio0.txpower='36'
+uci set wireless.default_radio0.disassoc_low_ack='0'
+##########################
+uci set ttyd.cfg01a8ea.debug='7'
+uci set ttyd.cfg01a8ea.command='/usr/libexec/login.sh'
+##########################
+# /etc/config/lldpd
+uci set lldpd.config.enabled='1'
+uci set lldpd.config.lldp_hostname="$device_hostname"
+uci set lldpd.config.lldp_location='address country YE'
+uci set lldpd.config.lldp_platform="$device_hostname"
+uci set lldpd.config.lldp_capability_advertisements='1'
+uci set lldpd.config.lldp_mgmt_addr_advertisements='1'
+uci set lldpd.config.lldp_tx_interval='30'
+uci set lldpd.config.lldp_tx_hold='4'
+uci set lldpd.config.readonly_mode='0'
+uci set lldpd.config.lldp_portidsubtype='macaddress'
+uci set lldpd.config.lldp_agenttype='nearest-bridge'
+uci set lldpd.config.cdp_version='cdpv1v2'
+##########################
+uci del system.ntp.enabled
+uci del system.ntp.enable_server
+uci set system.@system[0].hostname="$device_hostname"
+#uci set uhttpd.main.redirect_https='1'
+uci -q delete uhttpd.main.listen_https
+uci set uhttpd.main.redirect_https='0'
+uci set system.cfg01e48a.description='الإمبراطور للبرمجيات'
+uci set system.cfg01e48a.notes='تم تعديل هذا السوفت من قبل الإمبراطور للبرمجيات أشراف
+م/محمد باعلوي
++967777440819
+م/جلال القحم
++967774070632
+https://facebook.com/baalwiy
+https://youtube.com/c/MOHAMMEDABAALAWI
+http://t.me/b777440819
+https://facebook.com/baalwiy
+https://api.whatsapp.com/send/?phone=967777440819'
+uci set system.cfg01e48a.zonename='Asia/Aden'
+uci set system.cfg01e48a.timezone='<+03>-3'
+uci set system.cfg01e48a.log_proto='udp'
+uci set system.cfg01e48a.conloglevel='8'
+uci set system.cfg01e48a.cronloglevel='5'
+uci del watchcat.cfg01e014
+uci commit lldpd
+uci commit network
+uci commit firewall
+uci commit dhcp
+uci commit system
+uci commit wireless
+
+uci commit 
+
+##########################
+# Add service-disable commands to /etc/rc.local
+RC_LOCAL="/etc/rc.local"
+RC_LOCAL_TMP="/tmp/rc.local.$$"
+RC_LOCAL_MARKER="# Added by 98_custom: disable unused bridge-mode services"
+
+[ -f "$RC_LOCAL" ] || {
+    echo '# Put your custom commands here that should be executed once'
+    echo '# the system init finished. By default this file does nothing.'
+    echo
+    echo 'exit 0'
+} > "$RC_LOCAL"
+
+if ! grep -q "$RC_LOCAL_MARKER" "$RC_LOCAL" 2>/dev/null; then
+    sed '/^exit 0$/d' "$RC_LOCAL" > "$RC_LOCAL_TMP"
+    cat >> "$RC_LOCAL_TMP" <<'EOF'
+
+# Added by 98_custom: disable unused bridge-mode services
+/etc/init.d/firewall disable
+/etc/init.d/log disable
+/etc/init.d/urandom_seed disable
+/etc/init.d/odhcpd disable
+/etc/init.d/dnsmasq disable
+exit 0
+EOF
+    cat "$RC_LOCAL_TMP" > "$RC_LOCAL"
+    rm -f "$RC_LOCAL_TMP"
+fi
+
+sync
+
+
+
+exit 0
+

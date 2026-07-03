@@ -4,8 +4,8 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = (process.env.ADMIN_EMAIL ?? 'admin@example.com').toLowerCase();
-  const password = process.env.ADMIN_PASSWORD ?? 'CHANGE_ME';
+  const email = (process.env.ADMIN_EMAIL || 'admin@example.com').toLowerCase();
+  const password = process.env.ADMIN_PASSWORD || 'CHANGE_ME';
   const passwordHash = await argon2.hash(password);
 
   const admin = await prisma.adminUser.upsert({

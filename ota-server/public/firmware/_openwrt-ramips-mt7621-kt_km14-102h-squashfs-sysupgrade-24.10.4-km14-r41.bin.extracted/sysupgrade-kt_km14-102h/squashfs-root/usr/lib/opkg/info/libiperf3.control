@@ -1,0 +1,14 @@
+Package: libiperf3
+Version: 3.17.1-r4
+Depends: libc, libatomic1
+Source: feeds/packages/net/iperf3
+SourceName: iperf
+License: BSD-3-Clause
+Section: libs
+SourceDateEpoch: 1760974184
+URL: https://github.com/esnet/iperf
+CPE-ID: cpe:/a:es:iperf3
+Maintainer: Felix Fietkau <nbd@nbd.name>
+Architecture: mipsel_24kc
+Installed-Size: 143360
+Description:  Libiperf is a library providing an API for iperf3 functionality.

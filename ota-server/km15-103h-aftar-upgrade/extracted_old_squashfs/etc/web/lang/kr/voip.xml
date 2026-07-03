@@ -1,0 +1,179 @@
+﻿<po>
+  <message msgid="voip disable" msgstr="비활성화" />
+  <message msgid="voip enable" msgstr="활성화" />
+  <message msgid="voip add" msgstr="추가" />
+  <message msgid="voip edit" msgstr="편집" />
+  <message msgid="voip del" msgstr="삭제" />
+  <message msgid="voip apply" msgstr="적용" />
+  <message msgid="voip cancel" msgstr="취소" />
+  <message msgid="voip reset" msgstr="초기화" />
+  <message msgid="voip selectall" msgstr="전체선택" />
+
+  <message msgid="fax title" msgstr="FAX 설정" />
+  <message msgid="fax introduction" msgstr="FAX 모드 및 T38 모드의 파라미터를 설정한다." />
+  <message msgid="fax setting" msgstr="FAX 모드 설정" />
+  <message msgid="fax mode" msgstr="FAX 모드" />
+  <message msgid="fax rate" msgstr="Rate" />
+  <message msgid="fax lsredundency" msgstr="ls-redundancy " />
+  <message msgid="fax hsredundency" msgstr="hs-redundancy " />
+
+  <message msgid="volume title" msgstr="볼륨 설정" />
+  <message msgid="volume introduction" msgstr="스피커와 마이크의 볼륨을 조정한다." />
+  <message msgid="volume setting" msgstr="볼륨 변경" />
+  <message msgid="volume speaker" msgstr="스피커 볼륨 (범위: -15 ~ 6)" />
+  <message msgid="volume mic" msgstr="마이크 볼륨 (범위: -15 ~ 6)" />
+  <message msgid="volume inval" msgstr=" [-15 ~ 6]인 범위 값을 입력하십시오" />
+  
+  <message msgid="phone title" msgstr="전화 번호부 설정" />
+  <message msgid="phone introduction" msgstr="단축번호를 통한 전화번호를 등록한다." />
+  <message msgid="phone setup" msgstr="전화 번호 설정" />
+  <message msgid="phone index" msgstr="No." />
+  <message msgid="phone number" msgstr="전화 번호" />
+  <message msgid="phone list" msgstr="전화 번호 목록" />
+  <message msgid="phone indigit" msgstr="입력오류입니다.[1-20] 숫자를 입력하세요." />
+
+  <message msgid="restrict title" msgstr="발신 제한 기능 설정" />
+  <message msgid="restrict introduction" msgstr="발신을 제한할 지역코드를 등록한다." />
+  <message msgid="restrict setup" msgstr="발신제한 설정" />
+  <message msgid="restrict index" msgstr="No." />
+  <message msgid="restrict number" msgstr="발신제한 코드" />
+  <message msgid="restrict list" msgstr="발신제한 코드 목록" />
+  <message msgid="restrict indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  <message msgid="restrict rangeerr" msgstr="입력오류입니다.[1-20] 숫자를 입력하세요." />
+  
+  <message msgid="area title" msgstr="지역 번호 설정" />
+  <message msgid="area introduction" msgstr="사용자의 지역 번호를 등록한다." />
+  <message msgid="area setup" msgstr="지역번호 설정" />
+  <message msgid="area number" msgstr="지역번호" />
+  <message msgid="area indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  
+  <message msgid="smb title" msgstr="SAMBA Settings" />
+  <message msgid="smb introduction" msgstr="" />
+  <message msgid="smb server setup" msgstr="SAMBA Server Setup" />
+  <message msgid="smb server enable" msgstr="SAMBA Server" />
+  <message msgid="smb server workgroup" msgstr="Workgroup" />
+  <message msgid="smb server netbios" msgstr="NetBIOS Name" />
+  <message msgid="smb server dirlist" msgstr="Sharing Directory List" />
+  <message msgid="smb server dirname" msgstr="Directory Name" />
+  <message msgid="smb server allowuser" msgstr="Allowes Users" />
+  <message msgid="smb adddir name" msgstr="Directory Name" />
+  <message msgid="smb adddir accessusers" msgstr="Access User" />
+
+  <message msgid="sipgen title" msgstr="SIP 기본 설정" />
+  <message msgid="sipgen introduction" msgstr="VoIP 의 기본 기능을 수행한다." />
+  <message msgid="sipgen sectitle" msgstr="Phone 기본 설정 변경" />
+  <message msgid="sipgen modifyfeature host" msgstr="호스트 정보" />
+  <message msgid="sipgen hostinterface" msgstr="Interface" />
+  <message msgid="sipgen hostinterface1" msgstr="eth1" />
+  <message msgid="sipgen hostinterface2" msgstr="eth0" />
+  <message msgid="sipgen hostinterface3" msgstr="br0" />
+  <message msgid="sipgen hostprtno" msgstr="Port No" />
+  <message msgid="sipgen hosttranprt" msgstr="Transport" />
+  <message msgid="sipgen hosttranprt1" msgstr="UDP" />
+  <message msgid="sipgen hosttranprt2" msgstr="TCP" />
+  <message msgid="sipgen modifyfeature proxy" msgstr="Config Proxy" />
+  <message msgid="sipgen proxyaddress" msgstr="Address" />
+  <message msgid="sipgen proxyprtno" msgstr="PortNo" />
+  <message msgid="sipgen proxyenable" msgstr="Enabled" />
+  <message msgid="sipgen modifyfeature register" msgstr="Register 설정" />
+  <message msgid="sipgen registeraddress" msgstr="Address" />
+  <message msgid="sipgen registerprtno" msgstr="PortNo" />
+  <message msgid="sipgen registerexpr" msgstr="Expires" />
+  <message msgid="sipgen registerproxy" msgstr="Proxy-Require" />
+  <message msgid="sipgen registertimer" msgstr="Ping Timer" />
+
+  <message msgid="sipgen modifyfeature bound" msgstr="Config Bound Proxy and Register" />
+
+  <message msgid="sipgen modifyfeature bproxy" msgstr="Proxy   " />
+  <message msgid="sipgen bproxyaddress" msgstr="Address" />
+  <message msgid="sipgen bproxyprtno" msgstr="Port No" />
+  <message msgid="sipgen bproxyenable" msgstr="Enabled" />
+  <message msgid="sipgen modifyfeature bregister" msgstr="Register" />
+  <message msgid="sipgen bregisteraddress" msgstr="Address :" />
+  <message msgid="sipgen bregisterprtno" msgstr="Port No" />
+  <message msgid="sipgen modifyfeature rtpntos" msgstr="TOS 및 RTP 포트 설정" />
+  <message msgid="sipgen sippackettos" msgstr="TOS" />
+  <message msgid="sipgen modifyfeature rtp" msgstr="   RTP " />
+  <message msgid="sipgen rtpprtsport" msgstr="Start Port : " />
+  <message msgid="sipgen rtpprteport" msgstr="End Port : " />
+
+  <message msgid="sipphone title" msgstr="SIP Phone 정보 변경"/>
+  <message msgid="sipphone introduction" msgstr="Phone 정보를 변경한다." />
+  <message msgid="sipphone modifyfeature host" msgstr="Phone 정보 변경" />
+  <message msgid="sipphone state" msgstr="Phone 상태" />
+  <message msgid="sipphone calllstate" msgstr="Call 상태" />
+  <message msgid="sipphone uname" msgstr="Phone Number" />
+  <message msgid="sipphone dname" msgstr="Display Name" />
+  <message msgid="sipphone codec" msgstr="Codec" />
+  <message msgid="sipphone codecpcmu" msgstr="PCMU" />
+  <message msgid="sipphone codecpcma" msgstr="PCMA" />
+  <message msgid="sipphone codecg73" msgstr="G723" />
+  <message msgid="sipphone codecg79" msgstr="G729" />
+  <message msgid="sipphone pkperiod" msgstr="Pack. Period" />
+  <message msgid="sipphone callwat" msgstr="Call Waiting" />
+  <message msgid="sipphone callenable" msgstr="Enable" />
+  <message msgid="sipphone calldiable" msgstr="Disable" />
+  <message msgid="sipphone dtmf" msgstr="DTMF" />
+  <message msgid="sipphone dtmfin" msgstr="Inband" />
+  <message msgid="sipphone dtmfout" msgstr="Outband" />
+  <message msgid="sipphone dtmfrfc" msgstr="RFC2833" />
+  <message msgid="sipphone cid" msgstr="CID" />
+  <message msgid="sipphone cidenable" msgstr="Enable" />
+  <message msgid="sipphone ciddisable" msgstr="Disable" />
+  <message msgid="sipphone inphonenum" msgstr="전화번호 오류입니다. 정상적인 전화번호를 입력하십시오." />
+  <message msgid="sipphone indisplayname" msgstr="화면에 출력될 이름을 입력하십시오."/>
+  <message msgid="sipphone pperiod" msgstr="정상적인 Pack. Period 는 10-60 입니다. 10의 배수로 입력해야합니다."/>
+  <message msgid="sipphone pperiod723" msgstr="G723을 위한 Pack. Period는 30-60으로 30의 배수로 입력해야합니다."/>
+
+  <message msgid="sipauth title" msgstr="SIP 인증 설정"/>
+  <message msgid="sipauth introduction" msgstr="SIP 인증을 위한 사용자, 비밀번호를 설정한다." />
+  <message msgid="sipauth modifyfeature host" msgstr="SIP 인증 정보 변경" />
+  <message msgid="sipauth uname" msgstr="사용자" />
+  <message msgid="sipauth passwd" msgstr="비밀번호" />
+  <message msgid="sipauth verify passwd" msgstr="비밀번호확인" />
+  <message msgid="sipauth mismatch" msgstr="비밀번호를 잘못 입력되었습니다." />
+ 
+  <message msgid="sipdsp title" msgstr="SIP DSP 기능 설정" />
+  <message msgid="sipdsp introduction" msgstr="VoIP 의 DSP 기능에 대한 설정 기능을 수행한다." />
+  <message msgid="sipdsp modifyfeature" msgstr="SIP DSP Modify Feature" />
+  <message msgid="sipdsp vadval" msgstr="VAD enable/disable 설정" />
+  <message msgid="sipdsp vadtype" msgstr="VAD type 설정" />
+  <message msgid="sipdsp taillen" msgstr="Tail Length 값 설정" />
+  <message msgid="sipdsp plc" msgstr="PLC enable/disable 설정" />
+  <message msgid="sipdsp rtptos" msgstr="RTP TOS 값 설정" />
+  <message msgid="sipdsp jitterbufferoption" msgstr="SIP DSP Jitter Buffer Option" />
+  <message msgid="sipdsp minthreshold" msgstr="최소 임계값 설정" />
+  <message msgid="sipdsp maxthreshold" msgstr="최대 임계값 설정" />
+  <message msgid="sipdsp dropthreshold" msgstr="Drop 임계값 설정" />
+  <message msgid="sipdsp passthroughthreshold" msgstr="Pass Through 임계값 설정" />
+  <message msgid="sipdsp minthr" msgstr="[0~100] 값을 입력하십시오." />
+  <message msgid="sipdsp maxthr" msgstr="[0~500] 값을 입력하십시오." />
+  <message msgid="sipdsp passthr" msgstr="[100~500] 값을 입력하십시오." />
+  <message msgid="sipdsp tailthr" msgstr="[0~32] 값을 입력하십시오." />
+  <message msgid="sipdsp tosthr" msgstr="[0~255] 값을 입력하십시오." />
+
+  <message msgid="siptimer title" msgstr="SIP Timer 기능 설정" />
+  <message msgid="siptimer introduction" msgstr="VoIP 의 Timer 기능에 대한 설정 기능을 수행한다." />
+  <message msgid="siptimer timers" msgstr="Timeout 시간 설정" />
+  <message msgid="siptimer interdigit" msgstr="Inter Digit 시간 설정" />
+  <message msgid="siptimer dialtone" msgstr="Dial Tone 시간 설정" />
+  <message msgid="siptimer generaltone" msgstr="General Tone 시간 설정" />
+  <message msgid="siptimer llocycle" msgstr="LLO Cycle 시간 설정" />
+  <message msgid="siptimer indigitval" msgstr="[1~30] 값을 입력하십시오." />
+  <message msgid="siptimer dialval" msgstr="[10~100] 값을 입력하십시오." />
+  <message msgid="siptimer generaltoneval" msgstr="[10~255] 값을 입력하십시오." />
+  <message msgid="siptimer lloval" msgstr="[1~3600] 값을 입력하십시오." />
+  <message msgid="siptimer tosthr" msgstr="[0~255] 값을 입력하십시오." />
+ 
+  <message msgid="sipdigitmap title" msgstr="SIP Digit Map 설정" />
+  <message msgid="sipdigitmap introduction" msgstr="VoIP 의 Digit Map 에 대한 설정 기능을 수행한다." />
+  <message msgid="sipdigitmap setup" msgstr="Digit Map 설정" />
+  <message msgid="sipdigitmap index" msgstr="Index 입력" />
+  <message msgid="sipdigitmap number" msgstr="Digit Map 입력" />
+  <message msgid="sipdigitmap list" msgstr="Digit Map List" />
+  <message msgid="sipdigitmap index1" msgstr="Index NUM" />
+  <message msgid="sipdigitmap number1" msgstr="Digit Map 정보" />
+  <message msgid="sipdigitmap indigit" msgstr="입력오류입니다.[1-100] 숫자를 입력하세요." />
+  <message msgid="sipdigitmap allstring" msgstr="전체 Digit Map을 변경합니다. 이전 Digit Map을 대신하여 새로 입력한 정보로 갱신합니다." />
+  <message msgid="sipdigitmap indigitmap" msgstr="Digit Map을 입력하십시오." />
+</po>

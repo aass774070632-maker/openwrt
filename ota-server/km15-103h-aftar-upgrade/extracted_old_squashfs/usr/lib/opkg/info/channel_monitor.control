@@ -1,0 +1,8 @@
+Package: channel_monitor
+Version: 1
+Depends: libc, libmcr-mwl
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/4210-mediatek-package-folder/mtk/applications/channel_monitor
+Section: MTK Properties
+Architecture: mipsel_24kc
+Installed-Size: 26759
+Description:  wifi app daemon

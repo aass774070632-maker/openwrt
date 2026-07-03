@@ -1,0 +1,42 @@
+#!/bin/sh
+. /lib/functions.sh
+
+LOG_TAG="hotspot-enforcement"
+
+log() {
+    logger -t "$LOG_TAG" "$1"
+    echo "[$LOG_TAG] $1"
+}
+
+check_firewall_integrity() {
+    local input_policy=$(uci -q get firewall.hotspot_openwrt_zone.input)
+    if [ "$input_policy" != "REJECT" ] && [ "$input_policy" != "DROP" ]; then
+        log "WARN: Unsafe input policy ($input_policy) detected on hotspot zone. Reverting to REJECT."
+        uci set firewall.hotspot_openwrt_zone.input='REJECT'
+        uci commit firewall
+        /etc/init.d/firewall reload
+    fi
+}
+
+check_chilli_status() {
+    if ! pidof chilli >/dev/null; then
+        log "ERROR: CoovaChilli is not running. Attempting emergency restart."
+        /etc/init.d/chspot-openwrt restart
+    fi
+}
+
+check_forwarding_leak() {
+    # Ensure no direct forwarding from hotspot to wan exists outside of Chilli
+    local leak=$(nft list chain inet fw4 forward | grep "hotspot" | grep "wan" | grep "accept")
+    if [ -n "$leak" ]; then
+        log "CRITICAL: Security leak detected in NFT tables. Running emergency apply."
+        /usr/libexec/hotspot-openwrt/apply
+    fi
+}
+
+# Main execution
+check_firewall_integrity
+check_chilli_status
+check_forwarding_leak
+
+exit 0

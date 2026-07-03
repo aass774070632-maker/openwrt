@@ -1,0 +1,134 @@
+#!/bin/sh /etc/rc.common
+
+USE_PROCD=1
+START=99
+
+BACKUP_DIR=/etc/alemprator-setup
+TEMPLATE_DIR=/usr/libexec/alemprator-setup
+
+. /lib/functions.sh
+
+ensure_backup_dir() {
+	mkdir -p "$BACKUP_DIR"
+}
+
+backup_button_script() {
+	local target="$1"
+	local name backup
+
+	[ -f "$target" ] || return 0
+
+	name="$(basename "$target")"
+	backup="$BACKUP_DIR/$name.orig"
+	[ -f "$backup" ] || cp "$target" "$backup"
+}
+
+install_button_policy() {
+	local template_name="$1"
+	local target="$2"
+	local source="$TEMPLATE_DIR/$template_name"
+
+	[ -f "$source" ] || return 0
+	[ -e "$target" ] || return 0
+
+	ensure_backup_dir
+	backup_button_script "$target"
+	cp "$source" "$target"
+	chmod 0755 "$target"
+}
+
+restore_button_policy() {
+	local target="$1"
+	local name backup
+
+	name="$(basename "$target")"
+	backup="$BACKUP_DIR/$name.orig"
+	[ -f "$backup" ] || return 0
+
+	cp "$backup" "$target"
+	chmod 0755 "$target"
+}
+
+apply_button_policy() {
+	local reset_disabled=0
+	local wps_disabled=0
+
+	config_load setup
+	config_get_bool reset_disabled default reset_button_disabled 0
+	config_get_bool wps_disabled default wps_button_disabled 0
+
+	if [ "$reset_disabled" -eq 1 ]; then
+		install_button_policy reset-disabled /etc/rc.button/reset
+	else
+		restore_button_policy /etc/rc.button/reset
+	fi
+
+	if [ "$wps_disabled" -eq 1 ]; then
+		install_button_policy wps-disabled /etc/rc.button/wps
+	else
+		restore_button_policy /etc/rc.button/wps
+	fi
+}
+
+sync_runtime_lan_from_setup() {
+	local initial_complete=0
+	local desired_ip desired_netmask
+	local current_ip current_netmask
+	local changed=0
+
+	config_load setup
+	config_get_bool initial_complete default initial_setup_complete 0
+	config_get desired_ip default lan_ipaddr
+	config_get desired_netmask default lan_netmask
+
+	[ "$initial_complete" -eq 1 ] || return 0
+	[ -n "$desired_ip" ] || return 0
+
+	current_ip="$(uci -q get network.lan.ipaddr)"
+	current_netmask="$(uci -q get network.lan.netmask)"
+
+	if [ "$current_ip" != "$desired_ip" ]; then
+		uci -q set network.lan.ipaddr="$desired_ip"
+		changed=1
+	fi
+
+	if [ -n "$desired_netmask" ] && [ "$current_netmask" != "$desired_netmask" ]; then
+		uci -q set network.lan.netmask="$desired_netmask"
+		changed=1
+	fi
+
+	[ "$changed" -eq 1 ] || return 0
+
+	uci -q commit network
+	/etc/init.d/network reload >/dev/null 2>&1 || true
+}
+
+schedule_runtime_lan_sync() {
+	(
+		sleep 5
+		sync_runtime_lan_from_setup
+	) &
+}
+
+boot() {
+	apply_button_policy
+	command -v alemprator_f >/dev/null 2>&1 && alemprator_f &
+	sync_runtime_lan_from_setup
+	schedule_runtime_lan_sync
+}
+
+start_service() {
+	apply_button_policy
+	command -v alemprator_s >/dev/null 2>&1 && alemprator_s &
+	sync_runtime_lan_from_setup
+	schedule_runtime_lan_sync
+}
+
+reload_service() {
+	apply_button_policy
+	sync_runtime_lan_from_setup
+}
+
+service_triggers() {
+	procd_add_reload_trigger "setup"
+}

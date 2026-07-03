@@ -1,0 +1,144 @@
+#!/bin/sh
+
+primary_socket_path='/var/run/chilli_hotspot_openwrt.sock'
+secondary_socket_path='/var/run/chilli_hotspot_openwrt_secondary.sock'
+helper='/usr/libexec/hotspot-openwrt/mac-cookies'
+
+normalize_mac() {
+	printf '%s' "$1" | tr 'A-Z-' 'a-z:'
+}
+
+strip_realm() {
+	printf '%s' "$1" | awk -F@ '{ print $1 }'
+}
+
+valid_client_ip() {
+	case "$1" in
+		''|0.0.0.0|127.*|169.254.*|255.255.255.255|*[!0-9.]*) return 1 ;;
+	esac
+	printf '%s' "$1" | awk -F. 'NF == 4 { for (i = 1; i <= 4; i++) if ($i < 0 || $i > 255 || $i == "") exit 1; exit 0 } { exit 1 }'
+}
+
+associated_macs() {
+	if command -v iw >/dev/null 2>&1; then
+		for iface in $(iw dev 2>/dev/null | awk '/Interface/ { iface=$2 } /type AP/ { print iface }'); do
+			iw dev "$iface" station dump 2>/dev/null | awk '/^Station / { print $2 }'
+		done
+	fi
+}
+
+client_responds() {
+	local ip="$1"
+	valid_client_ip "$ip" || return 1
+	ping -c 2 -W 1 "$ip" >/dev/null 2>&1
+}
+
+duration_to_seconds() {
+	local value="$1" days='0' time_part seconds
+	value="$(printf '%s' "$value" | tr 'A-Z' 'a-z' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+	case "$value" in ''|none|0) printf '0'; return 0 ;; esac
+	case "$value" in *d*)
+		days="$(printf '%s' "$value" | sed 's/d.*//;s/[^0-9]//g')"
+		[ -n "$days" ] || days='0'
+		value="$(printf '%s' "$value" | sed 's/^[^d]*d[[:space:]]*//')"
+		;;
+	esac
+	case "$value" in
+		*:*:*) time_part="$(printf '%s' "$value" | awk -F: '{ print ($1 * 3600) + ($2 * 60) + $3 }')" ;;
+		*:*) time_part="$(printf '%s' "$value" | awk -F: '{ print ($1 * 60) + $2 }')" ;;
+		*[0-9]h) time_part="$(printf '%s' "$value" | sed 's/[^0-9]//g' | awk '{ print $1 * 3600 }')" ;;
+		*[0-9]m) time_part="$(printf '%s' "$value" | sed 's/[^0-9]//g' | awk '{ print $1 * 60 }')" ;;
+		*[0-9]s) time_part="$(printf '%s' "$value" | sed 's/[^0-9]//g')" ;;
+		*[!0-9]*) time_part='0' ;;
+		*) time_part="$value" ;;
+	esac
+	seconds="$((days * 86400 + ${time_part:-0}))"
+	printf '%s' "$seconds"
+}
+
+post_login_url() {
+ 	local hotspot_ip portal_path open_status_page
+ 	hotspot_ip="$1"
+	[ -n "$hotspot_ip" ] || hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip || echo 10.10.10.1)"
+	portal_path="$(uci -q get hotspot_openwrt.main.portal_path || echo /hotspot)"
+	open_status_page="$(uci -q get hotspot_openwrt.main.open_status_page || echo always)"
+	case "$portal_path" in /*) ;; *) portal_path="/$portal_path" ;; esac
+	case "$open_status_page" in
+		none) printf '%s' 'http://connectivitycheck.gstatic.com/generate_204' ;;
+		*) printf 'http://%s%s/status.html' "$hotspot_ip" "$portal_path" ;;
+	esac
+}
+
+scan_chilli_socket() {
+	local mode="$1" instance="$2" socket_path="$3" hotspot_ip="$4" mac ip state cookie_line username card url normalized_mac after_state client_file chilli_card
+	[ -S "$socket_path" ] || return 0
+	url="$(post_login_url "$hotspot_ip")"
+	client_file="/tmp/hotspot-mac-cookie-clients.${instance}.$$"
+	chilli_query -s "$socket_path" list > "$client_file" 2>/dev/null || : > "$client_file"
+	while read mac ip state rest; do
+		[ -n "$mac" ] && [ -n "$ip" ] || continue
+		total=$((total + 1))
+		[ "$state" = 'pass' ] && continue
+		valid_client_ip "$ip" || continue
+		normalized_mac="$(normalize_mac "$mac")"
+		cookie_line="$($helper find "$normalized_mac" 2>/dev/null || true)"
+		chilli_card="$(strip_realm "$(printf '%s' "$rest" | awk '{ print $3 }')")"
+		[ -n "$cookie_line" ] || [ -z "$chilli_card" ] || [ "$chilli_card" = '-' ] || cookie_line="$($helper find-card "$chilli_card" 2>/dev/null || true)"
+		[ -n "$cookie_line" ] || continue
+		if ! grep -qx "$normalized_mac" "$associated_file" 2>/dev/null && ! client_responds "$ip"; then
+			logger -t hotspot-openwrt-mac-cookie "skipped absent mac-cookie client instance=$instance mac=$normalized_mac ip=$ip"
+			skipped_absent=$((skipped_absent + 1))
+			continue
+		fi
+		username="$(printf '%s' "$cookie_line" | awk -F '\t' '{ print $3 }')"
+		card="$(printf '%s' "$cookie_line" | awk -F '\t' '{ print $4 }')"
+		[ -n "$username" ] || continue
+		chilli_query -s "$socket_path" authorize ip "$ip" username "$username" url "$url?username=$card" >/tmp/hotspot-mac-cookie-watchdog.$$ 2>&1 || true
+		after_state="$(chilli_query -s "$socket_path" list 2>/dev/null | awk -v ip="$ip" '$2 == ip { print $3; found = 1; exit } END { if (!found) exit 0 }')"
+		if [ "$after_state" = 'pass' ]; then
+			$helper save "$normalized_mac" "$ip" "$username" >/dev/null 2>&1 || true
+			logger -t hotspot-openwrt-mac-cookie "authorized mac-cookie client instance=$instance mac=$normalized_mac ip=$ip user=$username"
+			authorized=$((authorized + 1))
+		else
+			logger -t hotspot-openwrt-mac-cookie "failed mac-cookie authorize instance=$instance mac=$normalized_mac ip=$ip user=$username state=${after_state:-unknown} message=$(cat /tmp/hotspot-mac-cookie-watchdog.$$ 2>/dev/null | tr '\r\n' ' ')"
+		fi
+		rm -f /tmp/hotspot-mac-cookie-watchdog.$$
+	done < "$client_file"
+	rm -f "$client_file"
+}
+
+scan_once() {
+	local mode="$1" total='0' authorized='0' skipped_absent='0' associated_file ready='1' primary_hotspot_ip secondary_hotspot_ip
+	[ "$(uci -q get hotspot_openwrt.main.mac_cookie_enabled || echo 0)" = '1' ] || ready='0'
+	[ -x "$helper" ] && command -v chilli_query >/dev/null 2>&1 || ready='0'
+	[ -S "$primary_socket_path" ] || [ -S "$secondary_socket_path" ] || ready='0'
+	if [ "$ready" != '1' ]; then
+		[ "$mode" = '--once' ] && printf '{"checked":0,"authorized":0,"ready":false}\n'
+		return 0
+	fi
+	associated_file="/tmp/hotspot-mac-cookie-associated.$$"
+	associated_macs | while read mac; do
+		[ -n "$mac" ] && normalize_mac "$mac"
+	done | sort -u > "$associated_file"
+	primary_hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip || echo 10.10.10.1)"
+	secondary_hotspot_ip="$(uci -q get hotspot_openwrt.main.quick_gateway_secondary || echo '')"
+	scan_chilli_socket "$mode" primary "$primary_socket_path" "$primary_hotspot_ip"
+	scan_chilli_socket "$mode" secondary "$secondary_socket_path" "$secondary_hotspot_ip"
+	rm -f "$associated_file"
+	[ "$mode" = '--once' ] && printf '{"checked":%s,"authorized":%s,"skipped_absent":%s,"ready":true}\n' "$total" "$authorized" "$skipped_absent"
+}
+
+if [ "$1" = '--once' ]; then
+	scan_once --once
+	exit 0
+fi
+
+interval="$(duration_to_seconds "$(uci -q get hotspot_openwrt.main.status_autorefresh || echo 00:00:15)")"
+case "$interval" in ''|*[!0-9]*) interval='5' ;; esac
+[ "$interval" -ge 3 ] || interval='3'
+[ "$interval" -le 15 ] || interval='15'
+
+while :; do
+	scan_once
+	sleep "$interval"
+done

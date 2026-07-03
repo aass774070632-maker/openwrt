@@ -1,0 +1,10 @@
+#!/bin/sh
+
+define_default_set_state() {
+	. /etc/diag.sh
+}
+
+# MERCURY START
+#boot_hook_add preinit_main define_default_set_state
+boot_hook_add preinit_main
+# MERCURY END

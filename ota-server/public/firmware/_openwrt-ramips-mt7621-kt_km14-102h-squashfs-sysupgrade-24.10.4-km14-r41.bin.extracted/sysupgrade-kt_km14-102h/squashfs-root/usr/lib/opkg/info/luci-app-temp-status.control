@@ -1,0 +1,13 @@
+Package: luci-app-temp-status
+Version: 0.8.1-r1
+Depends: libc, ucode, ucode-mod-fs
+Source: feeds/base/luci-app-temp-status
+SourceName: luci-app-temp-status
+License: MIT
+Section: luci
+SourceDateEpoch: 1778200540
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 51200
+Description:  Temperature sensors data for the LuCI status page

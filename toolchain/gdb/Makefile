@@ -64,7 +64,7 @@ define Host/Install
 	ln -fs $(TARGET_CROSS)gdb $(TOOLCHAIN_DIR)/bin/$(GNU_TARGET_NAME)-gdb
 	strip $(TOOLCHAIN_DIR)/bin/$(TARGET_CROSS)gdb
 	mkdir -p $(TOOLCHAIN_DIR)/share/gdb
-	-cp -R $(HOST_BUILD_DIR)/gdb/data-directory/python $(TOOLCHAIN_DIR)/share/gdb/
+	[ ! -d $(HOST_BUILD_DIR)/gdb/data-directory/python ] || $(CP) $(HOST_BUILD_DIR)/gdb/data-directory/python $(TOOLCHAIN_DIR)/share/gdb/
 	cp -R $(HOST_BUILD_DIR)/gdb/data-directory/syscalls $(TOOLCHAIN_DIR)/share/gdb/
 	cp -R $(HOST_BUILD_DIR)/gdb/data-directory/system-gdbinit $(TOOLCHAIN_DIR)/share/gdb/
 endef

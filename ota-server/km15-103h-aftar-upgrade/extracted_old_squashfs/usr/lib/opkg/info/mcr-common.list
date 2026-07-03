@@ -1,0 +1,16 @@
+/etc_ro/hosts
+/etc/ntp.sh
+/etc/mcr_mesh_set.sh
+/etc/nas_adduser.sh
+/etc_ro/passwd
+/etc_ro/vsftpd.conf
+/etc/smb_addpasswd.sh
+/etc/mkromfs
+/etc/romfs.txt
+/etc_ro/shadow
+/etc/init.d/zmcr-startup
+/etc/portsentry.conf
+/etc/Seoul
+/etc/portsentry.ignore
+/etc/default.script
+/etc_ro/group

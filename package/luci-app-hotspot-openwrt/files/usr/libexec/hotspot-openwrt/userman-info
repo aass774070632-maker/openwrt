@@ -54,19 +54,20 @@ fetch_rest() {
 	url="$url/rest/$path"
 	[ -n "$query" ] && url="$url?$query"
 
-	if [ "$scheme" = 'https' ] && [ "$insecure_ssl" = '1' ]; then
-		uclient-fetch -q -T "$timeout" --no-check-certificate --user="$username" --password="$password" -O "$output" "$url" >/dev/null 2>&1
-		# Automatic Fallback for all models: If HTTPS fails, retry with HTTP on port 80
-		if [ $? -ne 0 ]; then
-			url_http="http://$host:80/rest/$path"
-			[ -n "$query" ] && url_http="$url_http?$query"
-			uclient-fetch -q -T "$timeout" --user="$username" --password="$password" -O "$output" "$url_http" >/dev/null 2>&1
+	local curl_opts="-s -m $timeout"
+	if [ "$scheme" = 'https' ]; then
+		if [ "$insecure_ssl" = '1' ]; then
+			curl_opts="$curl_opts -k"
+		elif [ -n "$cacert" ] && [ -f "$cacert" ]; then
+			curl_opts="$curl_opts --cacert $cacert"
 		fi
-	elif [ "$scheme" = 'https' ] && [ -n "$cacert" ] && [ -f "$cacert" ]; then
-		uclient-fetch -q -T "$timeout" --ca-certificate="$cacert" --user="$username" --password="$password" -O "$output" "$url" >/dev/null 2>&1
-	else
-		uclient-fetch -q -T "$timeout" --user="$username" --password="$password" -O "$output" "$url" >/dev/null 2>&1
+	elif [ "$scheme" != 'http' ]; then
+		return 1
 	fi
+
+	# Credentials passed via curl -K config file (not argv) to avoid leaking
+	# in `ps` output. No HTTPS→HTTP downgrade: a failure reports an error.
+	curl $curl_opts -K "$cred_file" -o "$output" "$url" 2>/dev/null
 }
 
 card="$1"
@@ -105,10 +106,14 @@ elif ! command -v uclient-fetch >/dev/null 2>&1 || ! command -v jsonfilter >/dev
 	message='uclient-fetch أو jsonfilter غير متوفر على الراوتر.'
 else
 	encoded_card="$(urlencode "$card")"
-	tmp_user="/tmp/hotspot-userman-user.$$"
-	tmp_profile="/tmp/hotspot-userman-profile.$$"
-		tmp_profile_def="/tmp/hotspot-userman-profile-def.$$"
-		tmp_limitation="/tmp/hotspot-userman-limitation.$$"
+	tmp_user="$(mktemp)"
+	tmp_profile="$(mktemp)"
+	tmp_profile_def="$(mktemp)"
+	tmp_limitation="$(mktemp)"
+	cred_file="$(mktemp)"
+	chmod 600 "$cred_file" 2>/dev/null || true
+	printf 'user = "%s:%s"\n' "$username" "$password" > "$cred_file"
+	trap 'rm -f "$tmp_user" "$tmp_profile" "$tmp_profile_def" "$tmp_limitation" "$cred_file"' EXIT
 	query_field="$user_field"
 	[ -n "$query_field" ] || query_field='name'
 
@@ -167,7 +172,7 @@ else
 		source='routeros_rest_unreachable'
 		message='تعذر الوصول إلى RouterOS REST. فعّل www-ssl أو www على MikroTik وافتح المنفذ من OpenWrt.'
 	fi
-	rm -f "$tmp_user" "$tmp_profile" "$tmp_profile_def" "$tmp_limitation"
+	rm -f "$tmp_user" "$tmp_profile" "$tmp_profile_def" "$tmp_limitation" "$cred_file"
 fi
 
 printf '{'

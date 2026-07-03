@@ -1,0 +1,461 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<po>
+  <message msgid="admin disable" msgstr="비활성화" />
+  <message msgid="admin enable" msgstr="활성화" />
+  <message msgid="admin apply" msgstr="적용" />
+  <message msgid="admin cancel" msgstr="취소" />
+  <message msgid="admin reset" msgstr="초기화" />
+  <message msgid="admin delete" msgstr="삭제" />
+  <message msgid="admin run" msgstr="실행" />
+    
+  <message msgid="man title" msgstr="시스템 관리" />
+  <message msgid="man introduction" msgstr="" />
+  <message msgid="man language setting" msgstr="언어 설정" />
+  <message msgid="man select language" msgstr="언어 선택(Language Selection)" />
+  <message msgid="man admin setting" msgstr="사용자 설정" />
+  <message msgid="man admin account" msgstr="계정" />
+  <message msgid="man admin passwd" msgstr="비밀번호" />
+  <message msgid="man ntp setting" msgstr="NTP 설정" />
+  <message msgid="man ntp current time" msgstr="현재시간" />
+  <message msgid="man ntp sync with host" msgstr="동기화" />
+  <message msgid="man ntp timezone" msgstr="표준 시간대" />
+  <message msgid="man ntp server" msgstr="NTP 서버" />
+  <message msgid="man ntp server2" msgstr="NTP 서버2" />
+  <message msgid="man ntp server3" msgstr="DHCP 서버로 부터 받은 NTP 서버" />
+  <message msgid="man ntp sync" msgstr="NTP 동기화 (시간)" />
+  <message msgid="man ntp mid island" msgstr="(GMT-11:00) Midway Island, Samoa" />
+  <message msgid="man ntp hawaii" msgstr="(GMT-10:00) Hawaii" />
+  <message msgid="man ntp alaska" msgstr="(GMT-09:00) Alaska" />
+  <message msgid="man ntp pacific" msgstr="(GMT-08:00) Pacific Time" />
+  <message msgid="man ntp mountain" msgstr="(GMT-07:00) Mountain Time" />
+  <message msgid="man ntp arizona" msgstr="(GMT-07:00) Arizona" />
+  <message msgid="man ntp central" msgstr="(GMT-06:00) Central Time" />
+  <message msgid="man ntp mid us" msgstr="(GMT-06:00) Middle America" />
+  <message msgid="man ntp indiana east" msgstr="(GMT-05:00) Indiana East, Colombia" />
+  <message msgid="man ntp eastern" msgstr="(GMT-05:00) Eastern Time" />
+  <message msgid="man ntp atlantic" msgstr="(GMT-04:00) Atlantic Time, Brazil West" />
+  <message msgid="man ntp bolivia" msgstr="(GMT-04:00) Bolivia, Venezuela" />
+  <message msgid="man ntp guyana" msgstr="(GMT-03:00) Guyana" />
+  <message msgid="man ntp brazil east" msgstr="(GMT-03:00) Brazil East, Greenland" />
+  <message msgid="man ntp mid atlantic" msgstr="(GMT-02:00) Mid-Atlantic" />
+  <message msgid="man ntp azores islands" msgstr="(GMT-01:00) Azores Islands" />
+  <message msgid="man ntp gambia" msgstr="(GMT) Gambia, Liberia, Morocco" />
+  <message msgid="man ntp england" msgstr="(GMT) England" />
+  <message msgid="man ntp czech republic" msgstr="(GMT+01:00) Czech Republic, N" />
+  <message msgid="man ntp germany" msgstr="(GMT+01:00) Germany" />
+  <message msgid="man ntp tunisia" msgstr="(GMT+01:00) Tunisia" />
+  <message msgid="man ntp greece" msgstr="(GMT+02:00) Greece, Ukraine, Turkey" />
+  <message msgid="man ntp south africa" msgstr="(GMT+02:00) South Africa" />
+  <message msgid="man ntp iraq" msgstr="(GMT+03:00) Iraq, Jordan, Kuwait" />
+  <message msgid="man ntp moscow winter" msgstr="(GMT+03:00) Moscow Winter Time" />
+  <message msgid="man ntp armenia" msgstr="(GMT+04:00) Armenia" />
+  <message msgid="man ntp pakistan" msgstr="(GMT+05:00) Pakistan, Russia" />
+  <message msgid="man ntp bangladesh" msgstr="(GMT+06:00) Bangladesh, Russia" />
+  <message msgid="man ntp thailand" msgstr="(GMT+07:00) Thailand, Russia" />
+  <message msgid="man ntp chinacoast" msgstr="(GMT+08:00) China Coast, Hong Kong" />
+  <message msgid="man ntp taipei" msgstr="(GMT+08:00) Taipei" />
+  <message msgid="man ntp singapore" msgstr="(GMT+08:00) Singapore" />
+  <message msgid="man ntp australia wa" msgstr="(GMT+08:00) Australia (WA)" />
+  <message msgid="man ntp japan" msgstr="(GMT+09:00) Japan, Korea" />
+  <message msgid="man ntp korean" msgstr="(GMT+09:00) Korean" />
+  <message msgid="man ntp guam" msgstr="(GMT+10:00) Guam, Russia" />
+  <message msgid="man ntp australia qld" msgstr="(GMT+10:00) Australia (QLD, TAS,NSW,ACT,VIC)" />
+  <message msgid="man ntp solomon islands" msgstr="(GMT+11:00) Solomon Islands" />
+  <message msgid="man ntp fiji" msgstr="(GMT+12:00) Fiji" />
+  <message msgid="man ntp newzealand" msgstr="(GMT+12:00) New Zealand" />
+  <message msgid="man ntp inserver" msgstr="NTP 서버를 입력하십시오." />
+
+  <message msgid="man ddns setting" msgstr="DDNS 설정" />
+  <message msgid="man ddns provider" msgstr="Dynamic DNS Provider" />
+  <message msgid="man ddns none" msgstr="None" />
+  <message msgid="man ddns account" msgstr="계정" />
+  <message msgid="man ddns passwd" msgstr="비밀번호" />
+  <message msgid="man ddns" msgstr="DDNS" />
+  <message msgid="man ddns inval" msgstr="계정, 비밀번호, 호스트 정보를 입력하십시오." />
+
+  <message msgid="upload title" msgstr="Upgrade Firmware" />
+  <message msgid="upload introduction1" msgstr=" " />
+  <message msgid="upload introduction2" msgstr="시스템 Upgrade시 수십초가 소요됩니다. 잠시만 기다리세요." />
+  <message msgid="upload firmware" msgstr="Upgrade Firmware" />
+  <message msgid="upload firmware location" msgstr="Location:" />
+  <message msgid="upload bootloader" msgstr="Update Bootloader" />
+  <message msgid="upload bootloader location" msgstr="Location:" />
+  <message msgid="upload firmware from usb" msgstr="Upgrade firmware from USB" />
+  <message msgid="upload firmware force upgrade via mem" msgstr="Force upgrade firmware via mem " />
+  <message msgid="upload firmware force" msgstr="Force:" />
+
+  <message msgid="setman title" msgstr="설정 관리" />
+  <message msgid="setman introduction" msgstr="" />
+  <message msgid="setman export setting" msgstr="Export Settings" />
+  <message msgid="setman export setting button" msgstr="Export Button" />
+  <message msgid="setman export setting export" msgstr="Export" />
+  <message msgid="setman import setting" msgstr="Import Settings" />
+  <message msgid="setman import setting file location" msgstr="Settings file location" />
+  <message msgid="setman import setting import" msgstr="Import" />
+  <message msgid="setman load factory default" msgstr="Load Factory Defaults" />
+  <message msgid="setman load factory default button" msgstr="Load Default Button" />
+  <message msgid="setman load default" msgstr="Load Default" />
+
+  <message msgid="status title" msgstr="시스템 상태 정보" />
+  <message msgid="status introduction" msgstr="시스템 정보 및 WAN/LAN 연결정보를 출력한다." />
+  <message msgid="status system information" msgstr="시스템 정보" />
+  <message msgid="status sdk version" msgstr="펌웨어버전" />
+  <message msgid="status system time" msgstr="장비시간" />
+  <message msgid="status system up time" msgstr="장비운용시간" />
+  <message msgid="status system platform" msgstr="제조사" />
+  <message msgid="status operate mode" msgstr="운용모드" />
+  <message msgid="status internet config" msgstr="WAN 설정정보" />
+  <message msgid="status sndwan info" msgstr="VOIP WAN 설정정보" />
+  <message msgid="status connect type" msgstr="연결방법" />
+  <message msgid="status wan ipaddr" msgstr="WAN IP 주소" />
+  <message msgid="status subnet mask" msgstr="서브넷마스크" />
+  <message msgid="status default gateway" msgstr="게이트웨이" />
+  <message msgid="status primary dns" msgstr="DNS 서버1" />
+  <message msgid="status secondary dns" msgstr="DNS 서버2" />
+  <message msgid="status local network" msgstr="LAN 설정정보" />
+  <message msgid="status lan ipaddr" msgstr="Local IP 주소" />
+  <message msgid="status local netmask" msgstr="Local 서브넷마스크" />
+  <message msgid="status mac" msgstr="하드웨어주소" />
+  <message msgid="status call info" msgstr="전화정보" />
+  <message msgid="status call status" msgstr="전화상태" />
+  <message msgid="status call phonenumber" msgstr="전화번호" />
+  <message msgid="status call areacode" msgstr="지역번호" />
+  <message msgid="status ethernet port status" msgstr="이더넷 포트상태" />
+  
+  <message msgid="status wireless info" msgstr="무선 설정정보" />
+  <message msgid="status wireless activity" msgstr="무선 동작 설정" />
+  <message msgid="status wireless mode" msgstr="무선 모드" />
+  <message msgid="status wireless channel" msgstr="채널" />
+  <message msgid="status wireless bssid" msgstr="BSSID" />
+
+  <message msgid="status usb info" msgstr="USB 정보" />
+  <message msgid="status usb connect" msgstr="USB 접속상태" />
+  
+  <message msgid="statistic title" msgstr="통계" />
+  <message msgid="statistic introduction" msgstr="" />
+  <message msgid="statistic memory" msgstr="Memory" />
+  <message msgid="statistic memory total" msgstr="Memory total: " />
+  <message msgid="statistic memory left" msgstr="Memory left: " />
+  <message msgid="statistic wanlan" msgstr="WAN/LAN" />
+  <message msgid="statistic wan rx pkt" msgstr="WAN Rx packets: " />
+  <message msgid="statistic wan rx bytes" msgstr="WAN Rx bytes: " />
+  <message msgid="statistic wan tx pkt" msgstr="WAN Tx packets: " />
+  <message msgid="statistic wan tx bytes" msgstr="WAN Tx bytes: " />
+  <message msgid="statistic lan rx pkt" msgstr="LAN Rx packets: " />
+  <message msgid="statistic lan rx bytes" msgstr="LAN Rx bytes: " />
+  <message msgid="statistic lan tx pkt" msgstr="LAN Tx packets: " />
+  <message msgid="statistic lan tx bytes" msgstr="LAN Tx bytes: " />
+  <message msgid="statistic all interface" msgstr="All interfaces" />
+
+  <message msgid="syscommand title" msgstr="System Command" />
+  <message msgid="syscommand introduction" msgstr="root권한으로 시스템 명령을 수행한다." />
+  <message msgid="syscommand system command" msgstr="System command " />
+  <message msgid="syscommand command" msgstr="Command:" />
+
+  <message msgid="syslog title" msgstr="시스템 로그" />
+  <message msgid="syslog introduction" msgstr=" Syslog: " />
+  <message msgid="syslog system log" msgstr="시스템 로그" />
+  <message msgid="syslog clear" msgstr="기록삭제" />
+  <message msgid="syslog refresh" msgstr="다시보기" />
+  <message msgid="syslog save" msgstr="기록저장" />
+  <message msgid="syslog setting" msgstr="시스템로그 설정" />
+  <message msgid="syslog type" msgstr="시스템로그 동작 설정" />
+  <message msgid="syslog disable" msgstr="비활성화" />
+  <message msgid="syslog enable" msgstr="활성화" />
+  <message msgid="syslog rmtdisable" msgstr="비활성화" />
+  <message msgid="syslog rmtenable" msgstr="활성화" />
+  <message msgid="syslog remote" msgstr="시스템로그 원격 전송" />
+  <message msgid="syslog apply" msgstr="적용" />
+  <message msgid="syslog cancel" msgstr="취소" />
+  <message msgid="syslog inip" msgstr="IP를 입력하십시오." />
+  <message msgid="syslog iperr" msgstr="입력된 IP 오류입니다." />
+  <message msgid="syslog level" msgstr="출력레벨" />
+  <message msgid="syslog default" msgstr="기본" />
+  <message msgid="syslog detail" msgstr="상세" />
+  <message msgid="syslog remoteip" msgstr="시스템로그 원격서버 IP주소" />
+  <message msgid="syslog remoteport" msgstr="시스템로그 원격서버 Port" />
+  
+  
+  <message msgid="adduser name" msgstr="사용자 이름" />
+  <message msgid="adduser password" msgstr="비밀번호" />
+  <message msgid="adduser verify" msgstr="비밀번호확인" />
+  <message msgid="adduser ftp" msgstr="Ftp Setup" />
+  <message msgid="adduser mullogins" msgstr="Multiple Logins Capability" />
+  <message msgid="adduser maxlogins" msgstr="Maximum Login" />
+  <message msgid="adduser download" msgstr="Download Capability" />
+  <message msgid="adduser upload" msgstr="Upload Capability" />
+  <message msgid="adduser overwrite" msgstr="Overwrite Capability" />
+  <message msgid="adduser erase" msgstr="Erase Capability" />
+  <message msgid="adduser smb" msgstr="Samba Setup" />
+  
+  <message msgid="extweb title" msgstr="외부 WEB 접속 제어" />
+  <message msgid="extweb introduction" msgstr="외부에서 WEB 접속 허용/차단 기능을 설정한다." />
+  <message msgid="extweb deny" msgstr="차단" />
+  <message msgid="extweb allow" msgstr="허용" />
+  <message msgid="extweb ipaddr" msgstr="접속 허용 IP" />
+  <message msgid="extweb port" msgstr="접속 허용 포트" />
+  <message msgid="extweb inport" msgstr="허용 포트를 입력하십시오." />
+  <message msgid="extweb indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  <message msgid="extweb rangeover" msgstr="입력오류입니다.입력 값이 범위를 초과했습니다." />
+   
+  <message msgid="pvs title" msgstr="프로비져닝 기능 설정" />
+  <message msgid="pvs introduction" msgstr="프로비져닝 정보출력, 서버 설정, 데몬 수동수행, 프로비져닝 활성화/비활성화 기능을 설정한다." />
+  <message msgid="pvs info" msgstr="프로비져닝 정보" />
+  <message msgid="pvs cfgver" msgstr="config 버젼" />
+  <message msgid="pvs swver" msgstr="sw 버젼" />
+  <message msgid="pvs status" msgstr="프로비져닝 상태" />
+  <message msgid="pvs nextpvs" msgstr="다음 프로비져닝 시간" />
+  <message msgid="pvs server" msgstr="프로비져닝 서버 설정" />
+  <message msgid="pvs server ip" msgstr="프로비져닝 서버 IP" />
+  <message msgid="pvs manexec" msgstr="프로비져닝 실행" />
+  <message msgid="pvs endis" msgstr="프로비져닝 활성화/비활성화" />
+  <message msgid="pvs deact" msgstr="종료" />
+  <message msgid="pvs act" msgstr="수행" />
+  <message msgid="pvs exec" msgstr="실행" />
+  <message msgid="pvs enable" msgstr="활성화" />
+  <message msgid="pvs disable" msgstr="비활성화" />
+  <message msgid="pvs inip" msgstr="IP를 입력하십시오." />
+  <message msgid="pvs iperr" msgstr="입력된 IP 오류입니다." />
+  <message msgid="pvs indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  
+  <message msgid="cpg title" msgstr="CPG 상태 및 장애 정보" />
+  <message msgid="cpg introduction" msgstr="CPG의 상태 정보 및 장애 정보를 출력한다." />
+  <message msgid="cpg info" msgstr="CPG 상태 및 장애정보" />
+  <message msgid="cpg sts code" msgstr="상태코드" />
+  <message msgid="cpg phone code" msgstr="전화 장애코드" />
+  <message msgid="cpg network code" msgstr="네트웍장애코드" />
+  <message msgid="cpg sip code" msgstr="SIP 장애코드" />
+  <message msgid="cpg pvs code" msgstr="프로비져닝 장애코드" />
+  
+  <message msgid="tr069 title" msgstr="TR-069 설정변경" />
+  <message msgid="tr069 introduction" msgstr="TR-069 CPE 설정을 합니다. ACS연결을 위한 파라미터를 설정하세요.." />
+  <message msgid="tr069 acs setting" msgstr="ACS 정보 설정" />
+  <message msgid="tr069 acs url" msgstr="ACS URL" />
+  <message msgid="tr069 acs usrname" msgstr="ACS 사용자이름" />
+  <message msgid="tr069 acs passwd" msgstr="ACS 비밀번호" />
+  <message msgid="tr069 acs priod" msgstr="주기적 Inform 사용여부" />
+  <message msgid="tr069 acs interval" msgstr="Inform 주기" />
+  <message msgid="tr069 conn setting" msgstr="접속 요구설정" />
+  <message msgid="tr069 conn usrname" msgstr="접속 사용자이름" />
+  <message msgid="tr069 conn passwd" msgstr="접속 비밀번호" />
+  <message msgid="tr069 acs disable" msgstr="비활성화" />
+  <message msgid="tr069 acs enable" msgstr="활성화" />
+  <message msgid="tr069 inacs" msgstr="ACL URL을 입력하십시오." />
+  <message msgid="tr069 ininterval" msgstr="Inform 주기를 입력하십시오." />
+  <message msgid="tr069 indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  
+  <message msgid="passwd title" msgstr="비밀번호 변경" />  
+  <message msgid="passwd intro" msgstr="사용자의 비밀번호를 변경한다." />  
+  <message msgid="passwd subtitle" msgstr="관리자 설정" />
+  <message msgid="passwd user" msgstr="사용자" />
+  <message msgid="passwd passwd" msgstr="비밀번호" />
+  <message msgid="passwd verify" msgstr="비밀번호확인" />
+  <message msgid="passwd inuser" msgstr="사용자ID를 입력하십시오.(admin, root, user)" />
+  <message msgid="passwd inpasswd" msgstr="비밀번호를 입력하십시오." />
+  <message msgid="passwd mismatch" msgstr="비밀번호를 잘못 입력되었습니다." />
+  <message msgid="passwd maxlength" msgstr="최대길이:30" />
+  <message msgid="passwd inprivilege" msgstr="사용자권한이 부족합니다" />
+  <message msgid="passwd notchange" msgstr="사용자비밀번호를 변경할 수 없습니다" />
+  
+  <message msgid="upgrade title" msgstr="펌웨어 업그레이드" />
+  <message msgid="upgrade intro" msgstr="펌웨어 업그레이드를 수행하겠습니다." />
+  <message msgid="upgrade Infosubtitle" msgstr="펌웨어 정보" />
+  <message msgid="upgrade Actsubtitle" msgstr="업그레이드" />
+  <message msgid="upgrade location" msgstr="펌웨어 위치" />
+  <message msgid="upgrade find" msgstr="찾아보기" />
+  <message msgid="upgrade pkg1version" msgstr="펌웨어 1 버전정보" />
+  <message msgid="upgrade pkg2version" msgstr="펌웨어 2 버전정보" />
+  <message msgid="upgrade curversion" msgstr="현재 운용중인 펌웨어" />
+  <message msgid="upgrade createday" msgstr="이미지 생성날짜" />
+  <message msgid="upgrade upgradetarget" msgstr="업그레이드 적용위치" />
+  <message msgid="upgrade up_pkg1" msgstr="펌웨어 1" />
+  <message msgid="upgrade up_pkg2" msgstr="펌웨어 2" />
+  <message msgid="upgrade resetside" msgstr="RESET이후 로딩될 이미지" />
+  <message msgid="upgrade tftpfilename" msgstr="펌웨어 이름" />
+  <message msgid="upgrade tftpserverip" msgstr="서버 주소" />
+  <message msgid="upgrade UpgradeType" msgstr="펌웨어 업그레이드 형식" />
+  <message msgid="upgrade UpgradeWeb" msgstr="랜에 접속된 PC를 이용 " />
+  <message msgid="upgrade UpgradeTftp" msgstr="TFTP 서버 이용" />
+  <message msgid="upgrade UpgradeFtp" msgstr="FTP 서버 이용" />
+  <message msgid="upgrade ftp_user" msgstr="FTP ID" />
+  <message msgid="upgrade ftp_pswd" msgstr="FTP PASSWD" />
+  <message msgid="upgrade ftp_filename" msgstr="펌웨어 이름" />
+  <message msgid="upgrade UpgradeUSB" msgstr="USB 연결장치 이용" />
+  <message msgid="upgrade pkagesuccess" msgstr="펌웨어 업그레이드가 끝났습니다. 잠시후 부팅하겠습니다." />
+  <message msgid="upgrade tftppkagefail" msgstr="서버와 접속이 안됩니다.설정을 다시한번 확인해 주십시요." />
+  <message msgid="upgrade filewritefail" msgstr="보드에 이미지를 저장할 수 없습니다.다시 시도해 주십시요." />
+  <message msgid="upgrade fileinforfail" msgstr="파일명이 잘못되었거나, 올바른 이미지 파일이 아닙니다. 파일명이 정확한 지 확인하시고, 맞다면 업그레이드 이미지가 손상되었거나,다른 제품의 이미지이므로 새로운 이미지로 재시도해 주시길 바랍니다" />
+  <message msgid="upgrade flashreadfail" msgstr="FLASH 읽기가 실패했습니다.다시 시도해 주십시요." />
+  <message msgid="upgrade flashwritefail" msgstr="FLASH 쓰기가 실패했습니다.다시 시도해 주십시요." />
+  <message msgid="upgrade server image error" msgstr="업그레이드 서버에서 받아 온 이미지 파일이 올바르지 않습니다. 다시 시도해서 동일한 오류가 발생하면, 업그레이드할 이미지 파일이 없거나 업그레이드 서버에서 작업 중이므로 기다려 주십시요." />
+  <message msgid="upgrade failgeneral" msgstr="업그레이드를 실패했습니다.다시 시도해 주십시요." />
+  <message msgid="upgrade failtimeout" msgstr="업그레이드 시간이 초과되었습니다.다시 시도해 주십시요." />
+  <message msgid="upgrade handset progress" msgstr="Handset(휴대 단말기)업그레이드 이미지를 확인했습니다. 운용중인 Handset을 순차적으로 업그레이드 진행합니다. Handset 업그레이드에는 시간이 많이 걸리며, 진행상태는 업그레이드 중인 Handset단말에서 확인하실 수 있습니다. Handset에서의 통화/문자는 이용에 제한을 받지만, 연결된 네트워크 장치는 정상적으로 이용하실 수 있습니다. " />
+  <message msgid="upgrade wait current call finish" msgstr="통화중인 전화연결이 있어서 연결이 종료될 때까지 기다립니다. 전화 연결이 끝나면, 확인 후에 업그레이드 기능을 시작하겠습니다. " />
+      
+  <message msgid="manual upgrade title" msgstr="수동 업그레이드" />
+  <message msgid="manual upgrade intro" msgstr="수동 업그레이드 정보를 설정하고, 실행한다." />
+  <message msgid="manual upgrade Infosubtitle" msgstr="수동 업그레이드 서버" />
+  <message msgid="manual upgrade hostname" msgstr="서버 주소" />
+  <message msgid="manual upgrade port" msgstr="서버 포트" />
+  <message msgid="manual upgrade apply" msgstr="서버정보 변경" />
+  <message msgid="manual upgrade hostname empty" msgstr="업그레이드 서버 호스트명을 입력하십시오." />  
+  <message msgid="manual upgrade port rangeout" msgstr="업그레이드 서버 포트값이 범위를 벗어났습니다." />   
+  <message msgid="manual upgrade runtitle" msgstr="AP업그레이드" /> 
+  <message msgid="image already latest version" msgstr="최신 F/W를 사용 중 입니다." />
+  <message msgid="upgrade status change applied" msgstr="업그레이드 상태 확인을 완료했습니다." />
+  <message msgid="manual upgrade end" msgstr="관리서버에 요청한 업그레이드 정보 확인을 완료했습니다." />
+  
+  <message msgid="man systemManagement title" msgstr="시스템 관리" />
+  <message msgid="man systemManagement intro" msgstr="시스템의 초기화, 시간, DDNS를 설정한다." />
+  <message msgid="man systemManagement subtitle" msgstr="시스템 관리" />
+  <message msgid="man systemManagement reset" msgstr="시스템 재시작" />
+  <message msgid="man systemManagement resetButton" msgstr="재시작" />
+  <message msgid="man systemManagement factory" msgstr="시스템 초기화" />
+  <message msgid="man systemManagement factoryButton" msgstr="초기화" />
+  <message msgid="man systemManagement hostname" msgstr="장비 이름 설정" />
+  <message msgid="man systemManagement inhostname" msgstr="장비 이름을 입력하십시오." />
+  <message msgid="man systemManagement resetprogress" msgstr="시스템 재시작 중입니다. 잠시후 재접속해주시길 바랍니다." />
+  
+  <message msgid="man ddns title" msgstr="DDNS 설정" />
+  <message msgid="man ddns DDNS server" msgstr="DDNS 서버" />
+  <message msgid="man ddns account" msgstr="사용자" />
+  <message msgid="man ddns password" msgstr="비밀번호" />
+  <message msgid="man ddns Address" msgstr="DDNS" />
+  
+  <message msgid="logout title" msgstr="LOGOUT" />
+  <message msgid="logout introduction" msgstr="시스템 Logout을 수행한다." />
+  <message msgid="logout logout" msgstr="LOGOUT 하시겠습니까?" />
+  <message msgid="logout apply" msgstr="예" />
+  <message msgid="logout cancel" msgstr="아니오" />
+  
+  <message msgid="snmp title" msgstr="SNMP 설정" />
+  <message msgid="snmp introduction" msgstr="SNMP 기능을 설정합니다." />
+  <message msgid="snmp header" msgstr="SNMP 설정" />
+  
+  <message msgid="snmp activity" msgstr="SNMP 동작" />
+  <message msgid="snmp enable" msgstr="사용" />
+  <message msgid="snmp disable" msgstr="중단" />
+  <message msgid="snmp port" msgstr="SNMP PORT" />
+  <message msgid="snmp trap server" msgstr="TRAP Server" />
+  <message msgid="snmp trap ip" msgstr="IP" />
+  <message msgid="snmp trap name" msgstr="HOST" />
+  <message msgid="snmp trap port" msgstr="PORT" />
+  <message msgid="snmp community trap" msgstr="Community Trap" />
+  <message msgid="snmp community ro" msgstr="Community ReadOnly" />
+  <message msgid="snmp community rw" msgstr="Community ReadWrite" />
+  <message msgid="snmp community" msgstr="Community" />
+  <message msgid="snmp sys descr" msgstr="System Description" />
+  <message msgid="snmp sys objectid" msgstr="System ObjectID" />
+  <message msgid="snmp sys contact" msgstr="System Contact" />
+  <message msgid="snmp sys name" msgstr="System Name" />
+  <message msgid="snmp sys location" msgstr="System Location" />
+  <message msgid="snmp trap activity" msgstr="동작" />
+  <message msgid="snmp trap community" msgstr="Community" />
+  <message msgid="snmp trap server name" msgstr="TRAP Server" />
+  <message msgid="snmp trap port" msgstr="Port" />
+  <message msgid="snmp community activity" msgstr="동작" />
+  <message msgid="snmp community type" msgstr="Type" />
+  <message msgid="snmp community name" msgstr="Community" />
+
+  <message msgid="sysconfig title" msgstr="System Config Setting" />
+  <message msgid="sysconfig introduction" msgstr="Setting system config to mtd" />
+  <message msgid="sysconfig header" msgstr="System Config Setting" />
+  <message msgid="sysconfig mac" msgstr="WAN MAC Address" />
+  <message msgid="sysconfig pkg ver1" msgstr="PKG1 VERSION" />
+  <message msgid="sysconfig pkg ver2" msgstr="PKG2 VERSION" />
+  <message msgid="sysconfig serial" msgstr="Serial No" />
+
+  <message msgid="pmsd title" msgstr="원격서버관리설정" />
+  <message msgid="pmsd introduction" msgstr="원격서버 관리 정보를 설정합니다." />
+  <message msgid="pmsd header" msgstr="원격서버관리설정" />
+  <message msgid="pmsd activity" msgstr="원격서버관리기능 동작" />
+  <message msgid="pmsd activity disable" msgstr="중단" />
+  <message msgid="pmsd activity enable" msgstr="사용" />
+  <message msgid="pmsd upgrade addr" msgstr="Upgrade Server Address" />
+  <message msgid="pmsd upgrade path" msgstr="Download Path Prefix" />
+  <message msgid="pmsd upgrade filename" msgstr="Download FileName" />
+  <message msgid="pmsd upgrade maxretry" msgstr="Max Retry Count" />
+  <message msgid="pmsd upgrade maxretry wait" msgstr="Max Retry Wait(ms)" />
+
+  <message msgid="kt apmonitor title" msgstr="AP 측위 정보" />
+  <message msgid="kt apmonitor introduction" msgstr="주변 AP의 신호세기를 측정한다." />
+  <message msgid="kt apmonitor headenable" msgstr="AP 측위 사용" />
+  <message msgid="kt apmonitor disable" msgstr="중단" />
+  <message msgid="kt apmonitor enable" msgstr="사용" />
+  <message msgid="kt apmonitor mode" msgstr="모드" />
+  <message msgid="kt apmonitor channel" msgstr="측정 Channel" />
+  <message msgid="kt apmonitor ssid" msgstr="측정 SSID" />
+  <message msgid="kt apmonitor trap server" msgstr="측정 서버 IP" />
+  <message msgid="kt apmonitor trap port" msgstr="측정 서버 PORT" />
+  <message msgid="kt apmonitor trap community" msgstr="측정 서버 Community" />
+  <message msgid="kt apmonitor period" msgstr="측정 주기" />
+  
+  <message msgid="kt wdt title" msgstr="단말 감시 정보" />
+  <message msgid="kt wdt introduction" msgstr="단말의 감시 정보를 설정한다." />
+  <message msgid="kt wdt_rst title" msgstr="주기적 Restart" />
+  <message msgid="kt wdt_rst enable" msgstr="사용" />
+  <message msgid="kt wdt_rst period" msgstr="Restar 주기(1~120일)" />
+
+  <message msgid="kt wdt_mem title" msgstr="메모리 과부하" />
+  <message msgid="kt wdt_mem usage" msgstr="부하율(%)" />
+  <message msgid="kt wdt_mem enable" msgstr="사용" />
+  <message msgid="kt wdt_mem period" msgstr="측정 주기(1~1440분)" />
+  <message msgid="kt wdt_mem threshold" msgstr="과부하율(80%~99%)" />
+
+  <message msgid="netsel title" msgstr="IP 할당 정책" />
+  <message msgid="netsel introduction" msgstr="KT 망을 사용할지를 설정합니다." />
+  <message msgid="netsel kt" msgstr="KT 인터넷" />
+  <message msgid="netsel other" msgstr="타사 인터넷" />
+
+  <message msgid="watchdog title" msgstr="Watchdog" />
+  <message msgid="watchdog introduction" msgstr="단말감시 기능에 대한 TEST기능을 설정한다.." />
+  <message msgid="watchdog mmi" msgstr="MMI 장애 감시 시험" />
+  <message msgid="watchdog sip" msgstr="VOIP 장애 감시 시험" />
+  <message msgid="watchdog wdt" msgstr="감시 기능 장애 시험" />
+
+  <message msgid="wol Htitle" msgstr="WOL" />
+  <message msgid="wol introduce" msgstr="원격으로 PC를 동작 시킨다." />
+  <message msgid="wol title" msgstr="Wake On Lan" />
+  <message msgid="wol list title" msgstr="하드웨어 주소 리스트" />
+  <message msgid="wol list select" msgstr="선택" />
+  <message msgid="wol list none" msgstr="할당된 하드웨어 주소가 없습니다." />
+
+  <!-- OTV -->
+  <message msgid="otv title" msgstr="OTV set" />
+  <message msgid="otv introduction" msgstr="OTV Configuration" />
+  <message msgid="otv header" msgstr="OTV Configuration" />  
+  
+  <message msgid="otv startup" msgstr="기능 활성화" />
+  <message msgid="otv priority" msgstr="우선순위" />
+  <message msgid="otv thread" msgstr="Thread Enable" />
+  <message msgid="otv tcpnodelay" msgstr="TCP_NODELAY Set" />
+  <message msgid="otv max tcp send size" msgstr="Max TCP Write Size(byte):0-nouse" />
+  <message msgid="otv max udp recvbuf size" msgstr="MAX UDP Recv Buf Size(SO_RCVBUF)" />
+  <message msgid="otv max tcp sendbuf size" msgstr="MAX TCP Send Buf Size(SO_SNDBUF)" />
+  <message msgid="otv idletimeout" msgstr="HP/HLS: Idle Timeout" />
+  <message msgid="otv idletimeoutcas" msgstr="CAS: Idle Timeout" />
+  <message msgid="otv idletimeoutigmp" msgstr="IGMP: Idle Timeout" />
+  <message msgid="otv mediachecktimeout" msgstr="HP/HLS: Media Check Timeout(ms)" />
+  <message msgid="otv mediachecktimeoutCAS" msgstr="CAS: Media Check Timeout(ms)" />
+  <message msgid="otv httplisten" msgstr="HTTP Listen Port" />
+  <message msgid="otv igmprtlisten" msgstr="IGMP Listen Port" />
+  <message msgid="otv otvlisten" msgstr="OTV Listen Port" />
+  <message msgid="otv max cas count" msgstr="CAS: 동시지원 CAS 수" />
+  <message msgid="otv max session count" msgstr="HP/HLS: 동시지원 채널 수" />
+  <message msgid="otv max igmp count" msgstr="IGMP: 동시지원 IGMP 수" />
+  <message msgid="otv hls maxbuf count" msgstr="HLS: 버퍼 세그먼트 수(count)" />
+  <message msgid="otv hls maxbuf time" msgstr="HLS: 버퍼 세그먼트 크기(sec)" />
+  <message msgid="otv hls removedelayenable" msgstr="HLS: 버퍼 삭제 지연 활성화" />
+  <message msgid="otv hls testmode" msgstr="HLS: Test Mode" />
+  <message msgid="otv hp maxbuf time" msgstr="HP: 버퍼 사이즈(sec)" />
+  <message msgid="otv hp reversebuf time" msgstr="HP: 버퍼 full시 이동양(sec)" />
+  <message msgid="otv hp mediasenddelay size" msgstr="HP: 미디어 delay size(byte)" />
+  <!-- OTV -->
+<message msgid="tr069up title" msgstr="TR069 PKG UPGRADE 금지 설정" />
+<message msgid="tr069up introduction" msgstr="TR069의 PKG UPGRADE 기능을 금지하기 위한 설정입니다." />
+
+<message msgid="rfPwCtrlOff title" msgstr="Power control off" />
+<message msgid="rfPwCtrlOff introduction" msgstr="단말 거리에 따른 Power 세기를 조절하는 설정 입니다." />
+
+</po>

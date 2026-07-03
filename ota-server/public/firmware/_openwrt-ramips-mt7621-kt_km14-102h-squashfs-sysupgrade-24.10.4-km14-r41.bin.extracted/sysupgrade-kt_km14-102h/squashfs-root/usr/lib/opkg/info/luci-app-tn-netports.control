@@ -1,0 +1,13 @@
+Package: luci-app-tn-netports
+Version: 2.0.7-r1
+Depends: libc, luci-lua-runtime, luabitop, jsonfilter
+Source: feeds/base/luci-app-tn-netports
+SourceName: luci-app-tn-netports
+License: MIT
+Section: luci
+SourceDateEpoch: 1778200540
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 112640
+Description:  Network ports status LuCI application

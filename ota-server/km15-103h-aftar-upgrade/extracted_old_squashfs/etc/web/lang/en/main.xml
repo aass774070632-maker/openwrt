@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<po>
+  <message msgid="main disable" msgstr="Disable" />
+  <message msgid="main enable" msgstr="Enable" />
+  <message msgid="main apply" msgstr="Apply" />
+  <message msgid="main cancel" msgstr="Cancel" />
+
+  <message msgid="overview introduction" msgstr="Mercury" />
+  <message msgid="overview select language" msgstr="Select Language" />
+  <message msgid="overview status link" msgstr="Status" />
+  <message msgid="overview statistic link" msgstr="Statistic" />
+  <message msgid="overview management link" msgstr="Management" />
+  <message msgid="treeapp openall" msgstr="open all" />
+  <message msgid="treeapp closeall" msgstr="close all" />
+  <message msgid="treeapp mercury" msgstr="Mercury" />
+  <message msgid="treeapp status info" msgstr="System Infomation" />
+  <message msgid="treeapp connection info" msgstr="Interface Info" />
+  <message msgid="treeapp dhcp bindinfo" msgstr="DHCP Binding Info" />
+  <message msgid="treeapp sys log" msgstr="System Log" />
+  <message msgid="treeapp cpg log" msgstr="CPG Log" />
+  <message msgid="treeapp cpg calllog" msgstr="Call log" />
+  <message msgid="treeapp cpg qoslog" msgstr="QoS log" />
+  <message msgid="treeapp cpg diaglog" msgstr="Diag log" />
+  <message msgid="treeapp basic settings" msgstr="Basic Settings" />
+  <message msgid="treeapp wan" msgstr="WAN" />
+  <message msgid="treeapp lan" msgstr="LAN" />
+  <message msgid="treeapp dhcp server" msgstr="DHCP Settings" />
+  <message msgid="treeapp routing" msgstr="Routing Settings" />
+  <message msgid="treeapp operation mode" msgstr="Operation Mode" />
+  <message msgid="treeapp wireless settings" msgstr="Wireless Settings" />
+  <message msgid="treeapp wireless basic" msgstr="Basic Settings" />
+  <message msgid="treeapp wireless advanced" msgstr="Admin Settings" />
+  <message msgid="treeapp wireless mssid" msgstr="MSSID" />
+  <message msgid="treeapp wireless security" msgstr="Security Settings" />
+  <message msgid="treeapp wireless wmm" msgstr="WMM" />
+  <message msgid="treeapp wireless wds" msgstr="WDS" />
+  <message msgid="treeapp wireless wps" msgstr="WPS" />
+  <message msgid="treeapp wireless station list" msgstr="Station List" />
+  <message msgid="treeapp wireless accessctrl" msgstr="Access Control" />
+  <message msgid="treeapp wireless kt radiusautosetup" msgstr="Radius Auto Setup" />
+  <message msgid="treeapp wireless webredirect" msgstr="Web Redirect" />
+  <message msgid="treeapp wireless rate limit" msgstr="Wireless Rate Limit" />
+  <message msgid="treeapp wireless rtlAdvanced" msgstr="Wireless RTL Advanced" />
+  <message msgid="treeapp tr069 settings" msgstr="TR-069" />
+  <message msgid="treeapp tr069 config" msgstr="TR-069 Config" />
+  <message msgid="treeapp tr069 vvip" msgstr="TR-069 VVIP" />
+  <message msgid="treeapp advanced settings" msgstr="Advanced Settings" />
+  <message msgid="treeapp nat settings" msgstr="NAT Settings" />
+  <message msgid="treeapp nat server settings" msgstr="Internal Server" />
+  <message msgid="treeapp nat forward settings" msgstr="Port Forward" />
+  <message msgid="treeapp nat alg settings" msgstr="ALG" />
+  <message msgid="treeapp nat vpn settings" msgstr="VPN" />
+  <message msgid="treeapp nat dmz settings" msgstr="DMZ/SuperDMZ" />
+  <message msgid="treeapp nat ra settings" msgstr="RA Settings" />
+  <message msgid="treeapp firewall settings" msgstr="Firewall Settings" />
+  <message msgid="treeapp acl settings" msgstr="Access List" />
+  <message msgid="treeapp dos settings" msgstr="DOS Attack" />
+  <message msgid="treeapp netkeep settings" msgstr="Network Access Settings" />
+  <message msgid="treeapp qos" msgstr="QOS" />
+  <message msgid="treeapp qos settings" msgstr="QOS Settings" />
+  <message msgid="treeapp qos policy" msgstr="QOS Policy" />
+  <message msgid="treeapp dns" msgstr="DNS" />
+  <message msgid="treeapp web" msgstr="Web Settings" />
+  <message msgid="treeapp provisioning" msgstr="Provisioning Settings" />
+  <message msgid="treeapp cpg code" msgstr="CPG CODE" />
+  <message msgid="treeapp igmp" msgstr="IGMP" />
+  <message msgid="treeapp igmp settings" msgstr="IGMP Settings" />
+  <message msgid="treeapp igmp info" msgstr="IGMP Info" />
+  <message msgid="treeapp voice settings" msgstr="Voice Settings" />
+  <message msgid="treeapp fax settings" msgstr="Fax Settings" />
+  <message msgid="treeapp volume settings" msgstr="Volume Settings" />
+  <message msgid="treeapp phonebook settings" msgstr="Phonebook Settings" />
+  <message msgid="treeapp restrict settings" msgstr="Restrict Settings" />
+  <message msgid="treeapp areacode settings" msgstr="Areacode Settings" />
+  <message msgid="treeapp voip settings" msgstr="VoIP" />
+  <message msgid="treeapp sip general" msgstr="SIP Basic Settings" />
+  <message msgid="treeapp sip phone" msgstr="SIP Phone Settings" />
+  <message msgid="treeapp sip auth" msgstr="SIP Auth" />
+  <message msgid="treeapp sip digitmap" msgstr="SIP Digitmap" />
+  <message msgid="treeapp sip timer" msgstr="SIP Timer" />
+  <message msgid="treeapp sip dsp" msgstr="SIP DSP Settings" />
+  <message msgid="treeapp system settings" msgstr="System Settings" />
+  <message msgid="treeapp upgrade settings" msgstr="Upgrade" />
+  <message msgid="treeapp manual upgrade" msgstr="Manual Upgrade" />
+  <message msgid="treeapp password settings" msgstr="Password Management" />
+  <message msgid="treeapp system management" msgstr="System Management" />
+  <message msgid="treeapp snmp settings" msgstr="SNMP Settings" />
+  <message msgid="treeapp provision settings" msgstr="Provision Management" />
+  <message msgid="treeapp logout" msgstr="Logout" />
+  
+  <message msgid="opmode title" msgstr="Operation Mode Configuration" />
+  <message msgid="opmode introduction" msgstr="You may configure the operation mode suitable for you environment." />
+  <message msgid="opmode mode b" msgstr="Bridge:" />
+  <message msgid="opmode mode b intro" msgstr="br0( Wireless + WAN Port + LAN Port)" />
+  <message msgid="opmode mode g" msgstr="Gateway:" />
+  <message msgid="opmode mode g intro" msgstr="WAN Port + br0(Wireless + LAN Port)" />
+  <message msgid="opmode mode a" msgstr="AP Client:" />
+  <message msgid="opmode mode a intro" msgstr=" WAN(AP Client) + br0(AP + LAN Port)" />
+  <message msgid="opmode nat" msgstr="NAT Enabled" />
+
+  <message msgid="login apply" msgstr="login" />
+  <message msgid="login userid" msgstr="ID :" />
+  <message msgid="login passwd" msgstr="Password :" />
+  <message msgid="login ipaddr" msgstr="IP Address " />
+  <message msgid="login dns" msgstr="DNS Server " />
+  <message msgid="login conntype" msgstr="Connection Type " />
+  <message msgid="login linksts" msgstr="Connection Status " />
+  <message msgid="login swver" msgstr="Software Version " />
+
+  <message msgid="treeapp ap scan" msgstr="AP SCAN" />
+  <message msgid="treeapp ap watchdog" msgstr="AP Watchdog" />
+  <message msgid="treeapp wol" msgstr="Wake On Lan" />
+
+  <message msgid="treeapp otv" msgstr="OTV Settings" />  
+</po>

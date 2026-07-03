@@ -1,0 +1,4 @@
+{
+	"config": "firewall",
+	"affects": [ "alemprator_firstboot" ]
+}

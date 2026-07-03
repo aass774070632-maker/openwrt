@@ -1,0 +1,8 @@
+Package: mcr-diag
+Version: 1
+Depends: libc, mcr-common, libmcr-leaf, libmcr-ixml, mcr-cfghandler, libmcr-mwl
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/apps/mcr-diag
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 7654
+Description:  Mercury diag-

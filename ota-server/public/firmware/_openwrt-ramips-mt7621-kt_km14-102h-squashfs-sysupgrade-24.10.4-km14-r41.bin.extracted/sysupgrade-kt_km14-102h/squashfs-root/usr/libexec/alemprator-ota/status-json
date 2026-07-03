@@ -1,0 +1,70 @@
+#!/bin/sh
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "$SCRIPT_DIR/common.sh"
+
+load_config
+load_state
+ensure_model_file
+ensure_token >/dev/null
+
+firstboot_enabled=false
+initial_setup_complete=false
+upgrade_allowed=true
+block_reason=""
+block_message=""
+
+if is_firstboot_enabled; then
+	firstboot_enabled=true
+fi
+
+if is_initial_setup_complete; then
+	initial_setup_complete=true
+fi
+
+if ! upgrade_allowed_now; then
+	upgrade_allowed=false
+	block_reason="$(get_upgrade_block_reason || true)"
+	block_message="$(get_upgrade_block_message "$block_reason" || true)"
+fi
+
+model="$(get_device_model)"
+board="$(get_board_name)"
+mac="$(get_primary_mac)"
+current_version="$(get_current_version)"
+token="$(ensure_token)"
+token_tail="$(printf '%s' "$token" | tail -c 13)"
+
+printf '{'
+printf '"status":"%s",' "$(json_escape "$status")"
+printf '"firstboot_enabled":%s,' "$firstboot_enabled"
+printf '"initial_setup_complete":%s,' "$initial_setup_complete"
+printf '"upgrade_allowed":%s,' "$upgrade_allowed"
+printf '"block_reason":"%s",' "$(json_escape "$block_reason")"
+printf '"block_message":"%s",' "$(json_escape "$block_message")"
+printf '"update_available":%s,' "$( [ "$update_available" = "1" ] && echo true || echo false )"
+printf '"latest_version":"%s",' "$(json_escape "$latest_version")"
+printf '"changelog":"%s",' "$(json_escape "$changelog")"
+printf '"last_error":"%s",' "$(json_escape "$last_error")"
+printf '"last_result":"%s",' "$(json_escape "$last_result")"
+printf '"last_check_epoch":%s,' "$(safe_int "$last_check_epoch" 0)"
+printf '"window_start_hour":%s,' "$(safe_int "$WINDOW_START" 2)"
+printf '"window_end_hour":%s,' "$(safe_int "$WINDOW_END" 6)"
+printf '"next_window_epoch":%s,' "$(safe_int "$(next_window_start_epoch)" 0)"
+printf '"retry_attempts":%s,' "$(safe_int "$retry_attempts" 0)"
+printf '"next_retry_epoch":%s,' "$(safe_int "$next_retry_epoch" 0)"
+printf '"download_bytes":%s,' "$(safe_int "$download_bytes" 0)"
+printf '"download_size_bytes":%s,' "$(safe_int "$download_size_bytes" 0)"
+printf '"download_percent":%s,' "$(safe_int "$download_percent" 0)"
+printf '"download_rate_bps":%s,' "$(safe_int "$download_rate_bps" 0)"
+printf '"download_eta_seconds":%s,' "$(safe_int "$download_eta_seconds" 0)"
+printf '"download_started_epoch":%s,' "$(safe_int "$download_started_epoch" 0)"
+printf '"download_updated_epoch":%s,' "$(safe_int "$download_updated_epoch" 0)"
+printf '"upgrade_started_epoch":%s,' "$(safe_int "$upgrade_started_epoch" 0)"
+printf '"upgrade_expected_seconds":%s,' "$(safe_int "$upgrade_expected_seconds" 0)"
+printf '"current_version":"%s",' "$(json_escape "$current_version")"
+printf '"model":"%s",' "$(json_escape "$model")"
+printf '"board":"%s",' "$(json_escape "$board")"
+printf '"mac":"%s",' "$(json_escape "$mac")"
+printf '"token_tail":"%s"' "$(json_escape "$token_tail")"
+printf '}\n'

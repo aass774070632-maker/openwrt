@@ -1,0 +1,13 @@
+Package: luci-app-bandix-plus
+Version: 0.1.0-r1
+Depends: libc, luci-base, luci-lib-jsonc, curl, bandix-plus
+Source: feeds/base/luci-app-bandix-plus
+SourceName: luci-app-bandix-plus
+License: Apache-2.0
+Section: luci
+SourceDateEpoch: 1778200540
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 215040
+Description:  LuCI Bandix Plus app for network traffic monitoring

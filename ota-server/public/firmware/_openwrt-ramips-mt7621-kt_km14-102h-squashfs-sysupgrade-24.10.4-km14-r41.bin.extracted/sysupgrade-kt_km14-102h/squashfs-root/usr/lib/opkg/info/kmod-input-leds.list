@@ -1,0 +1,3 @@
+/lib/modules/6.6.110/input-leds.ko
+/etc/modules-boot.d/50-input-leds
+/etc/modules.d/50-input-leds

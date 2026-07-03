@@ -1,0 +1,8 @@
+Package: luci-base
+Version: svn-r16-1
+Depends: libc, lua, libuci-lua, luci-lib-nixio, luci-lib-ip, rpcd, libubus-lua, luci-lib-jsonc
+Source: package/luci/modules/luci-base
+Section: luci
+Architecture: mipsel_24kc
+Installed-Size: 123592
+Description:  LuCI core libraries

@@ -1,0 +1,14 @@
+Package: mikrotik-btest
+Version: 0.5.1-r1
+Depends: libc, libpthread, librt
+Source: feeds/packages/net/mikrotik-btest
+SourceName: mikrotik_btest
+License: GPLv3
+LicenseFiles: COPYING
+Section: net
+SourceDateEpoch: 1760974184
+URL: https://github.com/kadosch/mikrotik_btest.git
+Maintainer: Roger Pueyo Centelles <roger.pueyo@guifi.net>
+Architecture: mipsel_24kc
+Installed-Size: 71680
+Description:  A bandwidth test client compatible with Mikrotik's RouterOS BTest server.

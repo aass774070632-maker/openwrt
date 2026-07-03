@@ -1,0 +1,52 @@
+#!/bin/sh
+primary_socket_path='/var/run/chilli_hotspot_openwrt.sock'
+secondary_socket_path='/var/run/chilli_hotspot_openwrt_secondary.sock'
+remote_addr="${REMOTE_ADDR:-}"
+
+# Get limit from Chilli (bps)
+get_limit() {
+	local col="$1"
+	local line socket_path
+	line="$(
+		for socket_path in "$primary_socket_path" "$secondary_socket_path"; do
+			[ -S "$socket_path" ] || continue
+			chilli_query -s "$socket_path" list 2>/dev/null | awk -v ip="$remote_addr" '$2 == ip { print; exit }'
+		done | sed -n '1p'
+	)"
+	[ -n "$line" ] || { echo 100000000; return; }
+	local val
+	val="$(echo "$line" | awk "{ print \$$col }" | sed 's/.*%//; s/\///; s/[^0-9]//g')"
+	[ -n "$val" ] && [ "$val" -gt 0 ] && echo "$val" || echo 100000000
+}
+
+if [ "$QUERY_STRING" = "down" ]; then
+	limit_down="$(get_limit 14)"
+	# Convert bps to KB/s
+	limit_kbps=$((limit_down / 8 / 1024))
+	[ "$limit_kbps" -gt 0 ] || limit_kbps=125 # Default 1Mbps
+	
+	printf 'Content-Type: application/octet-stream\r\nCache-Control: no-store\r\n\r\n'
+	
+	# Send 4MB total. Send in chunks of 'limit_kbps' and sleep 1s.
+	sent_kb=0
+	target_kb=4096
+	while [ $sent_kb -lt $target_kb ]; do
+		chunk=$limit_kbps
+		# Don't send more than 1MB at once to keep UI responsive
+		[ $chunk -gt 1024 ] && chunk=1024
+		
+		dd if=/dev/zero bs=1024 count=$chunk 2>/dev/null
+		sent_kb=$((sent_kb + chunk))
+		
+		# Only sleep if limit is active (less than 50Mbps)
+		[ "$limit_down" -lt 50000000 ] && sleep 1
+	done
+elif [ "$REQUEST_METHOD" = "POST" ]; then
+	# For Upload, we can't easily throttle the client's sending rate without decimals
+	# But the NFT shaper is now active and dropping packets, which will throttle TCP.
+	# We just consume the data.
+	cat > /dev/null
+	printf 'Content-Type: application/json\r\n\r\n{"ok":true}'
+else
+	printf 'Content-Type: application/json\r\n\r\n{"message":"Hotspot Intelligent Speedtest"}'
+fi

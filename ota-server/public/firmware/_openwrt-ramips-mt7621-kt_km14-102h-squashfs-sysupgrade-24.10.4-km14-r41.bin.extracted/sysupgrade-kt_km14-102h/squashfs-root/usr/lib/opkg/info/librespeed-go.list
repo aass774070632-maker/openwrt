@@ -1,0 +1,6 @@
+/usr/bin/librespeed-go
+/lib/upgrade/keep.d/librespeed-go
+/etc/init.d/librespeed-go
+/etc/librespeed-go/telemetry_postgresql.sql
+/etc/librespeed-go/telemetry_mysql.sql
+/etc/config/librespeed-go

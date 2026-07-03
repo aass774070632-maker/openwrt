@@ -1,0 +1,13 @@
+Package: kmod-mtd-rw
+Version: 6.6.110.2021.02.28~e8776739-r1
+Depends: kernel (=6.6.110~45abed69991e5f55c1a82ce65f14e560-r1)
+Source: feeds/packages/kernel/mtd-rw
+SourceName: mtd-rw
+License: GPL-2.0
+LicenseFiles: LICENSE
+Section: kernel
+SourceDateEpoch: 1760974184
+Maintainer: Joseph C. Lehner <joseph.c.lehner@gmail.com>
+Architecture: mipsel_24kc
+Installed-Size: 10240
+Description:  A kernel module that temporarily makes all MTD partitions writeable.

@@ -1,0 +1,240 @@
+#!/bin/sh
+
+# Do not re-apply factory defaults after sysupgrade with "keep settings".
+if [ -f /sysupgrade.tgz ] || [ -f /tmp/sysupgrade.tar ]; then
+	exit 0
+fi
+
+CFG="alemprator_firstboot"
+CONFIGURED_FLAG="/etc/configured"
+PENDING_FLAG="/etc/alemprator-firstboot-pending"
+BASELINE_FILE="/etc/alemprator-firstboot-baseline.md5"
+board_name="$(ubus call system board 2>/dev/null | jsonfilter -e '@.board_name' 2>/dev/null)"
+DEFAULT_SSID="ALemprator-KT-KM12-007H"
+DEFAULT_LAN_IPADDR="192.168.1.20"
+OTHER_DEFAULT_SSID="ALemprator-KT-KM14-102H"
+
+case "$board_name" in
+	kt,km14-102h)
+		DEFAULT_SSID="ALemprator-KT-KM14-102H"
+		OTHER_DEFAULT_SSID="ALemprator-KT-KM12-007H"
+		;;
+	kt,km15-103h)
+		DEFAULT_SSID="ALemprator-KT-KM15-103H"
+		OTHER_DEFAULT_SSID="ALemprator-KT-KM12-007H"
+		;;
+	kt,dv02-012h)
+		DEFAULT_SSID="ALemprator-KT-DV02-012H"
+		OTHER_DEFAULT_SSID="ALemprator-KT-AR07-102H"
+		;;
+	kt,ar07-102h)
+		DEFAULT_SSID="ALemprator-KT-AR07-102H"
+		OTHER_DEFAULT_SSID="ALemprator-KT-DV02-012H"
+		;;
+	kt,ar06-012h)
+		DEFAULT_SSID="ALemprator-KT-AR06-012H"
+		OTHER_DEFAULT_SSID="ALemprator-KT-AR07-102H"
+		;;
+	lg,gapd-7500)
+		DEFAULT_SSID="ALemprator-KT-LG-GAPD-7500"
+		OTHER_DEFAULT_SSID="ALemprator-KT-DV02-012H"
+		;;
+	kt,km12-007h|'')
+		;;
+esac
+DEFAULT_LAN_NETMASK="255.255.255.0"
+DEFAULT_SETUP_IPADDR="192.168.8.1"
+DEFAULT_SETUP_NETMASK="255.255.255.0"
+SETUP_NETWORK="alemprator_setup"
+SETUP_WIRELESS="alemprator_firstboot"
+SETUP_FIREWALL="alemprator_setup"
+is_configured=0
+configured_once="$(uci -q get ${CFG}.main.configured_once)"
+
+current_ssid="$(uci -q get setup.default.wifi_ssid)"
+current_mode="$(uci -q get setup.default.mode)"
+current_vlan="$(uci -q get setup.default.is_vlan)"
+initial_complete="$(uci -q get setup.default.initial_setup_complete)"
+saved_lan_ipaddr="$(uci -q get setup.default.lan_ipaddr)"
+saved_lan_netmask="$(uci -q get setup.default.lan_netmask)"
+
+[ -n "$saved_lan_ipaddr" ] || saved_lan_ipaddr="$DEFAULT_LAN_IPADDR"
+[ -n "$saved_lan_netmask" ] || saved_lan_netmask="$DEFAULT_LAN_NETMASK"
+[ "$saved_lan_ipaddr" = "192.168.1.1" ] && saved_lan_ipaddr="$DEFAULT_LAN_IPADDR"
+[ "$current_ssid" = "$OTHER_DEFAULT_SSID" ] && current_ssid="$DEFAULT_SSID"
+
+# On a clean flash (no sysupgrade.tgz on the filesystem) the /etc/config/setup
+# file may have been carried over by a previous sysupgrade run.  Clear the
+# fields that firstboot uses as "already configured" signals so they cannot
+# cause the setup network to be skipped on a true factory-reset.
+if [ ! -f /sysupgrade.tgz ] && [ ! -f /tmp/sysupgrade.tar ]; then
+	uci -q set setup.default.initial_setup_complete='0' 2>/dev/null || true
+	uci -q commit setup 2>/dev/null || true
+	initial_complete='0'
+	uci -q set ${CFG}.main.configured_once='0' 2>/dev/null || true
+	uci -q commit ${CFG} 2>/dev/null || true
+	configured_once='0'
+fi
+
+if [ "$configured_once" = "1" ]; then
+	is_configured=1
+elif [ -f "$CONFIGURED_FLAG" ] || [ "$initial_complete" = "1" ]; then
+	is_configured=1
+elif [ -n "$current_ssid" ] && [ "$current_ssid" != "$DEFAULT_SSID" ] && [ "$current_ssid" != "OpenWrt" ]; then
+	is_configured=1
+elif [ -n "$current_mode" ] && [ "$current_mode" != "ap" ]; then
+	is_configured=1
+elif [ "$current_vlan" = "1" ]; then
+	is_configured=1
+fi
+
+uci -q batch <<EOF >/dev/null
+	set ${CFG}.main=firstboot
+	set ${CFG}.main.enabled='$( [ "$is_configured" = 1 ] && printf 0 || printf 1 )'
+	set ${CFG}.main.configured_once='$( [ "$is_configured" = 1 ] && printf 1 || printf 0 )'
+	set ${CFG}.main.auto_cleanup_armed='0'
+	set ${CFG}.main.auto_cleanup_delay='15'
+	set ${CFG}.main.auto_cleanup_pending='0'
+	set ${CFG}.main.configured_flag='${CONFIGURED_FLAG}'
+	set ${CFG}.main.pending_flag='${PENDING_FLAG}'
+	set ${CFG}.main.lan_ipaddr='${saved_lan_ipaddr}'
+	set ${CFG}.main.lan_netmask='${saved_lan_netmask}'
+	set ${CFG}.main.setup_ipaddr='${DEFAULT_SETUP_IPADDR}'
+	set ${CFG}.main.setup_netmask='${DEFAULT_SETUP_NETMASK}'
+	set ${CFG}.main.start='100'
+	set ${CFG}.main.limit='50'
+	set ${CFG}.main.leasetime='1h'
+	set ${CFG}.main.network_section='${SETUP_NETWORK}'
+	set ${CFG}.main.dhcp_section='${SETUP_NETWORK}'
+	set ${CFG}.main.wireless_section='${SETUP_WIRELESS}'
+	set ${CFG}.main.firewall_section='${SETUP_FIREWALL}'
+	set ${CFG}.main.radio='radio0'
+	set ${CFG}.main.ssid='${DEFAULT_SSID}'
+	set ${CFG}.main.encryption='none'
+	commit ${CFG}
+EOF
+
+if [ "$is_configured" = 1 ]; then
+	rm -f "$PENDING_FLAG"
+	rm -f "$BASELINE_FILE"
+	# Even on sysupgrade/reconfigured devices, ensure DNS fallback servers are set
+	if ! uci -q get dhcp.@dnsmasq[0].server 2>/dev/null | grep -q '8.8.8.8'; then
+		uci -q delete dhcp.@dnsmasq[0].server 2>/dev/null || true
+		uci -q add_list dhcp.@dnsmasq[0].server='8.8.8.8'
+		uci -q add_list dhcp.@dnsmasq[0].server='1.1.1.1'
+		uci -q add_list dhcp.@dnsmasq[0].server='8.8.4.4'
+		uci -q set dhcp.@dnsmasq[0].noresolv='0'
+		uci commit dhcp
+	fi
+	/etc/init.d/alemprator-firstboot reload > /dev/null 2>&1 || true
+	exit 0
+fi
+
+# Clean firstboot: disable any leftover hotspot config so it does not
+# auto-activate before the admin has configured a RADIUS server.
+if uci -q get hotspot_openwrt.main > /dev/null 2>&1; then
+	uci -q set hotspot_openwrt.main.enabled='0'
+	uci -q set hotspot_openwrt.main.quick_setup_enabled='0'
+	uci -q set hotspot_openwrt.main.quick_runtime_dual_enabled='0'
+	uci -q commit hotspot_openwrt 2>/dev/null || true
+fi
+
+touch "$PENDING_FLAG"
+
+uci -q batch <<EOF >/dev/null
+	set network.${SETUP_NETWORK}=interface
+	set network.${SETUP_NETWORK}.proto='static'
+	set network.${SETUP_NETWORK}.ipaddr='${DEFAULT_SETUP_IPADDR}'
+	set network.${SETUP_NETWORK}.netmask='${DEFAULT_SETUP_NETMASK}'
+
+	set network.lan.proto='static'
+	set network.lan.ipaddr='${saved_lan_ipaddr}'
+	set network.lan.netmask='${saved_lan_netmask}'
+	delete network.lan.gateway
+	delete network.lan.ip6addr
+	delete network.lan.ip6gw
+	delete network.lan.ip6assign
+	delete network.lan.ip6hint
+	delete network.lan.ip6class
+	delete network.lan.delegate
+	delete network.lan.defaultroute
+
+	set dhcp.lan.ignore='1'
+	set dhcp.${SETUP_NETWORK}=dhcp
+	set dhcp.${SETUP_NETWORK}.interface='${SETUP_NETWORK}'
+	set dhcp.${SETUP_NETWORK}.start='100'
+	set dhcp.${SETUP_NETWORK}.limit='50'
+	set dhcp.${SETUP_NETWORK}.leasetime='1h'
+	delete dhcp.${SETUP_NETWORK}.ignore
+	add_list dhcp.@dnsmasq[0].server='8.8.8.8'
+	add_list dhcp.@dnsmasq[0].server='1.1.1.1'
+
+	set firewall.${SETUP_FIREWALL}=zone
+	set firewall.${SETUP_FIREWALL}.name='${SETUP_FIREWALL}'
+	set firewall.${SETUP_FIREWALL}.network='${SETUP_NETWORK}'
+	set firewall.${SETUP_FIREWALL}.input='ACCEPT'
+	set firewall.${SETUP_FIREWALL}.output='ACCEPT'
+	set firewall.${SETUP_FIREWALL}.forward='REJECT'
+
+	set wireless.${SETUP_WIRELESS}=wifi-iface
+	set wireless.${SETUP_WIRELESS}.device='radio0'
+	set wireless.${SETUP_WIRELESS}.mode='ap'
+	set wireless.${SETUP_WIRELESS}.ssid='${DEFAULT_SSID}'
+	set wireless.${SETUP_WIRELESS}.encryption='none'
+	set wireless.${SETUP_WIRELESS}.network='${SETUP_NETWORK}'
+	set wireless.${SETUP_WIRELESS}.disabled='0'
+	set wireless.${SETUP_WIRELESS}.isolate='1'
+	commit network
+	commit dhcp
+	commit firewall
+	commit wireless
+EOF
+
+for section in $(uci show wireless 2>/dev/null | sed -n "s/^wireless\.\([^.=]*\)=wifi-iface$/\1/p"); do
+	[ "$section" = "$SETUP_WIRELESS" ] && continue
+	uci -q set wireless.${section}.disabled='1'
+done
+
+uci -q commit wireless
+
+{
+	for config in network wireless dhcp firewall setup; do
+		[ -f "/etc/config/$config" ] || continue
+		md5sum "/etc/config/$config"
+	done
+} > "$BASELINE_FILE"
+
+uci -q set ${CFG}.main.auto_cleanup_armed='1'
+	uci -q commit ${CFG}
+	
+/etc/init.d/network reload >/dev/null 2>&1 || true
+/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+/etc/init.d/firewall restart >/dev/null 2>&1 || true
+wifi reload >/dev/null 2>&1 || true
+
+# ===== Captive Portal: إعداد إعادة توجيه uhttpd =====
+# عند الاتصال بشبكة الإعداد، يُحوّل الأجهزة لصفحة تسجيل الدخول
+uci -q batch <<PORTALEOF >/dev/null
+	set uhttpd.main.redirect_https='0'
+	add_list uhttpd.main.lua_prefix='/hotspot-detect.html=/www/captive-portal.html'
+PORTALEOF
+
+# إنشاء ملف redirect بسيط لـ Captive Portal detection endpoints
+mkdir -p /www
+cat > /www/hotspot-detect.html << 'HTMLEOF'
+<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY><script>window.location.replace('/captive-portal.html');</script></BODY></HTML>
+HTMLEOF
+
+# Android connectivity check (generate_204)
+cat > /www/generate_204 << 'HTMLEOF'
+<HTML><HEAD></HEAD><BODY><script>window.location.replace('/captive-portal.html');</script></BODY></HTML>
+HTMLEOF
+
+# Windows NCSI
+cat > /www/ncsi.txt << 'HTMLEOF'
+Microsoft NCSI
+HTMLEOF
+
+/etc/init.d/uhttpd reload >/dev/null 2>&1 || true
+
+exit 0

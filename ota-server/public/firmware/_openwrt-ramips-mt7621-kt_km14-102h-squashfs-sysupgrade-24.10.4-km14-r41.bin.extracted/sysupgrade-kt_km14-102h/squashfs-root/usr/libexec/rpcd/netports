@@ -1,0 +1,587 @@
+#!/usr/bin/env lua
+--
+-- Copyright (c) 2018-2019, Tano Systems. All Rights Reserved.
+-- Anton Kikin <a.kikin@tano-systems.com>
+--
+
+local json = require "luci.jsonc"
+local fs   = require "nixio.fs"
+
+local sysfs_net_root = "/sys/class/net"
+
+local function sysfs_net_read(ifname, file)
+	local v = nil
+	if fs.access(sysfs_net_root .. "/%s/%s" % {ifname, file}) then
+		v = fs.readfile(sysfs_net_root .. "/%s/%s" % {ifname, file})
+		if v then
+			v = v:gsub("\n", "")
+		end
+	end
+	return v or ''
+end
+
+local function sysfs_net_read_stats(ifname)
+	local s = {
+		tx_bytes   = tonumber(sysfs_net_read(ifname, "statistics/tx_bytes")) or 0,
+		tx_packets = tonumber(sysfs_net_read(ifname, "statistics/tx_packets")) or 0,
+		rx_bytes   = tonumber(sysfs_net_read(ifname, "statistics/rx_bytes")) or 0,
+		rx_packets = tonumber(sysfs_net_read(ifname, "statistics/rx_packets")) or 0,
+	}
+
+	return s
+end
+
+local function sysfs_net_read_bridge(ifname)
+	local b = { }
+
+	-- Bridge port number
+	b["port"] = tonumber(sysfs_net_read(ifname, "brport/port_no")) or 0
+
+	if b["port"] == 0 then
+		return nil
+	end
+
+	-- Get bridge system interface name
+	local b_path = fs.readlink(sysfs_net_root .. "/%s/brport/bridge" % ifname)
+	if b_path then
+		b["ifname"] = fs.basename(b_path)
+	end
+
+	return b
+end
+
+local function type_autodetect(ifname)
+	local matches = {
+		copper = { "^eth%d+", "^en%l%d+%l%d+", "^sw%d+p%d+", "^lan%d*$", "^wan%d*$" },
+		usb_rndis = { "^usb%d+" },
+		usb_stick = { "^wwan%d+", "^ww%l%d+%l%d+" },
+		ppp = { "^ppp%d+" },
+		tunnel = { "^tun%d+", "^tap%d+", "^wg%d+" },
+		wifi = { "^wlan%d+", "^wl%l%d+%l%d+", "^phy%d+%-ap%d+", "^phy%d+%-sta%d+" }
+	}
+
+	local i, t, m
+
+	for t, m in pairs(matches) do
+		for i in pairs(m) do
+			if ifname:match(m[i]) then
+				return t
+			end
+		end
+	end
+
+	-- default type is 'copper'
+	return "copper"
+end
+
+local function table_copy(t)
+	if t == nil then return nil end
+	local u = { }
+	for k, v in pairs(t) do u[k] = v end
+	return setmetatable(u, getmetatable(t))
+end
+
+local function list_values(value)
+	local values = {}
+
+	if value == nil then
+		return values
+	end
+
+	if type(value) == "table" then
+		for _, item in ipairs(value) do
+			if type(item) == "string" then
+				for word in item:gmatch("%S+") do
+					values[#values + 1] = word
+				end
+			end
+		end
+	elseif type(value) == "string" then
+		for word in value:gmatch("%S+") do
+			values[#values + 1] = word
+		end
+	end
+
+	return values
+end
+
+local function table_contains(values, needle)
+	for _, value in ipairs(values) do
+		if value == needle then
+			return true
+		end
+	end
+
+	return false
+end
+
+local function parse_flags(value)
+	if not value or value == "" then
+		return 0
+	end
+
+	if value:match("^0[xX]") then
+		return tonumber(value:sub(3), 16) or 0
+	end
+
+	return tonumber(value) or 0
+end
+
+local function json_decode(data)
+	local parse = json.new()
+	local done
+
+	if not data or data == "" then
+		return nil
+	end
+
+	done = parse:parse(data)
+
+	if not done then
+		return nil
+	end
+
+	return parse:get()
+end
+
+local function command_json(command)
+	local pipe = io.popen(command .. " 2>/dev/null")
+	local data
+
+	if not pipe then
+		return nil
+	end
+
+	data = pipe:read("*a")
+	pipe:close()
+
+	return json_decode(data)
+end
+
+local function command_lines(command)
+	local pipe = io.popen(command .. " 2>/dev/null")
+	local lines = {}
+
+	if not pipe then
+		return lines
+	end
+
+	for line in pipe:lines() do
+		if line and line ~= "" then
+			lines[#lines + 1] = line
+		end
+	end
+
+	pipe:close()
+	return lines
+end
+
+local function append_discovered_port(ports, seen, ifname, type)
+	if not ifname or ifname == "" or ifname == "lo" or seen[ifname] then
+		return
+	end
+
+	if not fs.access(sysfs_net_root .. "/%s/ifindex" % ifname) then
+		return
+	end
+
+	seen[ifname] = true
+	ports[#ports + 1] = {
+		[".name"] = ("discovered%d"):format(#ports + 1),
+		ifname = ifname,
+		type = type or "auto"
+	}
+end
+
+local function append_interface_device(ports, seen, ifname)
+	if not ifname or ifname == "" then
+		return
+	end
+
+	if fs.access(sysfs_net_root .. "/%s/bridge" % ifname) then
+		return
+	end
+
+	append_discovered_port(ports, seen, ifname)
+end
+
+local function is_likely_wired_port(ifname)
+	return ifname:match("^eth%d+") or
+		ifname:match("^en%l%d+%l%d+") or
+		ifname:match("^sw%d+p%d+") or
+		ifname:match("^lan%d*$") or
+		ifname:match("^wan%d*$")
+end
+
+local function discover_default_ports(uci)
+	local ports = {}
+	local seen = {}
+
+	uci:foreach("network", "device", function(section)
+		if section.type ~= "bridge" then
+			return true
+		end
+
+		for _, port in ipairs(list_values(section.ports)) do
+			append_discovered_port(ports, seen, port)
+		end
+	end)
+
+	uci:foreach("network", "interface", function(section)
+		for _, device in ipairs(list_values(section.device)) do
+			append_interface_device(ports, seen, device)
+		end
+
+		for _, ifname in ipairs(list_values(section.ifname)) do
+			append_interface_device(ports, seen, ifname)
+		end
+	end)
+
+	for _, ifname in ipairs(command_lines("jsonfilter -q -i /etc/board.json -e '@.network[*].device'")) do
+		append_discovered_port(ports, seen, ifname)
+	end
+
+	for _, ifname in ipairs(command_lines("jsonfilter -q -i /etc/board.json -e '@.network[*].ports[*]'")) do
+		append_discovered_port(ports, seen, ifname)
+	end
+
+	local wireless_status = command_json("ubus call network.wireless status")
+
+	if wireless_status then
+		for _, radio in pairs(wireless_status) do
+			if type(radio) == "table" and type(radio.interfaces) == "table" then
+				for _, iface in ipairs(radio.interfaces) do
+					append_discovered_port(ports, seen, iface.ifname, "wifi")
+				end
+			end
+		end
+	end
+
+	local sysfs_wired_fallback = (#ports == 0)
+
+	for _, ifname in ipairs(command_lines("ls -1 /sys/class/net")) do
+		if type_autodetect(ifname) == "wifi" then
+			append_discovered_port(ports, seen, ifname, "wifi")
+		elseif sysfs_wired_fallback and is_likely_wired_port(ifname) then
+			append_discovered_port(ports, seen, ifname)
+		end
+	end
+
+	return ports
+end
+
+local function build_network_maps(uci)
+	local netlist = {}
+	local brlist = {}
+	local zone_by_network = {}
+
+	uci:foreach("firewall", "zone", function(section)
+		for _, network in ipairs(list_values(section.network)) do
+			zone_by_network[network] = {
+				fwzone = section.name,
+				fwzone_sid = section[".name"]
+			}
+		end
+	end)
+
+	local function network_info(netname)
+		local info = { netname = netname }
+		local zone = zone_by_network[netname]
+
+		if zone then
+			info.fwzone = zone.fwzone
+			info.fwzone_sid = zone.fwzone_sid
+		end
+
+		return info
+	end
+
+	uci:foreach("network", "interface", function(section)
+		local netname = section[".name"]
+		local devices = list_values(section.device)
+
+		if #devices == 0 then
+			devices = list_values(section.ifname)
+		end
+
+		for _, device in ipairs(devices) do
+			local info = network_info(netname)
+
+			if fs.access(sysfs_net_root .. "/%s/bridge" % device) then
+				brlist[device] = info
+			else
+				netlist[device] = info
+			end
+		end
+	end)
+
+	uci:foreach("network", "device", function(section)
+		if section.type ~= "bridge" or not section.name then
+			return true
+		end
+
+		local bridge_info = brlist[section.name]
+
+		if not bridge_info then
+			return true
+		end
+
+		for _, port in ipairs(list_values(section.ports)) do
+			if not netlist[port] then
+				netlist[port] = table_copy(bridge_info)
+			end
+		end
+	end)
+
+	uci:foreach("wireless", "wifi-iface", function(section)
+		local ifname = section.ifname
+		local network = list_values(section.network)[1]
+
+		if ifname and network then
+			local info = network_info(network)
+			info.wifiname = section[".name"]
+			netlist[ifname] = info
+		end
+	end)
+
+	local wireless_status = command_json("ubus call network.wireless status")
+
+	if wireless_status then
+		for _, radio in pairs(wireless_status) do
+			if type(radio) == "table" and type(radio.interfaces) == "table" then
+				for _, iface in ipairs(radio.interfaces) do
+					local ifname = iface.ifname
+					local network
+
+					if type(iface.config) == "table" then
+						network = list_values(iface.config.network)[1]
+					end
+
+					if ifname and network then
+						local info = network_info(network)
+						info.wifiname = iface.section
+						netlist[ifname] = info
+					end
+				end
+			end
+		end
+	end
+
+	return netlist, brlist
+end
+
+local methods = {
+	getPortsInfo = {
+		call = function(args)
+			local uci  = require("luci.model.uci").cursor()
+
+			local bit = require("bit")
+
+			local ports = {
+				data = {},
+				count = 0
+			}
+
+			local netlist, brlist = build_network_maps(uci)
+			local configured_ifnames = {}
+			local disabled_ifnames = {}
+
+			local function add_port_section(section)
+				local configured_ifname = section["ifname"]
+
+				if not configured_ifname or configured_ifname == "" then
+					return true
+				end
+
+				configured_ifnames[configured_ifname] = true
+
+					if section["disable"] and (section["disable"] == "true"
+						or tonumber(section["disable"]) == 1) then
+						-- Disabled in config
+						disabled_ifnames[configured_ifname] = true
+						return true
+					end
+
+					if not fs.access("/sys/class/net/%s/ifindex" % section["ifname"]) then
+						-- Invalid or not existent interface name
+						return true
+					end
+
+					local new_port = { }
+					local ifname = section["ifname"]
+					local type   = section["type"]
+
+					local knowntypes = {
+						"auto",
+						"copper",
+						"fixed",
+						"usb", -- deprecated
+						"usb_stick",
+						"usb_rndis",
+						"usb_2g",
+						"usb_3g",
+						"usb_4g",
+						"usb_wifi",
+						"wifi",
+						"vpn",
+						"tunnel",
+						"ppp",
+						"gprs",
+						"sfp"
+					}
+
+					if not table_contains(knowntypes, type) then
+						type = "auto"
+					end
+
+					if type == "auto" then
+						type = type_autodetect(ifname)
+					elseif type == "usb" then
+						type = "usb_rndis"
+					elseif type == "usb_2g" or
+						   type == "usb_3g" or
+						   type == "usb_4g" then
+						type = "usb_stick"
+					elseif type == "usb_wifi" then
+						type = "wifi"
+					elseif type == "vpn" then
+						type = "tunnel"
+					end
+
+					-- Port config parameters
+					new_port["ifname"] = ifname
+					new_port["type"]   = type
+					new_port["name"]   = section["name"]
+
+					if not new_port["name"] or new_port["name"] == "" then
+						new_port["name"] = ifname
+					end
+
+					-- General port interface parameters
+					new_port["hwaddr"]  = sysfs_net_read(ifname, "address")
+					new_port["carrier"] = tonumber(sysfs_net_read(ifname, "carrier")) or 0
+
+					-- unknown, notpresent, down, lowerlayerdown, testing, dormant, up
+					new_port["operstate"] = sysfs_net_read(ifname, "operstate")
+
+					-- up or down
+					local flags = parse_flags(sysfs_net_read(ifname, "flags"))
+					if bit.band(flags, 1) == 1 then
+						new_port["adminstate"] = "up"
+					else
+						new_port["adminstate"] = "down"
+					end
+
+					if new_port["carrier"] > 0 then
+						-- full, half
+						new_port["duplex"] = sysfs_net_read(ifname, "duplex")
+
+						-- Value is an integer representing the link speed in Mbits/sec
+						new_port["speed"] = tonumber(sysfs_net_read(ifname, "speed")) or 0
+						if new_port["speed"] < 0 then
+							new_port["speed"] = 0
+						end
+					end
+
+					-- Port interface statistics
+					new_port["stats"] = sysfs_net_read_stats(ifname)
+
+					-- Bridge parameters
+					new_port["bridge"] = sysfs_net_read_bridge(ifname)
+
+					-- Parameters for/from netifd
+					new_port["ntm"] = table_copy(netlist[ifname])
+
+					if new_port["bridge"] then
+						new_port["ntm_bridge"] = table_copy(brlist[new_port["bridge"].ifname])
+					end
+
+					new_port["id"] = section[".name"]
+					ports.data[#ports.data + 1] = new_port
+					ports.count = ports.count + 1
+				end
+
+			uci:foreach("luci_netports", "port", add_port_section)
+
+			for _, section in ipairs(discover_default_ports(uci)) do
+				if not configured_ifnames[section.ifname] and not disabled_ifnames[section.ifname] then
+					add_port_section(section)
+				end
+			end
+
+			return ports
+		end
+	}
+}
+
+local function parseInput()
+	local parse = json.new()
+	local done, err
+
+	while true do
+		local chunk = io.read(4096)
+		if not chunk then
+			break
+		elseif not done and not err then
+			done, err = parse:parse(chunk)
+		end
+	end
+
+	if not done then
+		print(json.stringify({ error = err or "Incomplete input" }))
+		os.exit(1)
+	end
+
+	return parse:get()
+end
+
+local function validateArgs(func, uargs)
+	local method = methods[func]
+	if not method then
+		print(json.stringify({ error = "Method not found" }))
+		os.exit(1)
+	end
+
+	if type(uargs) ~= "table" then
+		print(json.stringify({ error = "Invalid arguments" }))
+		os.exit(1)
+	end
+
+	uargs.ubus_rpc_session = nil
+
+	local k, v
+	local margs = method.args or {}
+	for k, v in pairs(uargs) do
+		if margs[k] == nil or
+		   (v ~= nil and type(v) ~= type(margs[k]))
+		then
+			print(json.stringify({ error = "Invalid arguments" }))
+			os.exit(1)
+		end
+	end
+
+	return method
+end
+
+if arg[1] == "list" then
+	local _, method, rv = nil, nil, {}
+	for _, method in pairs(methods) do
+		rv[_] = method.args or {}
+	end
+	print((json.stringify(rv):gsub(":%[%]", ":{}")))
+elseif arg[1] == "call" then
+	local args = parseInput()
+	local method = validateArgs(arg[2], args)
+	local ok, result = pcall(method.call, args)
+	if not ok then
+			if type(syslog) == "function" then
+				syslog(tostring(result))
+			else
+				io.stderr:write(tostring(result), "\n")
+			end
+		print(json.stringify( { error = tostring(result) } ))
+		os.exit(1)
+	end
+	print((json.stringify(result):gsub("^%[%]$", "{}")))
+	os.exit(result.code or 0)
+end

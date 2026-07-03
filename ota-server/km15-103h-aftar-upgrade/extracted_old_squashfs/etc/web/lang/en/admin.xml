@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<po>
+  <message msgid="admin disable" msgstr="Disable" />
+  <message msgid="admin enable" msgstr="Enable" />
+  <message msgid="admin apply" msgstr="Apply" />
+  <message msgid="admin cancel" msgstr="Cancel" />
+  <message msgid="admin reset" msgstr="Reset" />
+  <message msgid="admin delete" msgstr="Delete" />
+
+  <message msgid="man title" msgstr="System Management" />
+  <message msgid="man introduction" msgstr="You may configure administrator account and password, NTP settings, and Dynamic DNS settings here." />
+  <message msgid="man language setting" msgstr="Language Settings" />
+  <message msgid="man select language" msgstr="Select Language" />
+  <message msgid="man admin setting" msgstr="Adminstrator Settings" />
+  <message msgid="man admin account" msgstr="Account" />
+  <message msgid="man admin passwd" msgstr="Password" />
+  <message msgid="man ntp setting" msgstr="NTP Settings" />
+  <message msgid="man ntp timezone" msgstr="Time Zone:" />
+  <message msgid="man ntp mid island" msgstr="(GMT-11:00) Midway Island, Samoa" />
+  <message msgid="man ntp hawaii" msgstr="(GMT-10:00) Hawaii" />
+  <message msgid="man ntp alaska" msgstr="(GMT-09:00) Alaska" />
+  <message msgid="man ntp pacific" msgstr="(GMT-08:00) Pacific Time" />
+  <message msgid="man ntp mountain" msgstr="(GMT-07:00) Mountain Time" />
+  <message msgid="man ntp arizona" msgstr="(GMT-07:00) Arizona" />
+  <message msgid="man ntp central" msgstr="(GMT-06:00) Central Time" />
+  <message msgid="man ntp mid us" msgstr="(GMT-06:00) Middle America" />
+  <message msgid="man ntp indiana east" msgstr="(GMT-05:00) Indiana East, Colombia" />
+  <message msgid="man ntp eastern" msgstr="(GMT-05:00) Eastern Time" />
+  <message msgid="man ntp atlantic" msgstr="(GMT-04:00) Atlantic Time, Brazil West" />
+  <message msgid="man ntp bolivia" msgstr="(GMT-04:00) Bolivia, Venezuela" />
+  <message msgid="man ntp guyana" msgstr="(GMT-03:00) Guyana" />
+  <message msgid="man ntp brazil east" msgstr="(GMT-03:00) Brazil East, Greenland" />
+  <message msgid="man ntp mid atlantic" msgstr="(GMT-02:00) Mid-Atlantic" />
+  <message msgid="man ntp azores islands" msgstr="(GMT-01:00) Azores Islands" />
+  <message msgid="man ntp gambia" msgstr="(GMT) Gambia, Liberia, Morocco" />
+  <message msgid="man ntp england" msgstr="(GMT) England" />
+  <message msgid="man ntp czech republic" msgstr="(GMT+01:00) Czech Republic, N" />
+  <message msgid="man ntp germany" msgstr="(GMT+01:00) Germany" />
+  <message msgid="man ntp tunisia" msgstr="(GMT+01:00) Tunisia" />
+  <message msgid="man ntp greece" msgstr="(GMT+02:00) Greece, Ukraine, Turkey" />
+  <message msgid="man ntp south africa" msgstr="(GMT+02:00) South Africa" />
+  <message msgid="man ntp iraq" msgstr="(GMT+03:00) Iraq, Jordan, Kuwait" />
+  <message msgid="man ntp moscow winter" msgstr="(GMT+03:00) Moscow Winter Time" />
+  <message msgid="man ntp armenia" msgstr="(GMT+04:00) Armenia" />
+  <message msgid="man ntp pakistan" msgstr="(GMT+05:00) Pakistan, Russia" />
+  <message msgid="man ntp bangladesh" msgstr="(GMT+06:00) Bangladesh, Russia" />
+  <message msgid="man ntp thailand" msgstr="(GMT+07:00) Thailand, Russia" />
+  <message msgid="man ntp chinacoast" msgstr="(GMT+08:00) China Coast, Hong Kong" />
+  <message msgid="man ntp taipei" msgstr="(GMT+08:00) Taipei" />
+  <message msgid="man ntp singapore" msgstr="(GMT+08:00) Singapore" />
+  <message msgid="man ntp australia wa" msgstr="(GMT+08:00) Australia (WA)" />
+  <message msgid="man ntp japan" msgstr="(GMT+09:00) Japan, Korea" />
+  <message msgid="man ntp korean" msgstr="(GMT+09:00) Korean" />
+  <message msgid="man ntp guam" msgstr="(GMT+10:00) Guam, Russia" />
+  <message msgid="man ntp australia qld" msgstr="(GMT+10:00) Australia (QLD, TAS,NSW,ACT,VIC)" />
+  <message msgid="man ntp solomon islands" msgstr="(GMT+11:00) Solomon Islands" />
+  <message msgid="man ntp fiji" msgstr="(GMT+12:00) Fiji" />
+  <message msgid="man ntp newzealand" msgstr="(GMT+12:00) New Zealand" />
+  <message msgid="man ntp server" msgstr="NTP Server" />
+  <message msgid="man ntp sync" msgstr="NTP synchronization(hours)" />
+  <message msgid="man ntp current time" msgstr="Current Time" />
+  <message msgid="man ntp sync with host" msgstr="Sync with host" />
+
+  <message msgid="man systemManagement resetprogress" msgstr="Now Restarting...." />
+
+  <message msgid="man ddns setting" msgstr="DDNS Settings" />
+  <message msgid="man ddns provider" msgstr="Dynamic DNS Provider" />
+  <message msgid="man ddns none" msgstr="None" />
+  <message msgid="man ddns account" msgstr="Account" />
+  <message msgid="man ddns passwd" msgstr="Password" />
+  <message msgid="man ddns" msgstr="DDNS" />
+
+  <message msgid="upload title" msgstr="Upgrade Firmware" />
+  <message msgid="upload introduction1" msgstr="Upgrade the Ralink SoC firmware to obtain new functionality. " />
+  <message msgid="upload introduction2" msgstr="It takes about 1 minute to upload &#160; upgrade flash and be patient please. Caution! A corrupted image will hang up the system." />
+  <message msgid="upload firmware" msgstr="Upgrade Firmware" />
+  <message msgid="upload firmware location" msgstr="Location:" />
+  <message msgid="upload bootloader" msgstr="Update Bootloader" />
+  <message msgid="upload bootloader location" msgstr="Location:" />
+  <message msgid="upload firmware from usb" msgstr="Upgrade firmware from USB" />
+  <message msgid="upload firmware force upgrade via mem" msgstr="Force upgrade firmware via mem " />
+  <message msgid="upload firmware force" msgstr="Force:" />
+
+  <message msgid="setman title" msgstr="Settings Management" />
+  <message msgid="setman introduction" msgstr="You might save system settings by exporting them to a configuration file, restore them by importing the file, or reset them to factory default." />
+  <message msgid="setman export setting" msgstr="Export Settings" />
+  <message msgid="setman export setting button" msgstr="Export Button" />
+  <message msgid="setman export setting export" msgstr="Export" />
+  <message msgid="setman import setting" msgstr="Import Settings" />
+  <message msgid="setman import setting file location" msgstr="Settings file location" />
+  <message msgid="setman import setting import" msgstr="Import" />
+  <message msgid="setman load factory default" msgstr="Load Factory Defaults" />
+  <message msgid="setman load factory default button" msgstr="Load Default Button" />
+  <message msgid="setman load default" msgstr="Load Default" />
+
+  <message msgid="status title" msgstr="Access Point Status" />
+  <message msgid="status introduction" msgstr="Let's take a look at the status of Ralink SoC Platform." />
+  <message msgid="status system information" msgstr="System Info" />
+  <message msgid="status sdk version" msgstr="SDK Version" />
+  <message msgid="status system time" msgstr="System Time" />
+  <message msgid="status system up time" msgstr="System Up Time" />
+  <message msgid="status system platform" msgstr="System Platform" />
+  <message msgid="status operate mode" msgstr="Operation Mode" />
+  <message msgid="status internet config" msgstr="Internet Configurations" />
+  <message msgid="status connect type" msgstr="Connected Type" />
+  <message msgid="status wan ipaddr" msgstr="WAN IP Address" />
+  <message msgid="status subnet mask" msgstr="Subnet Mask" />
+  <message msgid="status default gateway" msgstr="Default Gateway" />
+  <message msgid="status primary dns" msgstr="Primary Domain Name Server" />
+  <message msgid="status secondary dns" msgstr="Secondary Domain Name Server" />
+  <message msgid="status local network" msgstr="Local Network" />
+  <message msgid="status lan ipaddr" msgstr="Local IP Address" />
+  <message msgid="status local netmask" msgstr="Local Netmask" />
+  <message msgid="status mac" msgstr="MAC Address" />
+  <message msgid="status ethernet port status" msgstr="Ethernet Port Status" />
+
+  <message msgid="status wireless info" msgstr="Wireless Info" />
+  <message msgid="status wireless activity" msgstr="Wireless Activity" />
+  <message msgid="status wireless mode" msgstr="Mode" />
+  <message msgid="status wireless channel" msgstr="Channel" />
+  <message msgid="status wireless bssid" msgstr="BSSID" />
+
+  <message msgid="status usb info" msgstr="USB Information" />
+  <message msgid="status usb connect" msgstr="USB Connect" />
+
+  <message msgid="statistic title" msgstr="Statistic" />
+  <message msgid="statistic introduction" msgstr=" Take a look at the Ralink SoC statistics " />
+  <message msgid="statistic memory" msgstr="Memory" />
+  <message msgid="statistic memory total" msgstr="Memory total: " />
+  <message msgid="statistic memory left" msgstr="Memory left: " />
+  <message msgid="statistic wanlan" msgstr="WAN/LAN" />
+  <message msgid="statistic wan rx pkt" msgstr="WAN Rx packets: " />
+  <message msgid="statistic wan rx bytes" msgstr="WAN Rx bytes: " />
+  <message msgid="statistic wan tx pkt" msgstr="WAN Tx packets: " />
+  <message msgid="statistic wan tx bytes" msgstr="WAN Tx bytes: " />
+  <message msgid="statistic lan rx pkt" msgstr="LAN Rx packets: " />
+  <message msgid="statistic lan rx bytes" msgstr="LAN Rx bytes: " />
+  <message msgid="statistic lan tx pkt" msgstr="LAN Tx packets: " />
+  <message msgid="statistic lan tx bytes" msgstr="LAN Tx bytes: " />
+  <message msgid="statistic all interface" msgstr="All interfaces" />
+
+  <message msgid="syscommand title" msgstr="System Command" />
+  <message msgid="syscommand introduction" msgstr=" Run a system command as root: " />
+  <message msgid="syscommand system command" msgstr="System command " />
+  <message msgid="syscommand command" msgstr="Command:" />
+
+  <message msgid="syslog title" msgstr="System Log" />
+  <message msgid="syslog introduction" msgstr=" Syslog: " />
+  <message msgid="syslog system log" msgstr="System Log" />
+  <message msgid="syslog clear" msgstr="Clear" />
+  <message msgid="syslog refresh" msgstr="Refresh" />
+  <message msgid="syslog level" msgstr="level" />
+  <message msgid="syslog default" msgstr="default" />
+  <message msgid="syslog detail" msgstr="detail" />
+  <message msgid="syslog remoteip" msgstr="server" />
+  <message msgid="syslog remoteport" msgstr="port" />
+
+  <message msgid="adduser name" msgstr="User Name" />
+  <message msgid="adduser password" msgstr="Password" />
+  <message msgid="adduser verify" msgstr="Verify Password" />
+  <message msgid="adduser ftp" msgstr="Ftp Setup" />
+  <message msgid="adduser mullogins" msgstr="Multiple Logins Capability" />
+  <message msgid="adduser maxlogins" msgstr="Maximum Login" />
+  <message msgid="adduser download" msgstr="Download Capability" />
+  <message msgid="adduser upload" msgstr="Upload Capability" />
+  <message msgid="adduser overwrite" msgstr="Overwrite Capability" />
+  <message msgid="adduser erase" msgstr="Erase Capability" />
+  <message msgid="adduser smb" msgstr="Samba Setup" />
+  
+  <message msgid="passwd title" msgstr="Password" />  
+  <message msgid="passwd intro" msgstr="Change user password" />  
+  <message msgid="passwd subtitle" msgstr="User ID/Password Setting" />
+  <message msgid="passwd user" msgstr="User" />
+  <message msgid="passwd passwd" msgstr="Password" />
+  <message msgid="passwd verify" msgstr="Verify" />
+  <message msgid="passwd inuser" msgstr="Input User ID(admin, root, user)" />
+  <message msgid="passwd inpasswd" msgstr="Input Password" />
+  <message msgid="passwd mismatch" msgstr="Password Mismatched" />
+  <message msgid="passwd maxlength" msgstr="Max:30" />
+  <message msgid="passwd inprivilege" msgstr="Invalid Privilege" />
+  <message msgid="passwd notchange" msgstr="Can't change password" />
+
+  <message msgid="snmp activity" msgstr="SNMP Activity" />
+  <message msgid="snmp enable" msgstr="Enable" />
+  <message msgid="snmp disable" msgstr="Disable" />
+  <message msgid="snmp port" msgstr="SNMP PORT" />
+  <message msgid="snmp trap server" msgstr="TRAP Server" />
+  <message msgid="snmp trap ip" msgstr="IP" />
+  <message msgid="snmp trap name" msgstr="HOST" />
+  <message msgid="snmp trap port" msgstr="PORT" />
+  <message msgid="snmp community trap" msgstr="Community Trap" />
+  <message msgid="snmp community ro" msgstr="Community ReadOnly" />
+  <message msgid="snmp community rw" msgstr="Community ReadWrite" />
+  <message msgid="snmp community" msgstr="Community" />
+  <message msgid="snmp sys descr" msgstr="System Description" />
+  <message msgid="snmp sys objectid" msgstr="System ObjectID" />
+  <message msgid="snmp sys contact" msgstr="System Contact" />
+  <message msgid="snmp sys name" msgstr="System Name" />
+  <message msgid="snmp sys location" msgstr="System Location" />
+  <message msgid="snmp trap activity" msgstr="Activity" />
+  <message msgid="snmp trap community" msgstr="Community" />
+  <message msgid="snmp trap server name" msgstr="TRAP Server" />
+  <message msgid="snmp trap port" msgstr="Port" />
+  <message msgid="snmp community activity" msgstr="Activity" />
+  <message msgid="snmp community type" msgstr="Type" />
+  <message msgid="snmp community name" msgstr="Community" />
+
+  <message msgid="sysconfig title" msgstr="System Config Setting" />
+  <message msgid="sysconfig introduction" msgstr="Setting system config to mtd" />
+  <message msgid="sysconfig header" msgstr="System Config Setting" />
+  <message msgid="sysconfig mac" msgstr="WAN MAC Address" />
+  <message msgid="sysconfig pkg ver1" msgstr="PKG1 VERSION" />
+  <message msgid="sysconfig pkg ver2" msgstr="PKG2 VERSION" />
+  <message msgid="sysconfig serial" msgstr="Serial No" />
+
+  <message msgid="pmsd title" msgstr="Provision Management Setting" />
+  <message msgid="pmsd introduction" msgstr="Setting Provision Management" />
+  <message msgid="pmsd header" msgstr="Provision Management Setting" />
+  <message msgid="pmsd activity" msgstr="Activity" />
+  <message msgid="pmsd activity disable" msgstr="Disable" />
+  <message msgid="pmsd activity enable" msgstr="Enable" />
+  <message msgid="pmsd upgrade addr" msgstr="Upgrade Server Address" />
+  <message msgid="pmsd upgrade path" msgstr="Download Path Prefix" />
+  <message msgid="pmsd upgrade filename" msgstr="Download FileName" />
+  <message msgid="pmsd upgrade maxretry" msgstr="Max Retry Count" />
+  <message msgid="pmsd upgrade maxretry wait" msgstr="Max Retry Wait(ms)" />
+
+  <message msgid="kt apmonitor title" msgstr="AP SCAN"/>
+  <message msgid="kt apmonitor introduction" msgstr="   "/>
+  <message msgid="kt apmonitor headenable" msgstr="AP SCAN ENABLE"/>
+  <message msgid="kt apmonitor disable" msgstr="Disable" />
+  <message msgid="kt apmonitor enable" msgstr="Enable" />
+  <message msgid="kt apmonitor mode" msgstr="Mode" />
+  <message msgid="kt apmonitor channel" msgstr="Channel" />
+  <message msgid="kt apmonitor ssid" msgstr="SSID" />
+  <message msgid="kt apmonitor trap server" msgstr="Trap Server IP" />
+  <message msgid="kt apmonitor trap port" msgstr="Trap PORT" />
+  <message msgid="kt apmonitor trap community" msgstr="Trap Community" />
+  <message msgid="kt apmonitor period" msgstr="Period" />
+
+  <message msgid="kt wdt title" msgstr="System Watchdog" />
+  <message msgid="kt wdt introduction" msgstr="Set SYstem Watchdog." />
+  <message msgid="kt wdt_rst title" msgstr="Restart" />
+  <message msgid="kt wdt_rst enable" msgstr="Enable" />
+  <message msgid="kt wdt_rst period" msgstr="Period Restart(1~120day)" />
+  <message msgid="kt wdt_mem title" msgstr="Memory" />
+  <message msgid="kt wdt_mem usage" msgstr="Usage(%)" />
+  <message msgid="kt wdt_mem enable" msgstr="Enable" />
+  <message msgid="kt wdt_mem period" msgstr="Watchdog Period(1~1440min)" />
+  <message msgid="kt wdt_mem threshold" msgstr="Threshold(80%~99%)" />
+  
+  <message msgid="watchdog title" msgstr="Watchdog" />
+  <message msgid="watchdog introduction" msgstr="Configuration Watchdog Test" />
+  <message msgid="watchdog mmi" msgstr="MMI Watchdog Test" />
+  <message msgid="watchdog sip" msgstr="VOIP Watchdog Test" />
+  <message msgid="watchdog wdt" msgstr="Watchdog Test" />
+
+  <message msgid="wol Htitle" msgstr="Wake On Lan" />
+  <message msgid="wol introduce" msgstr="Wake an PC linked LAN" />
+  <message msgid="wol title" msgstr="Wake On Lan" />
+  <message msgid="wol list title" msgstr="Macaddress List" />
+  <message msgid="wol list select" msgstr="Select" />
+  <message msgid="wol list none" msgstr="None Register Mac Address" />
+
+  <!-- OTV -->
+  <message msgid="otv title" msgstr="OTV set" />
+  <message msgid="otv introduction" msgstr="OTV Configuration" />
+  <message msgid="otv header" msgstr="OTV Configuration" />  
+  
+  <message msgid="otv startup" msgstr="enable" />
+  <message msgid="otv priority" msgstr="priority" />
+  <message msgid="otv thread" msgstr="Thread Enable" />
+  <message msgid="otv tcpnodelay" msgstr="TCP_NODELAY Set" />
+  <message msgid="otv max tcp send size" msgstr="Max TCP Write Size" />
+  <message msgid="otv max udp recvbuf size" msgstr="MAX UDP Recv Buf Size(SO_RCVBUF)" />
+  <message msgid="otv max tcp sendbuf size" msgstr="MAX TCP Send Buf Size(SO_SNDBUF)" />
+  <message msgid="otv idletimeout" msgstr="HP/HLS: Idle Timeout" />
+  <message msgid="otv idletimeoutcas" msgstr="CAS: Idle Timeout" />
+  <message msgid="otv idletimeoutigmp" msgstr="IGMP: Idle Timeout" />
+  <message msgid="otv mediachecktimeout" msgstr="HP/HLS: Media Check Timeout(ms)" />
+  <message msgid="otv mediachecktimeoutCAS" msgstr="CAS: Media Check Timeout(ms)" />
+  <message msgid="otv httplisten" msgstr="HTTP Listen Port" />
+  <message msgid="otv igmprtlisten" msgstr="IGMP Listen Port" />
+  <message msgid="otv otvlisten" msgstr="OTV Listen Port" />
+  <message msgid="otv max cas count" msgstr="CAS: Max CAS Count" />
+  <message msgid="otv max session count" msgstr="HP/HLS: Max Session Count" />
+  <message msgid="otv max igmp count" msgstr="IGMP: Max IGMP Count" />
+  <message msgid="otv hls maxbuf count" msgstr="HLS: Max BUF Count" />
+  <message msgid="otv hls maxbuf time" msgstr="HLS: Max BUF Time" />
+  <message msgid="otv hls removedelayenable" msgstr="HLS: Remove Delay Enable" />
+  <message msgid="otv hls testmode" msgstr="HLS: Test Mode" />
+  <message msgid="otv hp maxbuf time" msgstr="HP: Max BUF Time" />
+  <message msgid="otv hp reversebuf time" msgstr="HP: Reverse BUF Time" />
+  <message msgid="otv hp mediasenddelay size" msgstr="HP: Media Delay Size" />
+  <!-- OTV -->
+
+</po>

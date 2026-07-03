@@ -1,0 +1,117 @@
+/* ALEMPRATOR KM14 Shared CSS - Platinum/Gold Theme */
+
+/* Hotspot Interface Styles */
+.hotspot-openwrt-shell{max-width:1250px;margin:0 auto;display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:20px;align-items:start;padding:10px}
+@media(max-width:980px){.hotspot-openwrt-shell{grid-template-columns:1fr}}
+.hotspot-card{border:1px solid rgba(212,175,55,0.2);border-radius:20px;background:#0c0c0c;padding:24px;box-shadow:0 15px 40px rgba(0,0,0,0.6);color:#fff}
+.hotspot-hero{background:radial-gradient(circle at top, #1a1a1a 0%, #000 100%);border:1px solid #D4AF37;text-align:center;padding:35px}
+.hotspot-hero h2{margin:0;font-size:32px;font-weight:950;color:#D4AF37;letter-spacing:4px;text-shadow:0 0 20px rgba(212,175,55,0.3)}
+.hotspot-hero p{margin:15px 0 0;color:rgba(255,255,255,0.7);line-height:1.8;font-size:0.95rem}
+.hotspot-status-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:20px}
+.hotspot-status-item{border:1px solid rgba(255,255,255,0.05);background:rgba(255,255,255,0.02);border-radius:15px;padding:12px 15px;transition:0.3s}
+.hotspot-status-item:hover{background:rgba(212,175,55,0.05);border-color:rgba(212,175,55,0.2)}
+.hotspot-status-item span{display:block;color:rgba(255,255,255,0.4);font-size:0.75rem;margin-bottom:4px;font-weight:bold}
+.hotspot-status-item strong{display:block;color:#D4AF37;word-break:break-word;font-size:0.95rem}
+.hotspot-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:25px 0;justify-content:center}
+.hotspot-tab{border:1px solid rgba(212,175,55,0.15);background:rgba(212,175,55,0.02);border-radius:15px;padding:12px 20px;cursor:pointer;font-weight:900;color:#fff;transition:0.4s}
+.hotspot-tab:hover{background:rgba(212,175,55,0.1);transform:translateY(-2px)}
+.hotspot-tab.is-active{background:#D4AF37;color:#000;border-color:#D4AF37;box-shadow:0 0 20px rgba(212,175,55,0.3)}
+.hotspot-panel{display:none;animation:fadeIn 0.4s ease-out}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.hotspot-panel.is-active{display:block}
+.hotspot-field{display:grid;grid-template-columns:minmax(180px,260px) minmax(0,1fr);gap:15px;padding:18px 0;border-top:1px solid rgba(255,255,255,0.05)}
+.hotspot-field:first-child{border-top:0}
+@media(max-width:640px){.hotspot-field{grid-template-columns:1fr}}
+.hotspot-field label{font-weight:900;color:#D4AF37;font-size:1rem}
+.hotspot-field small{display:block;margin-top:6px;color:rgba(255,255,255,0.4);line-height:1.6;font-size:0.85rem}
+.hotspot-field input,.hotspot-field textarea,.hotspot-field select{width:100%;max-width:480px;box-sizing:border-box;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px 15px;background:#151515;color:#fff;transition:0.3s}
+.hotspot-field input:focus,.hotspot-field select:focus{border-color:#D4AF37;outline:none;background:#202020}
+.hotspot-field textarea{min-height:130px;font-family:monospace;direction:ltr}
+.hotspot-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px}
+.hotspot-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end;margin-top:25px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.05)}
+.hotspot-note{border:1px solid rgba(212,175,55,0.3);background:rgba(212,175,55,0.05);color:#D4AF37;border-radius:15px;padding:15px;line-height:1.8;margin-top:20px;font-size:0.9rem}
+.hotspot-table{width:100%;border-collapse:separate;border-spacing:0 8px;margin-top:15px}
+.hotspot-table th{background:transparent;color:rgba(255,255,255,0.4);padding:12px 15px;text-align:right;font-size:0.8rem;text-transform:uppercase;letter-spacing:1px}
+.hotspot-table td{background:#151515;border-top:1px solid rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.05);padding:15px;color:#fff}
+.hotspot-table td:first-child{border-left:1px solid rgba(255,255,255,0.05);border-top-left-radius:12px;border-bottom-left-radius:12px}
+.hotspot-table td:last-child{border-right:1px solid rgba(255,255,255,0.05);border-top-right-radius:12px;border-bottom-right-radius:12px}
+.hotspot-badge{display:inline-flex;align-items:center;justify-content:center;padding:4px 12px;border-radius:8px;background:rgba(212,175,55,0.1);color:#D4AF37;font-weight:900;font-size:0.8rem}
+.hotspot-empty{border:2px dashed rgba(212,175,55,0.2);border-radius:20px;padding:40px;text-align:center;color:rgba(255,255,255,0.3);font-size:1.1rem}
+.btn{border-radius:12px;padding:10px 20px;font-weight:bold;cursor:pointer;transition:0.3s;border:none}
+.cbi-button-action{background:#D4AF37;color:#000}
+.cbi-button-action:hover{background:#9a7b1b;transform:scale(1.05)}
+.cbi-button-remove{background:rgba(255,0,0,0.1);color:#ff4444;border:1px solid rgba(255,0,0,0.2)}
+#hotspot-openwrt-active-hosts > div:first-child { display: none !important }
+
+/* Setup Wizard Styles */
+body.alemprator-setup-body { background: #050505 !important; color: #fff !important; font-family: "Segoe UI", "Cairo", sans-serif !important; }
+.alemprator-setup-body #maincontent { background: #050505 !important; min-height: 100vh; padding-top: 10px !important; }
+.alemprator-setup-body header { background: #000 !important; border-bottom: 3px solid #D4AF37 !important; padding: 15px 0 !important; display: block !important; box-shadow: 0 5px 20px rgba(212,175,55,0.4) !important; }
+.alemprator-setup-body #topmenu { background: #0a0a0a !important; border-bottom: 1px solid rgba(212,175,55,0.2) !important; display: flex !important; visibility: visible !important; }
+.alemprator-setup-body #topmenu .nav > li > a { color: #fff !important; font-weight: bold !important; text-transform: uppercase; letter-spacing: 1px; }
+.alemprator-setup-body #topmenu .nav > li.active > a, .alemprator-setup-body #topmenu .nav > li > a:hover { color: #D4AF37 !important; background: rgba(212,175,55,0.15) !important; text-shadow: 0 0 10px rgba(212,175,55,0.5); }
+.alemprator-setup-body .nav { background: #050505 !important; display: flex !important; }
+.alemprator-setup-body .nav .side-nav { background: #050505 !important; border-right: 1px solid rgba(212,175,55,0.15) !important; display: block !important; }
+.alemprator-setup-body .cbi-map { background: transparent !important; border:none !important; }
+
+/* Progress Bar */
+.alemprator-progress-container { position: absolute; top: 0; left: 0; width: 100%; height: 6px; background: rgba(212,175,55,0.1); overflow: hidden; border-radius: 30px 30px 0 0; z-index: 100; }
+.alemprator-progress-fill { height: 100%; background: linear-gradient(90deg, #D4AF37, #ffd700, #D4AF37); background-size: 200% 100%; animation: gold-flow 3s linear infinite; box-shadow: 0 0 20px #D4AF37; transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); width: 0%; }
+@keyframes gold-flow { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+
+.alemprator-setup-wizard { position: relative; max-width: 1050px !important; margin: 50px auto !important; background: #0c0c0c !important; border: 2px solid rgba(212,175,55,0.3) !important; border-radius: 40px !important; box-shadow: 0 50px 150px rgba(0,0,0,1) !important; padding: 80px 60px 60px 60px !important; overflow: hidden; transition: 0.5s; background-image: radial-gradient(circle at top right, rgba(212,175,55,0.05), transparent 400px); }
+
+/* Step Header */
+.alemprator-step-title { color: #D4AF37 !important; font-size: 2.2rem !important; font-weight: 950 !important; margin-bottom: 50px !important; border-right: 12px solid #D4AF37 !important; padding-right: 30px !important; letter-spacing: 3px !important; display: block !important; text-shadow: 0 0 30px rgba(212,175,55,0.4) !important; text-transform: uppercase; }
+
+/* Step Chips */
+.alemprator-step-nav { display: flex; justify-content: center; gap: 15px; margin-bottom: 60px; perspective: 1000px; flex-wrap: wrap; }
+.alemprator-step-chip { background: #111; border: 1px solid rgba(212,175,55,0.2); border-radius: 50px; padding: 10px 25px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.alemprator-step-chip.is-active { background: #D4AF37; border-color: #ffd700; transform: scale(1.1) translateZ(20px); box-shadow: 0 10px 30px rgba(212,175,55,0.4); }
+.alemprator-step-chip.is-active .alemprator-step-label { color: #000; }
+.alemprator-step-chip.is-active .alemprator-step-index { background: #000; color: #D4AF37; }
+.alemprator-step-chip.is-complete { border-color: #D4AF37; background: rgba(212,175,55,0.05); }
+.alemprator-step-chip.is-skipped { opacity: 0.4; pointer-events: none; transform: scale(0.9); filter: grayscale(1); }
+.alemprator-step-index { width: 32px; height: 32px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; color: #D4AF37; font-size: 0.9rem; border: 1px solid rgba(212,175,55,0.3); }
+.alemprator-step-label { color: #aaa; font-weight: 700; font-size: 0.9rem; }
+
+/* Luxury Logo Overlay */
+.alemprator-luxury-logo { position: absolute; transform: rotate(-45deg); top: 30px; left: -80px; background: linear-gradient(90deg, transparent, #D4AF37, transparent); width: 350px; text-align: center; padding: 10px 0; box-shadow: 0 0 30px rgba(0,0,0,0.5); z-index: 500; pointer-events: none; border-top: 1px solid rgba(255,255,255,0.3); border-bottom: 1px solid rgba(255,255,255,0.3); }
+.luxury-text { color: #000; font-weight: 950; letter-spacing: 5px; font-size: 1.1rem; }
+.luxury-subtext { color: #000; font-size: 0.6rem; font-weight: 900; margin-top: -3px; letter-spacing: 2px; }
+
+/* Mode Cards */
+.alemprator-mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 25px; margin: 40px 0; }
+.alemprator-mode-card { background: linear-gradient(145deg, #1a1a1a, #0d0d0d); border: 1px solid rgba(212,175,55,0.1); border-radius: 25px; padding: 35px 25px; cursor: pointer; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); text-align: center; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 180px; }
+.alemprator-mode-card:hover { background: rgba(212,175,55,0.12); border-color: rgba(212,175,55,0.6); transform: translateY(-12px); box-shadow: 0 25px 50px rgba(0,0,0,0.6), 0 0 20px rgba(212,175,55,0.2); }
+.alemprator-mode-card.is-active { background: linear-gradient(145deg, rgba(212,175,55,0.2), rgba(0,0,0,0.8)); border-color: #D4AF37; box-shadow: 0 0 40px rgba(212,175,55,0.35); border-width: 3px; }
+.alemprator-mode-card__icon { font-size: 3.5rem; margin-bottom: 15px; transition: 0.4s; filter: drop-shadow(0 0 15px rgba(0,0,0,0.8)); }
+.alemprator-mode-card:hover .alemprator-mode-card__icon { transform: scale(1.15) rotate(5deg); filter: drop-shadow(0 0 20px rgba(212,175,55,0.5)); }
+.alemprator-mode-card__title { color: #fff; font-weight: 900; font-size: 1.2rem; letter-spacing: 1px; }
+.alemprator-mode-card__desc { color: #888; font-size: 0.85rem; margin-top: 10px; line-height: 1.4; transition: 0.3s; }
+.alemprator-mode-card.is-active .alemprator-mode-card__title { color: #D4AF37; text-shadow: 0 0 10px rgba(212,175,55,0.4); }
+.alemprator-mode-card.is-active .alemprator-mode-card__desc { color: rgba(212,175,55,0.8); }
+
+/* Inputs & Labels */
+.alemprator-setup-body .cbi-value-title { color: #aaa !important; font-weight: 700 !important; font-size: 1.1rem !important; margin-bottom: 8px !important; }
+.alemprator-setup-body .cbi-input-text, .alemprator-setup-body .cbi-input-select { background: #151515 !important; border: 1px solid #333 !important; border-radius: 12px !important; color: #fff !important; padding: 10px 15px !important; font-size: 1rem !important; transition: 0.3s !important; min-width: 200px !important; height: auto !important; }
+.alemprator-setup-body .cbi-input-select option { background: #151515; color: #fff; }
+.alemprator-setup-body .cbi-input-text:focus, .alemprator-setup-body .cbi-input-select:focus { border-color: #D4AF37 !important; box-shadow: 0 0 15px rgba(212,175,55,0.2) !important; outline: none !important; }
+
+/* Review Card */
+.alemprator-review-card { background: #080808; border: 1px solid rgba(212,175,55,0.25); border-radius: 30px; padding: 45px; margin-top: 35px; box-shadow: inset 0 0 30px rgba(0,0,0,0.7); }
+.alemprator-review-item { display: flex; justify-content: space-between; padding: 20px 0; border-bottom: 1px solid rgba(212,175,55,0.1); align-items: center; transition: 0.3s; }
+.alemprator-review-item:hover { background: rgba(212,175,55,0.03); padding-left: 10px; padding-right: 10px; border-radius: 10px; }
+.alemprator-review-label { color: #888; font-size: 1.05rem; font-weight: 500; }
+.alemprator-review-value { color: #D4AF37; font-weight: 950; font-size: 1.3rem; text-shadow: 0 0 15px rgba(212,175,55,0.3); }
+
+/* Luxury Buttons */
+.cbi-button-save.is-luxury { height: 75px !important; width: 100%; border-radius: 25px !important; font-size: 1.5rem !important; font-weight: 950 !important; background: linear-gradient(135deg, #D4AF37 0%, #8c7314 100%) !important; color: #000 !important; border: none !important; margin-top: 40px !important; letter-spacing: 5px !important; text-shadow: none !important; cursor: pointer; transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: 0 20px 50px rgba(212,175,55,0.3) !important; text-transform: uppercase; }
+.cbi-button-save.is-luxury:hover { transform: translateY(-7px) scale(1.02); background: linear-gradient(135deg, #ffd700 0%, #D4AF37 100%) !important; box-shadow: 0 30px 70px rgba(212,175,55,0.5) !important; }
+.cbi-button-save.is-luxury:active { transform: translateY(-2px); }
+.cbi-button-neutral { border-radius: 18px !important; padding: 12px 35px !important; background: #222 !important; color: #888 !important; border: 1px solid #444 !important; font-weight: 700 !important; transition: 0.3s !important; }
+.cbi-button-neutral:hover { color: #fff; border-color: #666 !important; background: #333 !important; }
+.alemprator-setup-actions { display: flex; justify-content: space-between; gap: 30px; margin-top: 50px; padding: 30px; background: rgba(212,175,55,0.05); border-radius: 30px; border: 1px solid rgba(212,175,55,0.15); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+
+.alemprator-setup-body footer,
+.alemprator-setup-body .alert-message { display: none !important; }

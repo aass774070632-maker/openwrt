@@ -1,0 +1,8 @@
+Package: mcr-ntpclient
+Version: 1
+Depends: libc
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/apps/mcr-ntpclient
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 8160
+Description:  Mercury ntpclient-

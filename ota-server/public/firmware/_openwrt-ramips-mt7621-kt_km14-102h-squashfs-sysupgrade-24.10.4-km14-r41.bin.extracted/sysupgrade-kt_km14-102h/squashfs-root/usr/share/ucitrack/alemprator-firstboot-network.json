@@ -1,0 +1,4 @@
+{
+	"config": "network",
+	"affects": [ "alemprator_firstboot" ]
+}

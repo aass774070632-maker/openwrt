@@ -40,8 +40,20 @@ valid_client_ip() {
 
 associated_macs() {
 	if command -v iw >/dev/null 2>&1; then
-		for iface in $(iw dev 2>/dev/null | awk '/Interface/ { iface=$2 } /type AP/ { print iface }'); do
+		# البحث في جميع الواجهات اللاسلكية المتوفرة في النظام
+		for wlan in /sys/class/net/wlan* /sys/class/net/ath* /sys/class/net/wl*; do
+			local iface
+			iface="$(basename "$wlan")"
+			[ -d "$wlan" ] || continue
 			iw dev "$iface" station dump 2>/dev/null | awk '/^Station / { print $2 }'
+		done
+	fi
+	# فحص جدول الـ Bridge كاحتياط للأجهزة المتصلة سلكياً أو لاسلكياً
+	if command -v brctl >/dev/null 2>&1; then
+		for br in br-hotspot br-hotspot2; do
+			if [ -d "/sys/class/net/$br" ]; then
+				brctl showmacs "$br" 2>/dev/null | awk 'NR > 1 && $3 == "no" { print $4 }'
+			fi
 		done
 	fi
 }

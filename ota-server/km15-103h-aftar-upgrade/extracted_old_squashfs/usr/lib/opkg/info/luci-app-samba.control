@@ -1,0 +1,8 @@
+Package: luci-app-samba
+Version: svn-r16-1
+Depends: libc, samba4-server
+Source: package/luci/applications/luci-app-samba
+Section: luci
+Architecture: all
+Installed-Size: 1351
+Description:  Network Shares - Samba SMB/CIFS module

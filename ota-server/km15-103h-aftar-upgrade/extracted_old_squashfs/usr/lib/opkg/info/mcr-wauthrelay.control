@@ -1,0 +1,8 @@
+Package: mcr-wauthrelay
+Version: 1
+Depends: libc, mcr-common, libmcr-leaf, mcr-cfghandler
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/apps/mcr-wauthrelay
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 4471
+Description:  Mercury wauthrelay-

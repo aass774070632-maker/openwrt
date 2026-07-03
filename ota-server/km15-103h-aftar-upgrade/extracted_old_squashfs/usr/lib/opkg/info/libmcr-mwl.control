@@ -1,0 +1,8 @@
+Package: libmcr-mwl
+Version: 1
+Depends: libc, mcr-common
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/libs/libmcr-mwl
+Section: libraries
+Architecture: mipsel_24kc
+Installed-Size: 58380
+Description:  Mercury wireless utility library

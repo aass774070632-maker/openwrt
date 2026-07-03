@@ -1,0 +1,8 @@
+Package: mcr-inadyn-kt
+Version: 1.99.15
+Depends: libc, mcr-common, libmcr-leaf, mcr-cfghandler, libcares
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/apps/mcr-inadyn-kt
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 27586
+Description:  Mercury inadyn-

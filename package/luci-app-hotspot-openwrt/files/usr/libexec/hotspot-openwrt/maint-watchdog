@@ -1,0 +1,98 @@
+#!/bin/sh
+
+# ALEMPRATOR Maintenance Watchdog
+# Automatically authorizes all users during maintenance window
+
+PRIMARY_SOCKET='/var/run/chilli_hotspot_openwrt.sock'
+SECONDARY_SOCKET='/var/run/chilli_hotspot_openwrt_secondary.sock'
+
+get_current_minutes() {
+    local h="${1%:*}"
+    local m="${1#*:}"
+    h="${h#0}"
+    h="${h:-0}"
+    m="${m#0}"
+    m="${m:-0}"
+    echo "$((h * 60 + m))"
+}
+
+is_in_window() {
+    local now_str="$1"
+    local start_str="$2"
+    local end_str="$3"
+    
+    local now=$(get_current_minutes "$now_str")
+    local start=$(get_current_minutes "$start_str")
+    local end=$(get_current_minutes "$end_str")
+    
+    if [ "$start" -le "$end" ]; then
+        # Normal range (e.g., 02:00 to 03:00)
+        [ "$now" -ge "$start" ] && [ "$now" -lt "$end" ]
+    else
+        # Overnight range (e.g., 23:00 to 02:00)
+        [ "$now" -ge "$start" ] || [ "$now" -lt "$end" ]
+    fi
+}
+
+authorize_clients() {
+    local socket="$1"
+    [ -S "$socket" ] || return
+    
+    chilli_query -s "$socket" list | while read mac ip state session_id flags username rest; do
+        if [ "$state" = "dnet" ] || [ "$state" = "dnat" ] || [ "$state" = "drop" ]; then
+            logger -t hotspot-audit "Maintenance bypass: authorizing client $mac ($ip)"
+            chilli_query -s "$socket" authorize ip "$ip" username "maintenance-bypass"
+        elif [ "$state" = "pass" ] && [ "$username" != "maintenance-bypass" ]; then
+            logger -t hotspot-audit "Maintenance bypass: logging out active session $username for client $mac ($ip)"
+            chilli_query -s "$socket" logout ip "$ip"
+        fi
+    done
+}
+
+cleanup_maint_clients() {
+    local socket="$1"
+    [ -S "$socket" ] || return
+    
+    chilli_query -s "$socket" list | while read mac ip state session_id flags username rest; do
+        if [ "$state" = "pass" ] && [ "$username" = "maintenance-bypass" ]; then
+            logger -t hotspot-audit "Maintenance bypass: logging out bypass user $mac ($ip) after maintenance window ended"
+            chilli_query -s "$socket" logout ip "$ip"
+        fi
+    done
+}
+
+block_clients() {
+    local socket="$1"
+    [ -S "$socket" ] || return
+    
+    chilli_query -s "$socket" list | while read mac ip state session_id flags username rest; do
+        if [ "$state" = "pass" ]; then
+            logger -t hotspot-audit "Maintenance block: logging out active session $username for client $mac ($ip)"
+            chilli_query -s "$socket" logout ip "$ip"
+        fi
+    done
+}
+
+while true; do
+    enabled=$(uci -q get hotspot_openwrt.main.maint_enabled)
+    if [ "$enabled" = "1" ]; then
+        start_time=$(uci -q get hotspot_openwrt.main.maint_start || echo "02:00")
+        end_time=$(uci -q get hotspot_openwrt.main.maint_end || echo "03:00")
+        maint_mode=$(uci -q get hotspot_openwrt.main.maint_mode || echo "free")
+        current_time=$(date +"%H:%M")
+        
+        if is_in_window "$current_time" "$start_time" "$end_time"; then
+            if [ "$maint_mode" = "block" ]; then
+                block_clients "$PRIMARY_SOCKET"
+                block_clients "$SECONDARY_SOCKET"
+            else
+                authorize_clients "$PRIMARY_SOCKET"
+                authorize_clients "$SECONDARY_SOCKET"
+            fi
+        else
+            cleanup_maint_clients "$PRIMARY_SOCKET"
+            cleanup_maint_clients "$SECONDARY_SOCKET"
+        fi
+    fi
+    sleep 30
+done

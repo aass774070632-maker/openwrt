@@ -1,0 +1,76 @@
+#!/bin/sh
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "$SCRIPT_DIR/common.sh"
+
+PID_FILE="/tmp/alemprator-ota/manual-update.pid"
+LOG_FILE="/tmp/alemprator-ota/manual-local-update.log"
+VALIDATE_ERR_FILE="/tmp/alemprator-ota/manual-validate.err"
+
+json_reply() {
+	printf '{'
+	printf '"started":%s,' "$1"
+	printf '"already_running":%s,' "$2"
+	printf '"blocked":%s,' "$3"
+	printf '"invalid_image":%s,' "$4"
+	printf '"missing_image":%s,' "$5"
+	printf '"message":"%s"' "$(json_escape "$6")"
+	printf '}\n'
+}
+
+spawn_update() {
+	: > "$LOG_FILE"
+
+	if command -v setsid >/dev/null 2>&1; then
+		setsid sh -c '
+			pid_file="$1"
+			/usr/libexec/alemprator-ota/manual-update
+			rm -f "$pid_file"
+		' sh "$PID_FILE" </dev/null >>"$LOG_FILE" 2>&1 &
+	else
+		sh -c '
+			pid_file="$1"
+			/usr/libexec/alemprator-ota/manual-update
+			rm -f "$pid_file"
+		' sh "$PID_FILE" </dev/null >>"$LOG_FILE" 2>&1 &
+	fi
+
+	printf '%s\n' "$!" > "$PID_FILE"
+}
+
+load_config
+load_state
+ensure_model_file
+ensure_token >/dev/null
+mkdir -p "$STATE_DIR"
+
+if [ ! -s "$MANUAL_IMAGE_PATH" ]; then
+	json_reply false false false false true "no manual image uploaded"
+	exit 0
+fi
+
+if ! upgrade_allowed_now; then
+	block_reason="$(get_upgrade_block_reason || true)"
+	json_reply false false true false false "$(get_upgrade_block_message "$block_reason" || echo 'upgrade blocked')"
+	exit 0
+fi
+
+if [ -f "$PID_FILE" ]; then
+	pid="$(cat "$PID_FILE" 2>/dev/null)"
+	if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+		json_reply false true false false false "manual or OTA update is already running"
+		exit 0
+	fi
+	rm -f "$PID_FILE"
+fi
+
+if ! sysupgrade -T "$MANUAL_IMAGE_PATH" >/dev/null 2>"$VALIDATE_ERR_FILE"; then
+	msg="$(tr '\n' ' ' < "$VALIDATE_ERR_FILE" 2>/dev/null | sed 's/[[:space:]]\+/ /g' | sed 's/^ //; s/ $//' | cut -c1-220)"
+	[ -n "$msg" ] || msg="uploaded file failed validation"
+	json_reply false false false true false "$msg"
+	exit 0
+fi
+
+spawn_update
+pid="$(cat "$PID_FILE" 2>/dev/null)"
+printf '{"started":true,"pid":%s}\n' "${pid:-0}"

@@ -1,0 +1,4 @@
+/etc/config/bandix-plus
+/usr/bin/bandix-plus
+/lib/upgrade/keep.d/bandix-plus
+/etc/init.d/bandix-plus

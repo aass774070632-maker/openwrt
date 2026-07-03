@@ -1,0 +1,5 @@
+/bin/mcr-usbmount
+/bin/mcr-usbStrgAppCtrl
+/usr/hotplug
+/bin/kill_usbStorage_apps
+/bin/up_usbStorage_apps

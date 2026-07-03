@@ -1,0 +1,13 @@
+Package: zoneinfo-indian
+Version: 2025b-r1
+Depends: libc, zoneinfo-core
+Provides: zoneinfo-india
+Source: feeds/packages/utils/zoneinfo
+SourceName: zoneinfo
+License: Public-Domain
+Section: utils
+SourceDateEpoch: 1760974184
+Maintainer: Vladimir Ulrich <admin@evl.su>
+Architecture: mipsel_24kc
+Installed-Size: 20480
+Description:  Zone Information (Indian Ocean)

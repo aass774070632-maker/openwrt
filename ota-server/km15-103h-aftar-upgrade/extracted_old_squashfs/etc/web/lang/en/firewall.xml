@@ -1,0 +1,163 @@
+<po>
+  <message msgid="firewall disable" msgstr="Disable" />
+  <message msgid="firewall enable" msgstr="Enable" />
+  <message msgid="firewall apply" msgstr="Apply" />
+  <message msgid="firewall cancel" msgstr="Cancel" />
+  <message msgid="firewall reset" msgstr="Reset" />
+  <message msgid="firewall add" msgstr="Add" />
+  <message msgid="firewall delete" msgstr="Delete" />
+
+  <message msgid="port title" msgstr="MAC/IP/Port Filtering Settings " />
+  <message msgid="port introduction" msgstr=" You may setup firewall rules to protect your network from virus,worm and malicious activity on the Internet." />
+  <message msgid="port filter setting" msgstr="MAC/IP/Port Filter Settings" />
+  <message msgid="port filter macaddr" msgstr="MAC address" />
+  <message msgid="port filter source ipaddr" msgstr="Source IP Address" />
+  <message msgid="port filter port range" msgstr="Port Range" />
+  <message msgid="port filter dest ipaddr" msgstr="Dest IP Address" />
+  <message msgid="port filter action" msgstr="Action" />
+  <message msgid="port filter action drop" msgstr="Drop" />
+  <message msgid="port filter action accept" msgstr="Accept" />
+  <message msgid="port current filter" msgstr="Current MAC/IP/Port filtering rules in system: " />
+  <message msgid="port filter source port range" msgstr="Source Port Range" />
+  <message msgid="port filter dest port range" msgstr="Dest Port Range" />
+  <message msgid="port filter packetcount" msgstr="Pkt Cnt" />
+
+  <message msgid="nat server title" msgstr="Internal Server Setting" />
+  <message msgid="nat server introduction" msgstr=" " />
+  <message msgid="nat server setting" msgstr="Internal Server Setting" />
+  <message msgid="nat server protocol" msgstr="Protocol" />
+  <message msgid="nat server ipaddr" msgstr="Target IP Address" />
+  <message msgid="nat server extport" msgstr="Ext. Port" />
+  <message msgid="nat server intport" msgstr="Int. Port" />
+  <message msgid="nat server select" msgstr="Select" />
+  <message msgid="nat server ftp" msgstr="FTP" />
+  <message msgid="nat server tftp" msgstr="TFTP" />
+  <message msgid="nat server telnet" msgstr="TELNET" />
+  <message msgid="nat server ssh" msgstr="SSH" />
+  <message msgid="nat server http" msgstr="HTTP" />
+  <message msgid="nat server smtp" msgstr="SMTP" />
+  <message msgid="nat server pop3" msgstr="POP3" />
+  <message msgid="nat server news" msgstr="NEWS" />
+  <message msgid="nat server dns" msgstr="DNS" />
+
+  <message msgid="nat forward title" msgstr="NAT Forward Setting" />
+  <message msgid="nat forward introduction" msgstr=" " />
+  <message msgid="nat forward setting" msgstr="NAT Forward Settin" />
+  <message msgid="nat forward protocol" msgstr="Protocol" />
+  <message msgid="nat forward port" msgstr="Dest Port" />
+  <message msgid="nat forward ipaddr" msgstr="Forwarding IP Address" />
+  <message msgid="nat forward list" msgstr="NAT Forward List" />
+  <message msgid="nat forward srcip" msgstr="Src IP Address" />
+  <message msgid="nat forward dstip" msgstr="Dest IP Address" />
+  <message msgid="nat forward srcport" msgstr="Src Port" />
+  <message msgid="nat forward dstport" msgstr="Dest Port" />
+  <message msgid="nat forward targetip" msgstr="Target IP Address" />
+
+  <message msgid="nat alg title" msgstr="ALG " />
+  <message msgid="nat alg introduction" msgstr=" " />
+  <message msgid="nat alg setting" msgstr="ALG Setting" />
+  <message msgid="nat alg netmeet" msgstr="NETMEET" />
+  <message msgid="nat alg diablo" msgstr="DIABLO" />
+  <message msgid="nat alg winamp" msgstr="WINAMP" />
+
+  <message msgid="nat vpn title" msgstr="VPN Passthrough" />
+  <message msgid="nat vpn introduction" msgstr="VPN passthrought :  L2TP, IPSec , PPTP passthrough." />
+  <message msgid="nat vpn pass thru" msgstr="VPN Pass Through" />
+  <message msgid="nat vpn l2tp pass thru" msgstr="L2TP Passthrough" />
+  <message msgid="nat vpn ipsec pass thru" msgstr="IPSec Passthrough" />
+  <message msgid="nat vpn pptp pass thru" msgstr="PPTP Passthrough" />
+
+  <message msgid="nat dmz title" msgstr=" DMZ/Twin IP Setting" />
+  <message msgid="nat dmz introduction" msgstr=" DMZ/Twin IP Setting" />
+  <message msgid="nat dmz setting" msgstr="DMZ Setting" />
+  <message msgid="nat dmz ipaddr" msgstr="DMZ IP Address" />
+  <message msgid="nat sdmz setting" msgstr="Twin IP Setting" />
+  <message msgid="nat sdmz mac" msgstr="MAC Address" />
+
+  <message msgid="ra title" msgstr="RA Configure Setting/>
+  <message msgid="ra introduction" msgstr="Remote Access Configure. Setting Parameters" />
+  <message msgid="ra setting" msgstr="RA Information Setting" />
+  <message msgid="ra enable" msgstr="RA Select" />
+  <message msgid="ra usrname" msgstr="User ID" />
+  <message msgid="ra passwd" msgstr="Password" />
+  <message msgid="ra server ip" msgstr="Server IP" />
+  <message msgid="ra in svr ip" msgstr="Input the RARS Server IP" />
+  <message msgid="ra in username" msgstr="Input the User ID" />
+  <message msgid="ra in passwd" msgstr="Input the Password" />
+
+  <message msgid="dos title" msgstr="Dos Attack Setting " />
+  <message msgid="dos introduction" msgstr=" " />
+  <message msgid="dos setting" msgstr="DOS Setting" />
+  <message msgid="dos syn" msgstr="SYN Flooding" />
+  <message msgid="dos smurf" msgstr="Smurf" />
+  <message msgid="dos ipsrcroute" msgstr="IP Source routing" />
+  <message msgid="dos ipspoof" msgstr="IP Spoofing" />
+  <message msgid="dos portscan" msgstr="Port Scan" />
+  <message msgid="dos arpspoof" msgstr="ARP Spoofing" />
+
+  <message msgid="content filter title" msgstr="Content Filter Settings" />
+  <message msgid="content filter introduction" msgstr="You can setup Content Filter to restrict the improper content access." />
+  <message msgid="content filter webs content filter" msgstr="Webs Content Filter" />
+  <message msgid="content filter webs content filter filter" msgstr="Filters:" />
+  <message msgid="content filter webs content filter apply" msgstr="Apply" />
+  <message msgid="content filter webs content filter reset" msgstr="Reset" />
+  <message msgid="content filter webs URL filter title" msgstr="Webs URL Filter Settings" />
+  <message msgid="content filter webs url filter current" msgstr="Current Webs URL Filters:" />
+  <message msgid="content filter webs url fitler No" msgstr="No" />
+  <message msgid="content filter webs url fitler url" msgstr="URL" />
+  <message msgid="content filter webs url fitler del" msgstr="Delete" />
+  <message msgid="content filter webs url fitler reset" msgstr="Reset" />
+  <message msgid="content filter webs url fitler add title" msgstr="Add a URL filter:" />
+  <message msgid="content filter webs url fitler add" msgstr="Add" />
+  <message msgid="content filter webs url fitler reset" msgstr="Reset" />
+  <message msgid="content filter webs host fitler title" msgstr="Webs Host Filter Settings" />
+  <message msgid="content filter webs host fitler current" msgstr="Current Website Host Filters:" />
+  <message msgid="content filter webs host fitler no" msgstr="No" />
+  <message msgid="content filter webs host fitler host" msgstr="Host(Keyword)" />
+  <message msgid="content filter webs host fitler del" msgstr="Delete" />
+  <message msgid="content filter webs host fitler reset" msgstr="Reset" />
+  <message msgid="content filter webs host fitler add title" msgstr="Add a Host(keyword) Filter:" />
+  <message msgid="content filter webs host fitler keyword" msgstr="Keyword" />
+  <message msgid="content filter webs host fitler add" msgstr="Add" />
+  <message msgid="content filter webs host fitler reset" msgstr="Reset" />
+
+  <message msgid="sysfw title" msgstr="System Security Settings" />
+  <message msgid="sysfw introduction" msgstr="You may configure the system firewall to protect AP/Router itself from attacking." />
+  <message msgid="sysfw remote management title" msgstr="Remote management" />
+  <message msgid="sysfw remote management head" msgstr="Remote management (via WAN)" />
+  <message msgid="sysfw allow" msgstr="Allow" />
+  <message msgid="sysfw deny" msgstr="Deny" />
+  <message msgid="sysfw wanping title" msgstr="Ping form WAN Filter" />
+  <message msgid="sysfw wanping head" msgstr="Ping form WAN Filter" />
+  <message msgid="sysfw spi title" msgstr="Stateful Packet Inspection (SPI)" />
+  <message msgid="sysfw spi head" msgstr="SPI Firewall" />
+  <message msgid="sysfw apply" msgstr="Apply" />
+  <message msgid="sysfw reset" msgstr="Reset" />
+
+  <message msgid="netk title" msgstr="Network Access Setting" />
+  <message msgid="netk introduction" msgstr="Setting Network Access" />
+  <message msgid="netk header" msgstr="Network Access Setting" />
+  <message msgid="netk activity" msgstr="Network Access Setting" />
+  <message msgid="netk name" msgstr="Rule Name" />
+  <message msgid="netk macaddr" msgstr="MAC Addr" />
+  <message msgid="netk allowdeny" msgstr="Allow/Deny" />
+  <message msgid="netk allow" msgstr="Allow" />
+  <message msgid="netk deny" msgstr="Deny" />
+  <message msgid="netk schedule week" msgstr="Schedule-Week" />
+  <message msgid="netk schedule sun" msgstr="SUN" />
+  <message msgid="netk schedule mon" msgstr="MON" />
+  <message msgid="netk schedule tue" msgstr="TUE" />
+  <message msgid="netk schedule wed" msgstr="WED" />
+  <message msgid="netk schedule thr" msgstr="THR" />
+  <message msgid="netk schedule fri" msgstr="FRI" />
+  <message msgid="netk schedule sat" msgstr="SAT" />
+  <message msgid="netk schedule all" msgstr="ALL" />
+  <message msgid="netk schedule time" msgstr="Schedule-Time" />
+  <message msgid="netk schedule time24" msgstr="24 HOUR" />
+  <message msgid="netk msg overflow" msgstr="Too many rules" />
+  <message msgid="netk msg duplicate" msgstr="Duplicate rules" />
+  <message msgid="netk msg invalid mac" msgstr="Invalid mac info" />
+  <message msgid="netk msg invalid name" msgstr="Invalid rule name" />
+  <message msgid="netk msg time" msgstr="Invalid Schedule-Time" />
+
+</po>

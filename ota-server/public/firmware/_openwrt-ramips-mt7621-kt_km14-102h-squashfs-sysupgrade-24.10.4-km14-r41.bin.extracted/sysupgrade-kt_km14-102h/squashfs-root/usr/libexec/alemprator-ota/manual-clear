@@ -1,0 +1,9 @@
+#!/bin/sh
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "$SCRIPT_DIR/common.sh"
+
+load_config
+mkdir -p "$STATE_DIR"
+rm -f "$MANUAL_IMAGE_PATH" "$STATE_DIR/manual-info.err" "$STATE_DIR/manual-validate.err"
+printf '{"cleared":true}\n'

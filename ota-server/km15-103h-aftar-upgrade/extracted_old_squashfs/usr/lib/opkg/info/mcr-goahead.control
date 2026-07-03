@@ -1,0 +1,8 @@
+Package: mcr-goahead
+Version: 1
+Depends: libc, mcr-common, libopenssl, libmcr-leaf, mcr-cfghandler, mcr-upgrade, libmcr-aes, libmcr-mwl
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/apps/mcr-goahead
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 2302777
+Description:  Mercury goahead-

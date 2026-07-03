@@ -32,6 +32,9 @@ services:
       - '3000:3000'
     volumes:
       - ./public/firmware:/app/public/firmware
+      - ./scripts:/app/scripts:ro
+      - ./scratch:/app/scratch:ro
+      - ../alemprator-models.json:/alemprator-models.json:ro
 
   nginx:
     image: nginx:1.27-alpine
@@ -39,11 +42,19 @@ services:
     depends_on:
       - api
     ports:
+      - '80:80'
       - '8080:80'
     volumes:
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./public/firmware:/usr/share/nginx/html/firmware:ro
       - ./public/admin-app:/usr/share/nginx/html/admin-app:ro
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: ota-tunnel
+    restart: always
+    network_mode: host
+    command: tunnel --no-autoupdate run --token eyJhIjoiZTc1OTI1NTRjZGQ2NTUzZTBjZmE5ODJhMDhkNjNkZjYiLCJ0IjoiNzRiYTA3MGYtZjIzYS00MzIxLTk5MTAtZWMwYzkwOTAwYmI0IiwicyI6Ik4ySTNZekkyTVRndFl6ZzVZUzAwWWpoa0xUZ3haR0V0TkRJNVlXVXhaV1EyTlRWbCJ9
 
 volumes:
   postgres_data:

@@ -39,7 +39,7 @@ define Package/alemprator-firstboot/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/etc/init.d/alemprator-firstboot $(1)/etc/init.d/
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
-	$(INSTALL_BIN) ./files/etc/uci-defaults/95-alemprator-firstboot $(1)/etc/uci-defaults/
+	$(INSTALL_BIN) ./files/etc/uci-defaults/99-alemprator-firstboot $(1)/etc/uci-defaults/
 	$(INSTALL_DIR) $(1)/usr/share/ucitrack
 	$(INSTALL_DATA) ./files/usr/share/ucitrack/alemprator-firstboot-dhcp.json $(1)/usr/share/ucitrack/
 	$(INSTALL_DATA) ./files/usr/share/ucitrack/alemprator-firstboot-firewall.json $(1)/usr/share/ucitrack/

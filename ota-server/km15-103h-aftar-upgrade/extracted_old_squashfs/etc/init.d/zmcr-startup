@@ -1,0 +1,61 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+
+boot () {
+#	/etc/rc.common /etc/init.d/boot boot
+#	/etc/rc.common /etc/init.d/log boot
+#	/etc/rc.common /etc/init.d/done boot
+
+	mount -a
+	ifconfig lo 127.0.0.1
+	hostname giga-ap
+
+	DIRS="run linuxigd tmp log mnt wps udhcpc udhcpd myca system Wireless session"
+
+	for dir in $DIRS ; do
+		/bin/mkdir -p /var/$dir
+	done
+
+	mknod /dev/hwnat0 c 220 0
+	mknod /dev/rdm0   c 263 0
+	mknod /dev/gpio   c 241 0
+	mknod /dev/pcm0   c 233 0
+	mknod /dev/mcrgpio c 255 0
+	/etc/mkromfs
+
+#	mcr-toolbox mcrgpio set 15 1
+
+	echo 10240 > /proc/sys/vm/min_free_kbytes
+
+	mount -t jffs2 /dev/mtdblock10 /etc/conf
+
+	mount -t debugfs none /sys/kernel/debug/
+
+	if [ -d /etc/conf ]  ; then
+		echo "MERCURY INIT"
+	else 
+		mkdir /etc/conf
+	fi;
+
+	mkdir -p /tmp/usb/
+
+	cp /etc_ro/group /var
+	cp /etc_ro/passwd /var
+	cp /etc_ro/shadow /var
+	cp /etc_ro/hosts /var
+	cp /etc_ro/vsftpd.conf /var
+	cp /etc/tmp/pics* /var/linuxigd
+
+	ln -f -s /var/shadow /etc/shadow
+	ln -f -s /var/hosts /etc/hosts
+	ln -f -s /var/vsftpd.conf /etc/vsftpd.conf
+
+	ln -s /var/linuxigd /etc/linuxigd
+
+	sh /etc/hotplug.d/firmware/11-mtk-wifi-e2p
+#	modprobe mt_wifi
+#	modprobe mt_whnat
+
+	/usr/sbin/mcr-cfghandler > /dev/console 2>&1 &
+}

@@ -1,0 +1,8 @@
+Package: libmcr-aes
+Version: 1
+Depends: libc, mcr-common, libopenssl
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/libs/libmcr-aes
+Section: libraries
+Architecture: mipsel_24kc
+Installed-Size: 5164
+Description:  Mercury aes utility library

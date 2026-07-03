@@ -1,0 +1,8 @@
+Package: mcr-miniigd
+Version: 1
+Depends: libc, libmcr-leaf, mcr-common, mcr-cfghandler
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/apps/mcr-miniigd
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 26698
+Description:  Mercury miniigd-

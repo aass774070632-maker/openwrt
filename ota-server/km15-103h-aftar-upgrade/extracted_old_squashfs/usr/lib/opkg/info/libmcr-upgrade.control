@@ -1,0 +1,8 @@
+Package: libmcr-upgrade
+Version: 1
+Depends: libc, mcr-common, libopenssl
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/libs/libmcr-upgrade
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 12850
+Description:  Mercury application sample

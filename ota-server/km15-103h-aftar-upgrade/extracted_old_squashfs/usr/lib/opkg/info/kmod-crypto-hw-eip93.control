@@ -1,0 +1,9 @@
+Package: kmod-crypto-hw-eip93
+Version: 4.4.198-0.8
+Depends: kernel (=4.4.198-1-cc0c148a5885a95c3c7b717865c6c2fa), kmod-crypto-authenc, kmod-crypto-des
+Source: package/kernel/crypto-hw-eip93
+Section: kernel
+Architecture: mipsel_24kc
+Installed-Size: 10484
+Description:  Asynchronous Kernel module to enable EIP-93 Crypto Engine
+ in the Mediatek MT7621 SoC.

@@ -1,0 +1,8 @@
+Package: mcr-netkeepd
+Version: 1
+Depends: libc, mcr-common, libmcr-leaf, libmcr-ixml, mcr-cfghandler
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/apps/mcr-netkeepd
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 8410
+Description:  Mercury netkeepd-

@@ -1,0 +1,3 @@
+/etc/config/librespeed-go
+/etc/librespeed-go/telemetry_mysql.sql
+/etc/librespeed-go/telemetry_postgresql.sql

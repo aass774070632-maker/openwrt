@@ -10,23 +10,24 @@ query_value() {
 	printf '%s' "&$QUERY_STRING" | sed -n "s/.*[&?]$1=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%2[Ff]/\//g; s/%3[Aa]/:/g; s/%3[Ff]/?/g; s/%3[Dd]/=/g; s/%26/\&/g; s/%5[Ff]/_/g'
 }
 
+# --- Error Messages ---
+MSG_SUCCESS='تم تسجيل الخروج بنجاح.'
+MSG_FAIL='فشل تسجيل الخروج.'
+MSG_CHILLI_FAIL='تعذر قطع جلسة الإنترنت من Chilli.'
+
 remote_addr="${REMOTE_ADDR:-}"
 format="$(query_value format)"
 username="$(query_value username)"
 logout_ok='false'
-message='فشل تسجيل الخروج.'
+message="$MSG_FAIL"
+err_code='FAIL'
 matched_socket=''
 before_state=''
 after_state=''
 client_mac=''
-
-client_field() {
-    [ -S "$1" ] || return 0
-    chilli_query -s "$1" list 2>/dev/null | awk -v ip="$remote_addr" -v user="$username" -v field="$2" '
-        $2 == ip { print $field; exit }
-        user != "" && $6 == user { print $field; exit }
-    '
-}
+chilli_out="$(mktemp)"
+trap 'rm -f "$chilli_out"' EXIT
+# (... existing client_field function ...)
 
 if [ -n "$remote_addr" ]; then
     # 1. Try Chilli Logout
@@ -38,10 +39,10 @@ if [ -n "$remote_addr" ]; then
             [ -n "$state$mac" ] || continue
             [ -n "$before_state" ] || before_state="$state"
             matched_socket="$socket_path"
-            chilli_query -s "$socket_path" logout ip "$remote_addr" >/tmp/h-logout.$$ 2>&1 || true
+            chilli_query -s "$socket_path" logout ip "$remote_addr" >"$chilli_out" 2>&1 || true
             if [ -n "$mac" ]; then
                 [ -x /usr/libexec/hotspot-openwrt/mac-cookies ] && /usr/libexec/hotspot-openwrt/mac-cookies delete "$mac" >/dev/null 2>&1 || true
-                chilli_query -s "$socket_path" logout mac "$mac" >/tmp/h-logout.$$ 2>&1 || true
+                chilli_query -s "$socket_path" logout mac "$mac" >"$chilli_out" 2>&1 || true
                 client_mac="$mac"
             fi
             after_state="$(client_field "$socket_path" 3)"
@@ -49,25 +50,25 @@ if [ -n "$remote_addr" ]; then
         done
     fi
 
-    # 2. Emergency Mode (NFT Set) Logout
-    # Remove from allowed set and srcnat
-    nft delete element inet fw4 hotspot_allowed { "$remote_addr" } 2>/dev/null
-
+    # 2. Emergency Mode Logout
+    # Clear conntrack entries to terminate session
     command -v conntrack >/dev/null 2>&1 && conntrack -D -s "$remote_addr" >/dev/null 2>&1 || true
     command -v conntrack >/dev/null 2>&1 && conntrack -D -d "$remote_addr" >/dev/null 2>&1 || true
 
     [ -n "$matched_socket" ] || logout_ok='true'
     if [ "$logout_ok" = 'true' ]; then
-        message='تم تسجيل الخروج بنجاح.'
+        message="$MSG_SUCCESS"
+        err_code='SUCCESS'
     else
-        message='تعذر قطع جلسة الإنترنت من Chilli.'
+        message="$MSG_CHILLI_FAIL"
+        err_code='CHILLI_FAIL'
     fi
 fi
 
 if [ "$format" = 'json' ]; then
 	printf 'Content-Type: application/json\r\n'
 	printf 'Cache-Control: no-store\r\n\r\n'
-    printf '{"ok":%s,"message":"%s","state_before":"%s","state_after":"%s","mac":"%s"}\n' "$logout_ok" "$(json_escape "$message")" "$(json_escape "$before_state")" "$(json_escape "$after_state")" "$(json_escape "$client_mac")"
+    printf '{"ok":%s,"message":"%s","err_code":"%s","state_before":"%s","state_after":"%s","mac":"%s"}\n' "$logout_ok" "$(json_escape "$message")" "$(json_escape "$err_code")" "$(json_escape "$before_state")" "$(json_escape "$after_state")" "$(json_escape "$client_mac")"
 	exit 0
 fi
 

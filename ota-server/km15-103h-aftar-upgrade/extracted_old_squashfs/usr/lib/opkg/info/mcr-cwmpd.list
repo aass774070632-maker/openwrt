@@ -1,0 +1,7 @@
+/etc/cacert.pem
+/etc/restart_cwmpd.sh
+/bin/mcr-cwmpd
+/bin/signal_carrier
+/bin/trace_route
+/etc/restart_system.sh
+/bin/period_ticker

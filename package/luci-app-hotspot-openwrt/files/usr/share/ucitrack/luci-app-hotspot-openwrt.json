@@ -1,0 +1,7 @@
+{
+	"hotspot_openwrt": {
+		"init": "hotspot-openwrt",
+		"reload": "1",
+		"commit": "1"
+	}
+}

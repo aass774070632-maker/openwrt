@@ -1,0 +1,178 @@
+<po>
+  <message msgid="inet apply" msgstr="적용" />
+  <message msgid="inet cancel" msgstr="취소" />
+  <message msgid="inet enable" msgstr="활성화" />
+  <message msgid="inet disable" msgstr="비활성화" />
+  <message msgid="inet add" msgstr="추가" />
+  <message msgid="inet del" msgstr="삭제" />
+  <message msgid="inet reset" msgstr="초기화" />
+
+  <message msgid="inet mac" msgstr="하드웨어주소" />
+  <message msgid="inet ip" msgstr="IP 주소" />
+  <message msgid="inet server" msgstr="서버 IP" />
+  <message msgid="inet netmask" msgstr="서브넷마스크" />
+  <message msgid="inet lan2" msgstr="LAN 2" />
+  <message msgid="inet lan2 ip" msgstr="LAN2 IP 주소" />
+  <message msgid="inet lan2 netmask" msgstr="LAN2 서브넷마스크" />
+  <message msgid="inet gateway" msgstr="게이트웨이" />
+  <message msgid="inet pri dns" msgstr="DNS 서버1" />
+  <message msgid="inet sec dns" msgstr="DNS 서버2" />
+  <message msgid="inet user" msgstr="사용자이름" />
+  <message msgid="inet password" msgstr="비밀번호" />
+  <message msgid="inet pass2" msgstr="비밀번호확인" />
+  <message msgid="inet hostname" msgstr="장비이름" />
+  <message msgid="inet macfind" msgstr="MAC 주소찾기" />
+  <message msgid="inet conflictip" msgstr="충돌 IP 주소" />
+
+  <message msgid="wan title" msgstr="WAN 인터페이스 설정" />
+  <message msgid="wan introduction" msgstr="WAN 연결 방법 설정한다.(Static, DHCP, PPPoE)" />
+  <message msgid="wan connection type" msgstr="WAN 연결 모드:" />
+  <message msgid="wan connection type static" msgstr="STATIC(고정IP)" />
+  <message msgid="wan connection type dhcp" msgstr="DHCP (Auto config)" />
+  <message msgid="wan connection type pppoe" msgstr="PPPoE (xDSL)" />
+  <message msgid="wan connection type l2tp" msgstr="L2TP" />
+  <message msgid="wan connection type pptp" msgstr="PPTP" />
+  <message msgid="wan protocol opmode" msgstr="운용모드" />
+  <message msgid="wan protocol opmode keepalive" msgstr="Keep Alive" />
+  <message msgid="wan protocol opmode ondemand" msgstr="On Demand" />
+  <message msgid="wan protocol opmode manual" msgstr="Manual" />
+  <message msgid="wan protocol authtype" msgstr="인증 타입" />
+
+  <message msgid="wan static mode" msgstr="Static 모드" />
+  <message msgid="wan dhcp mode" msgstr="DHCP 모드" />
+  <message msgid="wan pppoe mode" msgstr="PPPoE 모드" />
+  <message msgid="wan l2tp mode" msgstr="L2TP 모드" />
+  <message msgid="wan pptp mode" msgstr="PPTP 모드" />
+  <message msgid="wan address mode" msgstr="Address Mode" />
+  <message msgid="wan address mode static" msgstr="Static" />
+  <message msgid="wan address mode dynamic" msgstr="Dynamic" />
+
+  <message msgid="wan mac clone" msgstr="MAC Clone" />
+  
+  <message msgid="wan port setup" msgstr="WAN 포트 설정" />
+  <message msgid="wan port num" msgstr="포트" />
+  <message msgid="wan port sts" msgstr="포트상태" />
+ 
+  <message msgid="lan title" msgstr="LAN 인터페이스 설정" />
+  <message msgid="lan introduction" msgstr="LAN 인터페이스의 정보를 설정한다." />
+  <message msgid="lan setup" msgstr="LAN 설정" />
+  <message msgid="lan port setup" msgstr="LAN 포트 설정" />
+  <message msgid="lan port info" msgstr="LAN 포트 상태" />
+  <message msgid="lan port reset" msgstr="LAN 포트 리셋" />
+  <message msgid="lan port num" msgstr="포트" />
+  <message msgid="lan port sts" msgstr="포트상태" />
+  <message msgid="lan inip" msgstr="IP를 입력하십시오." />
+  <message msgid="lan iperr" msgstr="입력된 IP 오류입니다." />
+  <message msgid="lan indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+
+  <message msgid="dhcp title" msgstr="DHCP 할당 정보" />
+  <message msgid="dhcp introduction" msgstr="DHCP 서버에서 할당한 단말의 정보를 출력한다." />
+  <message msgid="dhcp clients" msgstr="DHCP 할당" />
+  <message msgid="dhcp expire" msgstr="Expire 시간" />
+  <message msgid="dhcp status" msgstr="할당된 상태" />
+  <message msgid="dhcp usetime" msgstr="사용시간" />
+  <message msgid="dhcp binddel" msgstr="할당 정보 초기화" />
+  <message msgid="dhcp listnone" msgstr="할당된 정보가 없습니다." />
+  
+  <message msgid="dhcpproxy title" msgstr="DHCP Proxy 할당 정보" />
+  <message msgid="dhcpproxy introduction" msgstr="DHCP Proxy를 통해 공인 서버에서 할당한 단말의 정보를 출력한다." />
+  <message msgid="dhcpproxy info" msgstr="DHCP Proxy 할당 정보" />
+  <message msgid="dhcpproxy port" msgstr="포트" />
+
+  <message msgid="routing title" msgstr="고정 라우팅 설정" />
+  <message msgid="routing Introduction" msgstr="고정으로 라우팅 정보를 설정하거나 삭제한다." />
+  <message msgid="routing add rule" msgstr="라우팅 추가" />
+  <message msgid="routing routing dest" msgstr="목적지" />
+  <message msgid="routing range" msgstr="Target" />
+  <message msgid="routing netmask" msgstr="넷마스크" />
+  <message msgid="routing gateway" msgstr="게이트웨이" />
+  <message msgid="routing interface" msgstr="인터페이스" />
+  <message msgid="routing Number" msgstr="No." />
+  <message msgid="routing del title" msgstr="라우팅 정보" />
+  <message msgid="routing del dest" msgstr="목적지" />
+  <message msgid="routing del netmask" msgstr="넷마스크" />
+  <message msgid="routing del gateway" msgstr="게이트웨이" />
+  <message msgid="routing del flags" msgstr="Flags" />
+  <message msgid="routing del interface" msgstr="인터페이스" />
+  <message msgid="routing host" msgstr="Host" />
+  <message msgid="routing net" msgstr="Net" />
+  <message msgid="routing LAN" msgstr="LAN" />
+  <message msgid="routing WAN" msgstr="WAN" />
+  <message msgid="routing listnone" msgstr="라우팅 테이블이 없습니다." />
+
+  <message msgid="routing dynamic Title" msgstr="Dynamic Routing Settings" />
+  <message msgid="routing dynamic Title2" msgstr="Dynamic Routing Protocol" />
+  <message msgid="routing dynamic rip disable" msgstr="비활성화" />
+  <message msgid="routing dynamic rip enable" msgstr="활성화" />
+  <message msgid="routing dynamic rip apply" msgstr="적용" />
+  <message msgid="routing dynamic rip reset" msgstr="초기화" />
+  
+  <message msgid="dhcps title" msgstr="DHCP 서버 설정" />
+  <message msgid="dhcps introduction" msgstr="DHCP 서버의 IP 주소범위, 게이트웨이, 임대시간,DNS 서버, 고정IP 설정기능을 수행한다." />
+  <message msgid="dhcps setting" msgstr="DHCP 서버 설정" />
+  <message msgid="dhcps type" msgstr="DHCP 설정" />
+  <message msgid="dhcps startip" msgstr="시작 주소" />
+  <message msgid="dhcps endip" msgstr="마지막 주소" />
+  <message msgid="dhcps netmask" msgstr="넷마스크" />
+  <message msgid="dhcps gateway" msgstr="게이트웨이" />
+  <message msgid="dhcps lease" msgstr="임대 시간" />
+  <message msgid="dhcps dnsfwd" msgstr="DNS 포워드 설정" />
+  <message msgid="dhcps pridns" msgstr="기본 DNS 서버" />
+  <message msgid="dhcps secdns" msgstr="보조 DNS 서버" />
+  <message msgid="dhcps domain" msgstr="도메인네임" />
+  <message msgid="dhcps wins" msgstr="WINS" />
+  <message msgid="dhcps static1" msgstr="고정 IP1" />
+  <message msgid="dhcps static2" msgstr="고정 IP2" />
+  <message msgid="dhcps disable" msgstr="사용안함" />
+  <message msgid="dhcps server" msgstr="서버" />
+  <message msgid="dhcps inip" msgstr="IP를 입력하십시오." />
+  <message msgid="dhcps iperr" msgstr="입력된 IP 오류입니다." />
+  <message msgid="dhcps indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  <message msgid="dhcps macerr" msgstr="MAC주소 입력 오류입니다. (XX:XX:XX:XX:XX:XX) 형식으로 입력하십시오." />
+  
+  <message msgid="dns title" msgstr="DNS 서버 설정" />
+  <message msgid="dns introduction" msgstr="DNS 서버를 수동으로 설정한다." />
+  <message msgid="dns settings" msgstr="DNS 설정" />
+  <message msgid="dns primary" msgstr="고정 기본 DNS 서버" />
+  <message msgid="dns secondary" msgstr="고정 보조 DNS 서버" />
+  <message msgid="dns curprimary" msgstr="유동 기본 DNS 서버" />
+  <message msgid="dns cursecondary" msgstr="유동 보조 DNS 서버" />
+  <message msgid="dns inip" msgstr="IP를 입력하십시오." />
+  <message msgid="dns indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  <message msgid="dns iperr" msgstr="입력된 IP 오류입니다." />
+  <message msgid="dns indns1" msgstr="DNS 서버 IP를 입력하세요." />
+
+  <message msgid="dhcp opt82 title" msgstr="DHCP Option82 설정" />
+  <message msgid="dhcp opt82 introduction" msgstr="DHCP Option82 정보를 설정하여 서버로 보내는 기능을 선택한다." />
+  <message msgid="dhcp opt82 setting" msgstr="DHCP Option82 설정" />
+  
+  <message msgid="dhcp proxy title" msgstr="DHCP Proxy 기능 설정" />
+  <message msgid="dhcp proxy introduction" msgstr="DHCP Proxy기능을 설정하여 Option60/77 정보에 따라 공인/사설 IP를 할당하도록 한다." />
+  <message msgid="dhcp proxy setting" msgstr="DHCP Proxy 설정" />
+  <message msgid="dhcp proxy wired" msgstr="DHCP Proxy 유선 설정" />
+  <message msgid="dhcp proxy lport" msgstr="포트" />
+  <message msgid="dhcp proxy lproxy" msgstr="Option60 활성" />
+  <message msgid="dhcp proxy lproxy1" msgstr="Option60 비활성" />
+  <message msgid="dhcp proxy lpublic" msgstr="공인 IP 설정" />
+  <message msgid="dhcp proxy lprivate" msgstr="사설 IP 설정" />
+  <message msgid="dhcp proxy wireless" msgstr="DHCP Proxy 무선 설정" />
+  <message msgid="dhcp proxy wssid" msgstr="SSID" />
+  <message msgid="dhcp proxy wproxy" msgstr="Option60 활성" />
+  <message msgid="dhcp proxy wproxy1" msgstr="Option60 비활성" />
+  <message msgid="dhcp proxy wpublic" msgstr="공인 IP 설정" />
+  <message msgid="dhcp proxy wprivate" msgstr="사설 IP 설정" />
+  
+  <message msgid="dnsproxy title" msgstr="DNS Proxy 설정" />
+  <message msgid="dnsproxy introduction" msgstr="DNS Proxy 기능을 설정한다. 설정된 주소를 통해 WEB 접속이 가능하도록 한다.." />
+  <message msgid="dnsproxy settings" msgstr="DNS Proxy 설정" />
+  <message msgid="dnsproxy enable" msgstr="Proxy 사용여부" />
+  <message msgid="dnsproxy domainname" msgstr="도메인 주소" />
+  
+  <message msgid="loopdetect title" msgstr="LOOP 감지 설정" />
+  <message msgid="loopdetect introduction" msgstr="LOOP 감지기능을 설정한다." />
+  <message msgid="loopdetect settings" msgstr="LOOP 감지 설정" />
+  
+  <message msgid="port stats title" msgstr="포트 패킷 정보" />
+  <message msgid="port stats introduction" msgstr="포트별 패킷 통계 정보를 출력한다. 초기화 적용시 통계정보를 초기화한다." />
+  <message msgid="port stats num" msgstr="포트" />
+</po>

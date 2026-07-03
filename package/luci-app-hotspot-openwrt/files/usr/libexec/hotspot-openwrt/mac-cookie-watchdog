@@ -21,8 +21,20 @@ valid_client_ip() {
 
 associated_macs() {
 	if command -v iw >/dev/null 2>&1; then
-		for iface in $(iw dev 2>/dev/null | awk '/Interface/ { iface=$2 } /type AP/ { print iface }'); do
+		# البحث في جميع الواجهات اللاسلكية المتوفرة في النظام
+		for wlan in /sys/class/net/wlan* /sys/class/net/ath* /sys/class/net/wl*; do
+			local iface
+			iface="$(basename "$wlan")"
+			[ -d "$wlan" ] || continue
 			iw dev "$iface" station dump 2>/dev/null | awk '/^Station / { print $2 }'
+		done
+	fi
+	# فحص جدول الـ Bridge كاحتياط للأجهزة المتصلة سلكياً أو لاسلكياً
+	if command -v brctl >/dev/null 2>&1; then
+		for br in br-hotspot br-hotspot2; do
+			if [ -d "/sys/class/net/$br" ]; then
+				brctl showmacs "$br" 2>/dev/null | awk 'NR > 1 && $3 == "no" { print $4 }'
+			fi
 		done
 	fi
 }
@@ -73,7 +85,9 @@ scan_chilli_socket() {
 	local mode="$1" instance="$2" socket_path="$3" hotspot_ip="$4" mac ip state cookie_line username card url normalized_mac after_state client_file chilli_card
 	[ -S "$socket_path" ] || return 0
 	url="$(post_login_url "$hotspot_ip")"
-	client_file="/tmp/hotspot-mac-cookie-clients.${instance}.$$"
+	client_file="$(mktemp)"
+	watchdog_out="$(mktemp)"
+	trap 'rm -f "$client_file" "$watchdog_out"' RETURN
 	chilli_query -s "$socket_path" list > "$client_file" 2>/dev/null || : > "$client_file"
 	while read mac ip state rest; do
 		[ -n "$mac" ] && [ -n "$ip" ] || continue
@@ -93,16 +107,15 @@ scan_chilli_socket() {
 		username="$(printf '%s' "$cookie_line" | awk -F '\t' '{ print $3 }')"
 		card="$(printf '%s' "$cookie_line" | awk -F '\t' '{ print $4 }')"
 		[ -n "$username" ] || continue
-		chilli_query -s "$socket_path" authorize ip "$ip" username "$username" url "$url?username=$card" >/tmp/hotspot-mac-cookie-watchdog.$$ 2>&1 || true
+		chilli_query -s "$socket_path" authorize ip "$ip" username "$username" url "$url?username=$card" >"$watchdog_out" 2>&1 || true
 		after_state="$(chilli_query -s "$socket_path" list 2>/dev/null | awk -v ip="$ip" '$2 == ip { print $3; found = 1; exit } END { if (!found) exit 0 }')"
 		if [ "$after_state" = 'pass' ]; then
 			$helper save "$normalized_mac" "$ip" "$username" >/dev/null 2>&1 || true
 			logger -t hotspot-openwrt-mac-cookie "authorized mac-cookie client instance=$instance mac=$normalized_mac ip=$ip user=$username"
 			authorized=$((authorized + 1))
 		else
-			logger -t hotspot-openwrt-mac-cookie "failed mac-cookie authorize instance=$instance mac=$normalized_mac ip=$ip user=$username state=${after_state:-unknown} message=$(cat /tmp/hotspot-mac-cookie-watchdog.$$ 2>/dev/null | tr '\r\n' ' ')"
+			logger -t hotspot-openwrt-mac-cookie "failed mac-cookie authorize instance=$instance mac=$normalized_mac ip=$ip user=$username state=${after_state:-unknown} message=$(cat "$watchdog_out" 2>/dev/null | tr '\r\n' ' ')"
 		fi
-		rm -f /tmp/hotspot-mac-cookie-watchdog.$$
 	done < "$client_file"
 	rm -f "$client_file"
 }
@@ -116,7 +129,7 @@ scan_once() {
 		[ "$mode" = '--once' ] && printf '{"checked":0,"authorized":0,"ready":false}\n'
 		return 0
 	fi
-	associated_file="/tmp/hotspot-mac-cookie-associated.$$"
+	associated_file="$(mktemp)"
 	associated_macs | while read mac; do
 		[ -n "$mac" ] && normalize_mac "$mac"
 	done | sort -u > "$associated_file"

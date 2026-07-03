@@ -215,7 +215,10 @@ nand_upgrade_prepare_ubi() {
 	# kill volumes
 	[ "$kern_ubivol" ] && ubirmvol /dev/$kern_ubidev -N "$CI_KERNPART" || :
 	[ "$root_ubivol" ] && ubirmvol /dev/$root_ubidev -N "$CI_ROOTPART" || :
-	[ "$data_ubivol" ] && ubirmvol /dev/$root_ubidev -N rootfs_data || :
+	if [ "$data_ubivol" ]; then
+		ubiupdatevol /dev/$data_ubivol -t 2>/dev/null || :
+		ubirmvol /dev/$root_ubidev -N rootfs_data || :
+	fi
 
 	# create kernel vol
 	if [ -n "$kernel_length" ]; then
@@ -267,6 +270,19 @@ nand_upgrade_ubinized() {
 
 	local mtdnum="$( find_mtd_index "$CI_UBIPART" )"
 	$cmd < "$ubi_file" | ubiformat "/dev/mtd$mtdnum" -S "$ubi_length" -y -f - && ubiattach -m "$mtdnum"
+	sleep 2
+
+	# Explicitly remove the rootfs_data volume during upgrade so UBIFS is completely
+	# wiped. If the user chose to keep settings, they will be restored from the backup
+	# tarball later in nand_do_upgrade_success.
+	local ubidev="$( nand_find_ubi "$CI_UBIPART" )"
+	if [ "$ubidev" ]; then
+		local data_ubivol="$( nand_find_volume $ubidev rootfs_data )"
+		if [ "$data_ubivol" ]; then
+			ubiupdatevol /dev/$data_ubivol -t 2>/dev/null || :
+			ubirmvol /dev/$ubidev -N rootfs_data || :
+		fi
+	fi
 }
 
 # Write the UBIFS image to UBI rootfs volume

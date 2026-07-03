@@ -1,0 +1,8 @@
+Package: luci-mod-admin-full
+Version: svn-r16-1
+Depends: libc, luci-base
+Source: package/luci/modules/luci-mod-admin-full
+Section: luci
+Architecture: mipsel_24kc
+Installed-Size: 76516
+Description:  LuCI Administration - full-featured for full control

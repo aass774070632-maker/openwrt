@@ -1,0 +1,10 @@
+#!/bin/sh
+
+[ "$ACTION" = "ifup" ] || exit 0
+case "$INTERFACE" in
+	wan|wwan|lan) ;;
+	*) exit 0 ;;
+esac
+
+/usr/libexec/alemprator-ota/run-once --check-only >/dev/null 2>&1 &
+exit 0

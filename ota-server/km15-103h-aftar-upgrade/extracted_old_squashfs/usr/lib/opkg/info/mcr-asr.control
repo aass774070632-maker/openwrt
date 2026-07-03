@@ -1,0 +1,8 @@
+Package: mcr-asr
+Version: 1
+Depends: libc, mcr-common, libmcr-leaf, libmcr-mwl, mcr-cfghandler
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/apps/mcr-asr
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 5306
+Description:  Mercury asr-

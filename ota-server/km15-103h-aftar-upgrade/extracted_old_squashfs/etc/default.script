@@ -1,0 +1,107 @@
+#!/bin/sh
+
+# udhcpc script edited by Tim Riker <Tim@Rikers.org>
+
+[ -z "$1" ] && echo "Error: should be called from udhcpc" && exit 1
+
+RESOLV_CONF="/etc/resolv.conf"
+RESOLV_USB_CONF="/etc/resolv_usb.conf"
+[ -n "$broadcast" ] && BROADCAST="broadcast $broadcast"
+[ -n "$subnet" ] && NETMASK="netmask $subnet"
+
+case "$1" in
+	deconfig)
+		/sbin/ifconfig $interface 0.0.0.0
+		;;
+
+	renew)
+		/sbin/ifconfig $interface $ip $BROADCAST $NETMASK
+
+		if [ -n "$router" ] ; then
+			while route del default gw 0.0.0.0 dev $interface ; do
+				:
+			done
+
+			echo -n > /etc/hosts
+			echo "127.0.0.1 localhost " > /etc/hosts
+
+			for i in $router ; do
+				route add default gw $i dev $interface
+				echo $i $i >> /etc/hosts
+			done
+		fi
+
+
+		delete_dns="0"
+		for i in $dns ; do
+			if [ "$i" != "0.0.0.0" ]; then
+				delete_dns="1"
+			fi;
+		done
+
+		if [ "$delete_dns" = "1" ]; then
+			if [ "$interface" == "usb0" ]; then
+				echo -n > $RESOLV_USB_CONF
+			else
+				echo -n > $RESOLV_CONF
+			fi
+		fi;
+		[ -n "$domain" ] && echo search $domain >> $RESOLV_CONF
+		for i in $dns ; do
+			if [ "$i" != "0.0.0.0" ]; then
+				echo adding dns $i
+				if [ "$interface" == "usb0" ]; then
+					echo nameserver $i >> $RESOLV_USB_CONF
+				else
+					echo nameserver $i >> $RESOLV_CONF
+				fi
+			fi;
+		done
+		;;
+
+	bound)
+		/sbin/ifconfig $interface $ip $BROADCAST $NETMASK
+
+		if [ -n "$router" ] ; then
+			while route del default gw 0.0.0.0 dev $interface ; do
+				:
+			done
+
+			echo -n > /etc/hosts
+			echo "127.0.0.1 localhost " > /etc/hosts
+
+			for i in $router ; do
+				route add default gw $i dev $interface
+				echo $i $i >> /etc/hosts
+			done
+		fi
+
+		delete_dns="0"
+		for i in $dns ; do
+			if [ "$i" != "0.0.0.0" ]; then
+				delete_dns="1"
+			fi;
+		done
+		if [ "$delete_dns" = "1" ]; then
+			if [ "$interface" == "usb0" ]; then
+				echo -n > $RESOLV_USB_CONF
+			else
+				echo -n > $RESOLV_CONF
+			fi
+		fi;
+		[ -n "$domain" ] && echo search $domain >> $RESOLV_CONF
+		for i in $dns ; do
+			if [ "$i" != "0.0.0.0" ]; then
+				echo adding dns $i
+				if [ "$interface" == "usb0" ]; then
+					echo nameserver $i >> $RESOLV_USB_CONF
+				else
+					echo nameserver $i >> $RESOLV_CONF
+				fi
+			fi;
+		done
+
+		;;
+esac
+
+exit 0

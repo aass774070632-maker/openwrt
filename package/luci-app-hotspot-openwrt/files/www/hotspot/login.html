@@ -211,29 +211,63 @@
 				}).catch(function() {});
 		}
 
+		// Parse routing rules
+		var routingRules = {};
+		if (settings.radiusRouting) {
+			settings.radiusRouting.split(',').forEach(function(item) {
+				var parts = item.split(':');
+				if (parts.length === 2) {
+					routingRules[parts[0].trim()] = parts[1].trim();
+				}
+			});
+		}
+
 		// AJAX Login Handling
 		form.addEventListener('submit', function(e) {
 			e.preventDefault();
 			var btn = form.querySelector('button');
-			if (settings.loginMode === 'username') document.getElementById('password').value = '';
+			
+			var originalUsername = usernameInput.value;
+			var passwordInput = document.getElementById('password');
+			var originalPassword = passwordInput.value;
+			
+			var trimmedUser = originalUsername.trim();
+			var cardLength = trimmedUser.length;
+			var suffix = '';
+			if (routingRules[cardLength]) {
+				suffix = '@' + routingRules[cardLength];
+			}
+			
+			usernameInput.value = trimmedUser + suffix;
+			if (settings.loginMode === 'username') {
+				passwordInput.value = trimmedUser + suffix;
+			} else if (originalPassword) {
+				passwordInput.value = originalPassword;
+			}
+
 			document.getElementById('userurl').value = statusUrl(usernameInput.value);
 			btn.disabled = true;
 			btn.style.opacity = '0.5';
 			btn.textContent = 'جاري التحقق...';
 
 			var formData = new URLSearchParams(new FormData(form)).toString();
+			
+			// Restore original values to inputs immediately so user doesn't see suffix
+			usernameInput.value = originalUsername;
+			passwordInput.value = originalPassword;
+
 			fetch('/cgi-bin/hotspot-login?format=json&' + formData, { cache: 'no-store' })
 				.then(function(r) { return r.json(); })
 				.then(function(data) {
 					if (data.ok) {
 						// Save and Redirect
-						try { sessionStorage.setItem('hotspot_openwrt_session_username', usernameInput.value); } catch (e) {}
-						try { localStorage.setItem('hotspot_openwrt_last_username', usernameInput.value); localStorage.setItem('hotspot_openwrt_last_username_saved_at', String(Date.now())); } catch (e) {}
+						try { sessionStorage.setItem('hotspot_openwrt_session_username', originalUsername); } catch (e) {}
+						try { localStorage.setItem('hotspot_openwrt_last_username', originalUsername); localStorage.setItem('hotspot_openwrt_last_username_saved_at', String(Date.now())); } catch (e) {}
 						if (settings.browserCookieEnabled) {
-							localStorage.setItem('hotspot_openwrt_username', usernameInput.value);
+							localStorage.setItem('hotspot_openwrt_username', originalUsername);
 							localStorage.setItem('hotspot_openwrt_username_saved_at', String(Date.now()));
 						}
-						window.location.replace(data.redirect || statusUrl(usernameInput.value));
+						window.location.replace(data.redirect || statusUrl(originalUsername));
 					} else {
 						showToast(data.message || 'فشل تسجيل الدخول');
 						btn.disabled = false;

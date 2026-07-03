@@ -1,0 +1,5 @@
+/usr/bin/hostapd_cli
+/usr/bin/mcr-hostapd_cli
+/usr/bin/hostapd
+/usr/bin/mcr-hostapd
+/etc/hostapd.conf

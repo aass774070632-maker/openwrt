@@ -1,0 +1,143 @@
+<po>
+  <message msgid="itnet disable" msgstr="비활성화" />
+  <message msgid="itnet enable" msgstr="활성화" />
+  <message msgid="itnet apply" msgstr="적용" />
+  <message msgid="itnet cancel" msgstr="취소" />
+  <message msgid="itnet reset" msgstr="초기화" />
+  <message msgid="itnet add" msgstr="추가" />
+  <message msgid="itnet delete" msgstr="삭제" />
+  <message msgid="itnet selectall" msgstr="전체선택" />
+  
+  <message msgid="qos title" msgstr="QOS 설정" />
+  <message msgid="qos intro" msgstr="QOS 설정 및 큐 스캐쥴방법을 설정한다." />
+  <message msgid="qos setup" msgstr="QoS 설정" />
+  <message msgid="qos str" msgstr="QoS 설정" />
+  <message msgid="qos disable" msgstr="해제" />
+  <message msgid="qos enable" msgstr="설정" />
+  <message msgid="qos type" msgstr="QOS 타입" />
+  <message msgid="qos sch" msgstr="QOS 스캐쥴" />
+  <message msgid="qos wsch" msgstr="WAN QOS 스캐쥴" />
+  <message msgid="qos lsch" msgstr="LAN QOS 스캐쥴" />
+  <message msgid="qos qwt" msgstr="QOS Queue Weight(Q0~Q3)" />
+  <message msgid="qos qwtra" msgstr="QOS Queue Weight(Q0~Q3) 유효값 (1, 2, 4, 8, 16) 중에서 입력하세요." />
+  <message msgid="qos q0err" msgstr="Queue0의 값을 잘못 입력하셨습니다!" />
+  <message msgid="qos q1err" msgstr="Queue1의 값을 잘못 입력하셨습니다!" />
+  <message msgid="qos q2err" msgstr="Queue2의 값을 잘못 입력하셨습니다!" />
+  <message msgid="qos q3err" msgstr="Queue3의 값을 잘못 입력하셨습니다!" />
+  <message msgid="qos qinerr" msgstr="Queue의 입력값이 100보다 작거나 같아야 합니다!" />
+ 
+  <message msgid="qos rule list" msgstr="QOS Policy 리스트" />
+  <message msgid="qos rule no" msgstr="No" />
+  <message msgid="qos rule proto" msgstr="프로토콜" />
+  <message msgid="qos rule mac" msgstr="하드웨어주소" />
+  <message msgid="qos rule dip" msgstr="착신IP" />
+  <message msgid="qos rule sip" msgstr="발신IP" />
+  <message msgid="qos rule dscp" msgstr="Match 타입" />
+  <message msgid="qos rule proto" msgstr="프로토콜" />
+  <message msgid="qos rule dport" msgstr="착신포트" />
+  <message msgid="qos rule sport" msgstr="발신포트" />
+  <message msgid="qos rule inif" msgstr="InIF" />
+  <message msgid="qos rule marktype" msgstr="마킹 타입" />
+  <message msgid="qos rule outqueue" msgstr="우선순위 큐" />
+  <message msgid="qos rule selectall" msgstr="전체선택" />
+  <message msgid="qos rule listnone" msgstr="QoS 정책 리스트가 없습니다." />
+  <message msgid="qos rule exist" msgstr="이미 등록되어 있습니다." />
+
+  <message msgid="qos classifier title" msgstr="QOS 정책 설정" />
+  <message msgid="qos classifier intro" msgstr="QOS 정책에 따른 DSCP 마킹, PRI 마킹 기능을 설정한다. 마킹 값에 따라서 우선순위가 결정된다. IP, IP+DSCP, IP+포트, IP+포트+DSCP, 소스 MAC, DSCP 값으로 정책을 설정한다." />
+  <message msgid="qos classifier untrust" msgstr="QOS Policy 우선처리 설정" />
+  <message msgid="qos classifier setup" msgstr="QOS Policy 설정" />
+  <message msgid="qos classifier mac" msgstr="하드웨어주소" />
+  <message msgid="qos classifier dip" msgstr="착신 IP 주소/ MASK" />
+  <message msgid="qos classifier sip" msgstr="발신 IP 주소/ MASK" />
+  <message msgid="qos classifier match" msgstr="Match 타입" />
+  <message msgid="qos classifier proto" msgstr="프로토콜" />
+  <message msgid="qos classifier dport" msgstr="착신포트" />
+  <message msgid="qos classifier sport" msgstr="발신포트" />
+  <message msgid="qos classifier inif" msgstr="입력인터페이스" />
+  <message msgid="qos classifier marktype" msgstr="마킹 타입" />
+  <message msgid="qos classifier outqueue" msgstr="우선순위 큐 선택" />
+  <message msgid="qos classifier remark" msgstr="리마킹 DSCP" />
+  
+  <message msgid="qos inrule" msgstr="입력오류입니다. 룰 정보를 입력하십시오." />
+  <message msgid="qos indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  <message msgid="qos rangeover" msgstr="입력오류입니다.입력 값이 범위를 초과했습니다." />
+  <message msgid="qos ruleover" msgstr="설정 정책이 초과되었습니다." />
+  <message msgid="qos inipport" msgstr="IP 또는 포트를 입력하십시오." />
+  <message msgid="qos inport" msgstr="포트번호를 입력하십시오." />
+  <message msgid="qos srciperr" msgstr="발신 IP 입력 오류입니다." />
+  <message msgid="qos srcipmaskerr" msgstr="발신 IP MASK Length 입력 오류입니다." />
+  <message msgid="qos dstiperr" msgstr="착신 IP 입력 오류입니다." />
+  <message msgid="qos dstipmaskerr" msgstr="착신 IP MASK Length 입력 오류입니다." />
+  <message msgid="qos srcportstarterr" msgstr="발신 시작 포트 입력 오류입니다." />
+  <message msgid="qos dstportstarterr" msgstr="착신 시작 포트 입력 오류입니다." />
+  <message msgid="qos srcportenderr" msgstr="발신 마지막 포트 입력 오류입니다." />
+  <message msgid="qos dstportenderr" msgstr="착신 마지막 포트 입력 오류입니다." />
+  <message msgid="qos srcportrangeerr" msgstr="발신 포트 범위 입력 오류입니다." />
+  <message msgid="qos dstportrangeerr" msgstr="착신 마지막 포트 범위 입력 오류입니다." />
+  <message msgid="qos macerr" msgstr="MAC주소 입력 오류입니다. (XX:XX:XX:XX:XX:XX) 형식으로 입력하십시오." />
+  <message msgid="qos dscpmatch" msgstr="Match DSCP 허용 범위는 0-63 입니다." />
+  <message msgid="qos tosmatch" msgstr="Match TOS 허용 범위는 0-255 입니다." />
+  <message msgid="qos ipprematch" msgstr="Match IP_precedence 또는 COS 허용 범위는 0-7 입니다." />
+  <message msgid="qos dscpmark" msgstr="Mark DSCP 허용 범위는 0-63 입니다." />
+  <message msgid="qos primark" msgstr="Mark PRI 허용 범위는 0-7 입니다." />
+  <message msgid="qos innomac" msgstr="MAC 주소와 조합으로 설정할수 없습니다." />
+  <message msgid="qos innocos" msgstr="COS는 다른 항목과 조합으로 사용 할수 없습니다." />
+  <message msgid="qos innocosgw" msgstr="COS는 Bridge Mode에서 VLAN 사용시 설정합니다." />
+  <message msgid="qos inmarktype" msgstr="마킹 타입을 선택한후 마킹값을 입력해야 합니다." />
+  <message msgid="qos indigit" msgstr="입력 값을 모두 숫자로 입력해야 합니다." />
+    
+  <message msgid="igmp title" msgstr="IGMP 기능 설정" />
+  <message msgid="igmp intro" msgstr="IGMP 기능을 설정하고 그룹을 관리한다. 브릿지 모드에서는 snooping 기능이, 게이트웨이 모드에서는 Proxy기능을 수행한다." />
+  <message msgid="igmp setup" msgstr="IGMP 설정" />
+  <message msgid="igmp proxy" msgstr="IGMP Proxy" />
+  <message msgid="igmp snoop" msgstr="IGMP Snooping" />
+  <message msgid="igmp fastleave" msgstr="IGMP Fastleave" />
+  <message msgid="igmp grouplist" msgstr="IGMP 그룹 리스트" />
+  <message msgid="igmp groupnone" msgstr="IGMP 그룹 정보가 없습니다." />
+  
+  <message msgid="vlan title" msgstr="VLAN 설정" />
+  <message msgid="vlan intro" msgstr="VLAN 기능을 설정한다." />
+  <message msgid="vlan setup" msgstr="VLAN 설정" />
+  <message msgid="vlan pvidsetup" msgstr="포트 VLAN 설정" />
+  <message msgid="vlan pvidport" msgstr="포트" />
+  <message msgid="vlan dfltpri" msgstr="기본우선순위값" />
+  <message msgid="vlan list" msgstr="VLAN 설정 정보" />
+  <message msgid="vlan listnone" msgstr="VLAN 설정 정보가 없습니다." />
+  <message msgid="vlan indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  <message msgid="vlan rangeover" msgstr="입력오류입니다. Vid는 1-4094 범위값을 입력해야 합니다." />
+  <message msgid="vlan invid" msgstr="Vlan Id를 입력하세요." />
+  <message msgid="vlan invaildvid" msgstr="Vlan Id 1, 2는 시스템에서 사용 예약 되어 있습니다." />
+  <message msgid="vlan prierr" msgstr="기본 우선순위 값은 0 ~ 7 값을 입력해야합니다." />
+  
+  <message msgid="rate title" msgstr="포트별 우선순위 및 트래픽 제한 설정" />
+  <message msgid="rate intro" msgstr="트래픽 제한 기능을 설정하고, 포트별 우선순위를 설정한다." />
+  <message msgid="rate setup" msgstr="포트별 우선순위 및 트래픽 제한 설정" />
+  <message msgid="rate portnum" msgstr="포트" />
+  <message msgid="rate flwctl" msgstr="흐름제어" />
+  <message msgid="rate ingrate" msgstr="입력 트래픽양 (단위:100Kbps)" />
+  <message msgid="rate egrate" msgstr="출력 트래픽양 (단위:100Kbps)" />
+  <message msgid="rate portpri" msgstr="포트우선순위" />
+  <message msgid="rate rateinerr" msgstr="입력오류입니다. [1-1000] 범위값을 입력해야 합니다." />
+  
+  <message msgid="maclmt title" msgstr="포트별 MAC 주소 제한 설정" />
+  <message msgid="maclmt intro" msgstr="포트별 MAC 주소 갯수 제한을 설정한다." />
+  <message msgid="maclmt setup" msgstr="포트별 MAC 주소 제한 설정" />
+  <message msgid="maclmt portnum" msgstr="포트" />
+  <message msgid="maclmt count" msgstr="제한할 MAC 갯수" />
+  <message msgid="maclmt inerr" msgstr="입력오류입니다. 0-4 범위값을 입력해야 합니다. 값이 0이면 제한 설정이 해제됩니다." />
+  
+  <message msgid="storm title" msgstr="포트별 폭주 제어 기능 설정" />
+  <message msgid="storm intro" msgstr="포트별 폭주 제어 기능을 설정한다. 브로드캐스트, 멀티캐스트, 알려지지 않은 착신 패킷등이 해당된다. " />
+  <message msgid="storm setup" msgstr="포트별 폭주 제어 기능 설정" />
+  <message msgid="storm pktcnt" msgstr="허용할 패킷양(단위:1~100Mbps)" />
+  <message msgid="storm portnum" msgstr="포트" />
+  <message msgid="storm count" msgstr="폭주제어" />
+  <message msgid="storm inerr" msgstr="입력오류입니다. 1-100Mbps 범위값을 입력해야 합니다." />
+  
+  <message msgid="port mirr title" msgstr="포트 미러링 기능 설정" />
+  <message msgid="port mirr intro" msgstr="포트 미러링 기능을 설정한다. 미러포트는 LAN4 로 설정되고, RX,TX,BOTH로 설정이 가능하다." />
+  <message msgid="port mirr setting" msgstr="포트 미러링 기능 설정" />
+  <message msgid="port mirr mode" msgstr="포트 미러링 방법" />
+    
+</po>

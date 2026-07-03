@@ -1,0 +1,252 @@
+<po>
+  <message msgid="firewall disable" msgstr="비활성화" />
+  <message msgid="firewall enable" msgstr="활성화" />
+  <message msgid="firewall apply" msgstr="적용" />
+  <message msgid="firewall cancel" msgstr="취소" />
+  <message msgid="firewall reset" msgstr="초기화" />
+  <message msgid="firewall add" msgstr="추가" />
+  <message msgid="firewall delete" msgstr="삭제" />
+  <message msgid="firewall selectall" msgstr="전체선택" />
+
+  <message msgid="port title" msgstr="IP/Port 필터링 설정 " />
+  <message msgid="port introduction" msgstr=" IP, PORT번호를 이용하여 필터링을 설정한다." />
+  <message msgid="port filter setting" msgstr="IP/Port 필터링 설정" />
+  <message msgid="port filter protocol" msgstr="프로토콜" />
+  <message msgid="port filter source ipaddr" msgstr="발신IP/ MASK" />
+  <message msgid="port filter sip" msgstr="발신IP" />
+  <message msgid="port filter port range" msgstr="Port Range" />
+  <message msgid="port filter dest ipaddr" msgstr="착신IP/ MASK" />
+  <message msgid="port filter dip" msgstr="착신IP" />
+  <message msgid="port filter action" msgstr="허용/차단" />
+  <message msgid="port filter action drop" msgstr="차단" />
+  <message msgid="port filter action accept" msgstr="허용" />
+  <message msgid="port current filter" msgstr="IP/Port 필터링 리스트 " />
+  <message msgid="port filter source port range" msgstr="발신포트" />
+  <message msgid="port filter dest port range" msgstr="착신포트" />
+  <message msgid="port filter num" msgstr="항목" />
+  <message msgid="port filter listnone" msgstr="필터링 리스트가 없습니다." />
+  <message msgid="port filter exist" msgstr="이미 등록되어 있습니다." />
+  <message msgid="port filter indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  <message msgid="port filter rangeover" msgstr="입력오류입니다.입력 값이 범위를 초과했습니다." />
+  <message msgid="port filter ruleover" msgstr="설정 정책이 촤과되었습니다." />
+  <message msgid="port filter inipport" msgstr="IP 또는 포트를 입력하십시오." />
+  <message msgid="port filter srciperr" msgstr="발신 IP 입력 오류입니다." />
+  <message msgid="port filter srcipmaskerr" msgstr="발신 IP MASK length 입력 오류입니다[0~32]." />
+  <message msgid="port filter dstiperr" msgstr="착신 IP 입력 오류입니다." />
+  <message msgid="port filter dstipmaskerr" msgstr="착신 IP MASK length 입력 오류입니다[0~32]." />
+  <message msgid="port filter srcportstarterr" msgstr="발신 시작 포트 입력 오류입니다." />
+  <message msgid="port filter dstportstarterr" msgstr="착신 시작 포트 입력 오류입니다." />
+  <message msgid="port filter srcportenderr" msgstr="발신 마지막 포트 입력 오류입니다." />
+  <message msgid="port filter dstportenderr" msgstr="착신 마지막 포트 입력 오류입니다." />
+  <message msgid="port filter srcportrangeerr" msgstr="발신 포트 범위 입력 오류입니다." />
+  <message msgid="port filter dstportrangeerr" msgstr="착신 마지막 포트 범위 입력 오류입니다." />
+  
+  <message msgid="port mactitle" msgstr="MAC 필터링 설정 " />
+  <message msgid="port macintroduction" msgstr="MAC 주소를 이용하여 필터링을 설정한다." />
+  <message msgid="port macfilter portopmodeset" msgstr="MAC 필터링 동작 설정" />
+  <message msgid="port macfilter portnum" msgstr="포트" />
+  <message msgid="port macfilter portopdisable" msgstr="사용안함" />
+  <message msgid="port macfilter portopallow" msgstr="허용" />
+  <message msgid="port macfilter portopdeny" msgstr="차단" />
+  <message msgid="port macfilter setting" msgstr="MAC 필터링 설정" />
+  <message msgid="port macfilter macaddr" msgstr="소스 MAC주소" />
+  <message msgid="port macfilter lanport" msgstr="포트 선택" />
+  <message msgid="port current macfilter" msgstr="MAC 필터링 리스트 " />
+  <message msgid="port macfilter inipport" msgstr="MAC 주소를 입력하십시오." />
+  <message msgid="port macfilter macerr" msgstr="MAC주소 입력 오류입니다. (XX:XX:XX:XX:XX:XX) 형식으로 입력하십시오." />
+  <message msgid="port macfilter portopmodedisable" msgstr="MAC 필터링이 사용안함으로 설정되어 있습니다." />
+  <message msgid="port macfilter portopmodemiss" msgstr="MAC 필터링 동작방식이 포트에 맞지 않습니다." />
+  
+
+  <message msgid="nat server title" msgstr="내부서버 설정 " />
+  <message msgid="nat server introduction" msgstr="내부 PC에 기본적인 서버기능을 설정한다. " />
+  <message msgid="nat server setting" msgstr="내부서버 설정" />
+  <message msgid="nat server protocol" msgstr="프로토콜" />
+  <message msgid="nat server ipaddr" msgstr="내부서버 IP 주소" />
+  <message msgid="nat server extport" msgstr="외부포트" />
+  <message msgid="nat server intport" msgstr="내부포트" />
+  <message msgid="nat server select" msgstr="선택" />
+  <message msgid="nat server ftp" msgstr="FTP" />
+  <message msgid="nat server tftp" msgstr="TFTP" />
+  <message msgid="nat server telnet" msgstr="TELNET" />
+  <message msgid="nat server ssh" msgstr="SSH" />
+  <message msgid="nat server http" msgstr="HTTP" />
+  <message msgid="nat server smtp" msgstr="SMTP" />
+  <message msgid="nat server pop3" msgstr="POP3" />
+  <message msgid="nat server news" msgstr="NEWS" />
+  <message msgid="nat server dns" msgstr="DNS" />
+  
+  <message msgid="nat nostdftp title" msgstr="비정규 FTP 설정 " />
+  <message msgid="nat nostdftp introduction" msgstr="비정규 FTP 포트를 설정한다. " />
+  <message msgid="nat nostdftp setting" msgstr="비정규 FTP 포트 설정" />
+  <message msgid="nat nostdftp ipaddr" msgstr="서버 IP 주소" />
+  <message msgid="nat nostdftp port" msgstr="포트번호" />
+  <message msgid="nat nostdftp select" msgstr="선택" />
+  
+  <message msgid="nat forward title" msgstr="포트 포워드 설정 " />
+  <message msgid="nat forward introduction" msgstr="포트 포워드 기능을 설정한다." />
+  <message msgid="nat forward setting" msgstr="포트 포워드 설정" />
+  <message msgid="nat forward protocol" msgstr="프로토콜" />
+  <message msgid="nat forward extport" msgstr="외부포트" />
+  <message msgid="nat forward intport" msgstr="내부포트" />
+  <message msgid="nat forward ipaddr" msgstr="포워딩 IP 주소" />
+  <message msgid="nat forward list" msgstr="포트 포워드 리스트" />
+  <message msgid="nat forward num" msgstr="항목" />
+  <message msgid="nat forward listnone" msgstr="포트 포워드 리스트가 없습니다." />
+  <message msgid="nat forward exist" msgstr="이미 등록되어 있습니다." />
+  <message msgid="nat forward ruleover" msgstr="설정 정책이 촤과되었습니다." />
+  <message msgid="nat forward eportrangeerr" msgstr="외부 포트 입력 오류입니다." />
+  <message msgid="nat forward iportrangeerr" msgstr="내부 포트 입력 오류입니다." />
+
+  <message msgid="nat alg title" msgstr="ALG " />
+  <message msgid="nat alg introduction" msgstr="ALG 기능을 설정하고, UPNP 기능을 설정합니다. " />
+  <message msgid="nat alg app" msgstr="ALG" />
+  <message msgid="nat alg ip" msgstr="내부 IP 주소" />
+  <message msgid="nat alg select" msgstr="선택" />
+  <message msgid="nat alg netmeet" msgstr="NETMEET" />
+  <message msgid="nat alg battlenet" msgstr="BATTLE.NET(StarCraft,Diablo)" />
+  <message msgid="nat alg winamp" msgstr="WINAMP" />
+  
+  <message msgid="nat vpn title" msgstr="VPN Passthrough" />
+  <message msgid="nat vpn introduction" msgstr="VPN passthrought 방식을 설정함: L2TP, IPSec, PPTP passthrough." />
+  <message msgid="nat vpn pass thru" msgstr="VPN Pass Through" />
+  <message msgid="nat vpn l2tp pass thru" msgstr="L2TP Passthrough" />
+  <message msgid="nat vpn ipsec pass thru" msgstr="IPSec Passthrough" />
+  <message msgid="nat vpn pptp pass thru" msgstr="PPTP Passthrough" />
+
+  <message msgid="nat dmz title" msgstr=" DMZ/Twin IP 설정 " />
+  <message msgid="nat dmz introduction" msgstr=" DMZ/Twin IP 기능을 설정합니다." />
+  <message msgid="nat dmz none" msgstr="사용안함" />
+  <message msgid="nat dmz setting" msgstr="DMZ 설정" />
+  <message msgid="nat dmz info" msgstr="지정된 내부 IP 주소의 PC로 모든 포트를 개방합니다." />
+  <message msgid="nat dmz ipaddr" msgstr="DMZ IP 주소" />
+  <message msgid="nat sdmz setting" msgstr="Twin IP 설정" />
+  <message msgid="nat sdmz info" msgstr="지정된 MAC 의 PC가 공인 IP를 사용하게 합니다." />
+  <message msgid="nat sdmz mac" msgstr="하드웨어 주소" />
+  <message msgid="nat inip" msgstr="IP를 입력하십시오." />
+  <message msgid="nat iperr" msgstr="입력된 IP 오류입니다." />
+  <message msgid="nat indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  <message msgid="nat macerr" msgstr="MAC주소 입력 오류입니다. (XX:XX:XX:XX:XX:XX) 형식으로 입력하십시오." />
+  <message msgid="nat inport" msgstr="포트번호를 입력하십시오." />
+  <message msgid="nat rangeover" msgstr="입력오류입니다.입력 값이 범위를 초과했습니다." />
+
+  <message msgid="ra title" msgstr="RA 설정변경" /> 
+  <message msgid="ra introduction" msgstr="Remote Access 설정을 합니다. RARS연결을 위한 파라미터를 설정하세요.." /> 
+  <message msgid="ra setting" msgstr="RA 정보 설정" />  
+  <message msgid="ra enable" msgstr="RA 사용여부" />
+  <message msgid="ra usrname" msgstr="사용자 ID" />
+  <message msgid="ra passwd" msgstr="비밀번호" />  
+  <message msgid="ra server ip" msgstr="서버 IP" />  
+  <message msgid="ra in svr ip" msgstr="서버 IP를 입력하십시오." />
+  <message msgid="ra in username" msgstr="사용자 ID를 입력하십시오." />
+  <message msgid="ra in passwd" msgstr="비밀번호를 입력하십시오." />
+    
+  <message msgid="dos title" msgstr="Dos 방어 설정 " />
+  <message msgid="dos introduction" msgstr="DOS Attack 방어 기능을 설정합니다. " />
+  <message msgid="dos setting" msgstr="DOS 방어 설정" />
+  <message msgid="dos syn" msgstr="SYN Flooding" />
+  <message msgid="dos synintro" msgstr="TCP Syn 공격 차단" />
+  <message msgid="dos smurf" msgstr="Smurf" />
+  <message msgid="dos smurfintro" msgstr="Broadcast icmp 공격 차단" />
+  <message msgid="dos ipsrcroute" msgstr="IP Source routing" />
+  <message msgid="dos ipsrcrouteintro" msgstr="IP 소스 라우팅 차단" />
+  <message msgid="dos ipspoof" msgstr="IP Spoofing" />
+  <message msgid="dos ipspoofintro" msgstr="IP 스푸핑 공격 차단" />
+  <message msgid="dos portscan" msgstr="Port Scan" />
+  <message msgid="dos portscanintro" msgstr="침입 감지시 IP를 차단함. 다시 허용하려면 아래 차단 List를 보고 해제해야함." />
+  <message msgid="dos arpspoof" msgstr="ARP Spoofing" />
+  <message msgid="dos arpspoofintro" msgstr="ARP 스푸핑 공격 차단" />
+  <message msgid="dos warpspoof" msgstr="무선 ARP Spoofing" />
+  <message msgid="dos warpspoofintro" msgstr="도청방지를 위한 무선 ARP 스푸핑 공격 차단" />
+  <message msgid="dos land" msgstr="Land Attack" />
+  <message msgid="dos landintro" msgstr="LAND 공격 차단" />
+  <message msgid="dos teardrop" msgstr="Tear Drop" />
+  <message msgid="dos teardropintro" msgstr="TearDrop 공격 차단" />
+  <message msgid="dos pingdeath" msgstr="Ping Of Death" />
+  <message msgid="dos pingdeathintro" msgstr="Ping Of Death 공격 차단" />
+  <message msgid="dos udpbomb" msgstr="UDP Bomb" />
+  <message msgid="dos udpbombintro" msgstr="UDP Bomb 공격 차단" />
+  <message msgid="dos macfloodgrd" msgstr="MAC Flood Guard" />
+  <message msgid="dos macfloodgrdintro" msgstr="초당 CPU로 인입되는 패킷 수가 입력된 값을 넘을경우 지정시간동안 차단한다." />
+  <message msgid="dos blkscanintro" msgstr="차단된 IP 리스트" />
+  <message msgid="dos num" msgstr="항목" />
+  <message msgid="dos blkip" msgstr="차단 IP주소" />
+  <message msgid="dos ipalw" msgstr="허용 IP주소" />
+  <message msgid="dos blklistnone" msgstr="차단된 IP 리스트가 없습니다." />
+  <message msgid="dos loopdetecttableintro" msgstr="Self Loop Detect 리스트" />
+  <message msgid="dos port" msgstr="Port" />
+  <message msgid="dos block" msgstr="Port Status" />
+  <message msgid="dos portblklistnone" msgstr="차단Port 리스트가 없습니다." />
+  <message msgid="dos inip" msgstr="IP를 입력하십시오." />
+  <message msgid="dos indigit" msgstr="입력오류입니다.[0-9] 숫자를 입력하세요." />
+  <message msgid="dos iperr" msgstr="입력된 IP 오류입니다." />
+  <message msgid="dos rangeerr" msgstr="입력 오류입니다. (1~255)값을 입력하세요." />
+  <message msgid="dos macpktlmtrangeerr" msgstr="입력 오류입니다. (1~4000)값을 입력하세요." />
+  <message msgid="dos macblktmrangeerr" msgstr="입력 오류입니다. (1~86400)값을 입력하세요." />
+
+  <message msgid="content filter title" msgstr="Content Filter Settings" />
+  <message msgid="content filter introduction" msgstr="You can setup Content Filter to restrict the improper content access." />
+  <message msgid="content filter webs content filter" msgstr="Webs Content Filter" />
+  <message msgid="content filter webs content filter filter" msgstr="Filters:" />
+  <message msgid="content filter webs content filter apply" msgstr="Apply" />
+  <message msgid="content filter webs content filter reset" msgstr="Reset" />
+  <message msgid="content filter webs URL filter title" msgstr="Webs URL Filter Settings" />
+  <message msgid="content filter webs url filter current" msgstr="Current Webs URL Filters:" />
+  <message msgid="content filter webs url fitler No" msgstr="No" />
+  <message msgid="content filter webs url fitler url" msgstr="URL" />
+  <message msgid="content filter webs url fitler del" msgstr="Delete" />
+  <message msgid="content filter webs url fitler reset" msgstr="Reset" />
+  <message msgid="content filter webs url fitler add title" msgstr="Add a URL filter:" />
+  <message msgid="content filter webs url fitler add" msgstr="Add" />
+  <message msgid="content filter webs url fitler reset" msgstr="Reset" />
+  <message msgid="content filter webs host fitler title" msgstr="Webs Host Filter Settings" />
+  <message msgid="content filter webs host fitler current" msgstr="Current Website Host Filters:" />
+  <message msgid="content filter webs host fitler no" msgstr="No" />
+  <message msgid="content filter webs host fitler host" msgstr="Host(Keyword)" />
+  <message msgid="content filter webs host fitler del" msgstr="Delete" />
+  <message msgid="content filter webs host fitler reset" msgstr="Reset" />
+  <message msgid="content filter webs host fitler add title" msgstr="Add a Host(keyword) Filter:" />
+  <message msgid="content filter webs host fitler keyword" msgstr="Keyword" />
+  <message msgid="content filter webs host fitler add" msgstr="Add" />
+  <message msgid="content filter webs host fitler reset" msgstr="Reset" />
+
+  <message msgid="sysfw title" msgstr="System Security Settings" />
+  <message msgid="sysfw introduction" msgstr="You may configure the system firewall to protect AP/Router itself from attacking." />
+  <message msgid="sysfw remote management title" msgstr="Remote management" />
+  <message msgid="sysfw remote management head" msgstr="Remote management (via WAN)" />
+  <message msgid="sysfw allow" msgstr="Allow" />
+  <message msgid="sysfw deny" msgstr="Deny" />
+  <message msgid="sysfw wanping title" msgstr="Ping form WAN Filter" />
+  <message msgid="sysfw wanping head" msgstr="Ping form WAN Filter" />
+  <message msgid="sysfw spi title" msgstr="Stateful Packet Inspection (SPI)" />
+  <message msgid="sysfw spi head" msgstr="SPI Firewall" />
+  <message msgid="sysfw apply" msgstr="Apply" />
+  <message msgid="sysfw reset" msgstr="Reset" />
+
+  <message msgid="netk title" msgstr="인터넷 사용제한" />
+  <message msgid="netk introduction" msgstr="인터넷 사용제한 기능을 설정합니다." />
+  <message msgid="netk header" msgstr="인터넷 사용제한" />
+  <message msgid="netk activity" msgstr="인터넷 사용제한" />
+  <message msgid="netk name" msgstr="규칙이름" />
+  <message msgid="netk macaddr" msgstr="시작지 MAC 주소" />
+  <message msgid="netk allowdeny" msgstr="허용/차단" />
+  <message msgid="netk allow" msgstr="허용" />
+  <message msgid="netk deny" msgstr="차단" />
+  <message msgid="netk schedule week" msgstr="스케쥴-요일" />
+  <message msgid="netk schedule sun" msgstr="일" />
+  <message msgid="netk schedule mon" msgstr="월" />
+  <message msgid="netk schedule tue" msgstr="화" />
+  <message msgid="netk schedule wed" msgstr="수" />
+  <message msgid="netk schedule thr" msgstr="목" />
+  <message msgid="netk schedule fri" msgstr="금" />
+  <message msgid="netk schedule sat" msgstr="토" />
+  <message msgid="netk schedule all" msgstr="매일" />
+  <message msgid="netk schedule time" msgstr="스케쥴-시간" />
+  <message msgid="netk schedule time24" msgstr="24시간" />
+  <message msgid="netk msg overflow" msgstr="설정가능갯수를 초과하였습니다" />
+  <message msgid="netk msg duplicate" msgstr="중복된 규칙이 존재합니다" />
+  <message msgid="netk msg invalid mac" msgstr="MAC 정보가 부적절합니다" />
+  <message msgid="netk msg invalid name" msgstr="규칙이름이 부적절합니다(,; 등의 특수기호사용불가)" />
+  <message msgid="netk msg time" msgstr="스케쥴-시간정보가 부적절합니다" />
+
+</po>

@@ -1,0 +1,13 @@
+Package: luci-lib-ip
+Version: 25.292.66247~75e41cb
+Depends: libc, liblua5.1.5, libnl-tiny1
+Source: feeds/luci/libs/luci-lib-ip
+SourceName: luci-lib-ip
+License: Apache-2.0
+Section: luci
+SourceDateEpoch: 1760898247
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: mipsel_24kc
+Installed-Size: 71680
+Description:  Lua library for IP calculation and routing information

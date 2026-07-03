@@ -1,0 +1,9 @@
+/etc/init.d/alemprator-firstboot
+/etc/uci-defaults/95-alemprator-firstboot
+/usr/share/ucitrack/alemprator-firstboot-dhcp.json
+/etc/config/alemprator_firstboot
+/usr/share/ucitrack/alemprator-firstboot-wireless.json
+/usr/share/ucitrack/alemprator-firstboot-firewall.json
+/usr/share/ucitrack/alemprator-firstboot-network.json
+/usr/share/ucitrack/alemprator-firstboot-setup.json
+/etc/rc.d/S98alemprator-firstboot

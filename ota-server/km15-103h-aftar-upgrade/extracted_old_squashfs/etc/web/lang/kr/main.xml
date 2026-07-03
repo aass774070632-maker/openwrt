@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<po>
+  <message msgid="main disable" msgstr="비활성화" />
+  <message msgid="main enable" msgstr="활성화" />
+  <message msgid="main apply" msgstr="적용" />
+  <message msgid="main cancel" msgstr="취소" />
+
+  <message msgid="overview introduction" msgstr="머큐리(주)" />
+  <message msgid="overview select language" msgstr="언어선택(Language Selection)" />
+  <message msgid="overview status link" msgstr="인터넷 연결정보" />
+  <message msgid="overview statistic link" msgstr="포트통계" />
+  <message msgid="overview management link" msgstr="시스템관리" />
+  <message msgid="treeapp openall" msgstr="open all" />
+  <message msgid="treeapp closeall" msgstr="close all" />
+  <message msgid="treeapp mercury" msgstr="머큐리" />
+  <message msgid="treeapp status info" msgstr="상태정보" />
+  <message msgid="treeapp connection info" msgstr="인터넷 연결정보" />
+  <message msgid="treeapp dhcp bindinfo" msgstr="DHCP 할당정보" />
+  <message msgid="treeapp dhcpproxy bindinfo" msgstr="DHCP Proxy 할당정보" />
+  <message msgid="treeapp sys log" msgstr="시스템 로그" />
+  <message msgid="treeapp cpg log" msgstr="CPG 로그" />
+  <message msgid="treeapp cpg calllog" msgstr="CALL 로그" />
+  <message msgid="treeapp cpg qoslog" msgstr="QOS 로그" />
+  <message msgid="treeapp cpg diaglog" msgstr="DIAG 로그" />
+  <message msgid="treeapp port statis" msgstr="포트 통계 정보" />
+  <message msgid="treeapp basic settings" msgstr="기본설정" />
+  <message msgid="treeapp wan" msgstr="WAN" />
+  <message msgid="treeapp wan_snd" msgstr="WAN_VOIP" />
+  <message msgid="treeapp lan" msgstr="LAN" />
+  <message msgid="treeapp routing" msgstr="라우팅 설정" />
+  <message msgid="treeapp dhcp server" msgstr="DHCP 설정" />
+  <message msgid="treeapp dhcp option82" msgstr="DHCP Option82 설정" />
+  <message msgid="treeapp dhcp proxy" msgstr="DHCP Proxy 설정" />
+  <message msgid="treeapp operation mode" msgstr="운용모드 선택" />
+  <message msgid="treeapp net_sel" msgstr="IP 할당 정책" />
+  <message msgid="treeapp dnsproxy" msgstr="DNS Proxy 설정" />
+  <message msgid="treeapp wireless settings" msgstr="무선랜 설정" />
+  <message msgid="treeapp wireless basic" msgstr="기본설정" />
+  <message msgid="treeapp wireless advanced" msgstr="고급설정" />
+  <message msgid="treeapp wireless mssid" msgstr="MSSID" />
+  <message msgid="treeapp wireless security" msgstr="인증/암호화설정" />
+  <message msgid="treeapp wireless wmm" msgstr="WMM" />
+  <message msgid="treeapp wireless wds" msgstr="WDS" />
+  <message msgid="treeapp wireless wps" msgstr="WPS" />
+  <message msgid="treeapp wireless station list" msgstr="무선 연결 상태" />
+  <message msgid="treeapp wireless accessctrl" msgstr="MAC 주소 필터링" />
+  <message msgid="treeapp wireless kt radiusautosetup" msgstr="인증서버 자동설정" />
+  <message msgid="treeapp wireless webredirect" msgstr="Web Redirect" />
+  <message msgid="treeapp wireless rate limit" msgstr="무선 Rate Limit" />
+  <message msgid="treeapp wireless rtlAdvanced" msgstr="Wireless RTL Advanced" />
+  <message msgid="treeapp tr069 settings" msgstr="TR-069" />
+  <message msgid="treeapp tr069 config" msgstr="TR-069 설정" />
+  <message msgid="treeapp tr069 vvip" msgstr="TR-069 VVIP" />
+  <message msgid="treeapp advanced settings" msgstr="고급설정" />
+  <message msgid="treeapp nat settings" msgstr="NAT 설정" />
+  <message msgid="treeapp nat server settings" msgstr="내부서버" />
+  <message msgid="treeapp nat forward settings" msgstr="포트포워드" />
+  <message msgid="treeapp nat alg settings" msgstr="ALG" />
+  <message msgid="treeapp nat vpn settings" msgstr="VPN" />
+  <message msgid="treeapp nat dmz settings" msgstr="DMZ 설정" />
+  <message msgid="treeapp nat nostdftp settings" msgstr="비정규 FTP" />
+  <message msgid="treeapp nat ra settings" msgstr="RA 설정" />
+  <message msgid="treeapp firewall settings" msgstr="보안 설정" />
+  <message msgid="treeapp acl settings" msgstr="IP 필터링" />
+  <message msgid="treeapp macacl settings" msgstr="MAC 필터링" />
+  <message msgid="treeapp dos settings" msgstr="DOS 방어설정" />
+  <message msgid="treeapp netkeep settings" msgstr="인터넷 사용제한" />
+  <message msgid="treeapp qos" msgstr="QOS" />
+  <message msgid="treeapp qos settings" msgstr="QOS 설정" />
+  <message msgid="treeapp qos policy" msgstr="QOS Policy 설정" />
+  <message msgid="treeapp qos ratelimit" msgstr="트래픽제한설정" />
+  <message msgid="treeapp dns" msgstr="DNS" />
+  <message msgid="treeapp web" msgstr="외부WEB접속" />
+  <message msgid="treeapp provisioning" msgstr="오토프로비져닝" />
+  <message msgid="treeapp cpg code" msgstr="CPG CODE" />
+  <message msgid="treeapp igmp" msgstr="IGMP" />
+  <message msgid="treeapp igmp settings" msgstr="IGMP 설정" />
+  <message msgid="treeapp igmp info" msgstr="IGMP 정보" />
+  <message msgid="treeapp l2switch" msgstr="L2 스위칭 설정" />
+  <message msgid="treeapp l2storm" msgstr="Storm 제어 설정" />
+  <message msgid="treeapp l2maclimit" msgstr="MAC 제한 설정" />
+  <message msgid="treeapp portmirr" msgstr="포트 미러링 설정" />
+  <message msgid="treeapp loopdetect" msgstr="LOOP 감지설정" />
+  <message msgid="treeapp vlan settings" msgstr="VLAN 설정" />
+  <message msgid="treeapp voice settings" msgstr="음성설정" />
+  <message msgid="treeapp fax settings" msgstr="Fax 설정" />
+  <message msgid="treeapp volume settings" msgstr="볼륨 설정" />
+  <message msgid="treeapp phonebook settings" msgstr="전화번호부 설정" />
+  <message msgid="treeapp restrict settings" msgstr="발신제한코드 설정" />
+  <message msgid="treeapp areacode settings" msgstr="지역번호 설정" />
+  <message msgid="treeapp voip settings" msgstr="VoIP" />
+  <message msgid="treeapp kthhp sip status" msgstr="상태 정보" />
+  <message msgid="treeapp kthhp sip general" msgstr="SIP 정보" />
+  <message msgid="treeapp kthhp sip useragent" msgstr="가입자 정보" />
+  <message msgid="treeapp kthhp rtp config" msgstr="RTP 정보" />
+  <message msgid="treeapp sip general" msgstr="SIP 기본설정" />
+  <message msgid="treeapp sip phone" msgstr="SIP Phone 설정" />
+  <message msgid="treeapp sip auth" msgstr="SIP 인증설정" />
+  <message msgid="treeapp sip digitmap" msgstr="SIP Digitmap" />
+  <message msgid="treeapp sip timer" msgstr="SIP 타이머" />
+  <message msgid="treeapp sip dsp" msgstr="SIP DSP 설정" />
+  <message msgid="treeapp system settings" msgstr="시스템 설정" />
+  <message msgid="treeapp upgrade settings" msgstr="업그레이드" />
+  <message msgid="treeapp manual upgrade" msgstr="수동 업그레이드" />
+  <message msgid="treeapp password settings" msgstr="비밀번호 변경" />
+  <message msgid="treeapp system management" msgstr="시스템 관리" />
+  <message msgid="treeapp snmp settings" msgstr="SNMP 설정" />
+  <message msgid="treeapp provision settings" msgstr="원격서버관리설정" />
+  <message msgid="treeapp logout" msgstr="로그아웃" />
+  
+  <message msgid="opmode title" msgstr="운용모드 설정" />
+  <message msgid="opmode introduction" msgstr="단말환경에 적당한 운용모드를 설정합니다." />
+  <message msgid="opmode mode b" msgstr="Bridge:" />
+  <message msgid="opmode mode b intro" msgstr="br0( 무선 + WAN 포트 + LAN 포트)로 구성된다." />
+  <message msgid="opmode mode g" msgstr="Gateway:" />
+  <message msgid="opmode mode g intro" msgstr="WAN 포트 + br0(무선+LAN 포트)로 구성된다" />
+  <message msgid="opmode mode a" msgstr="AP Client:" />
+  <message msgid="opmode mode a intro" msgstr="무선 AP 클라이언트를 WAN으로 구성하고, 무선 AP와 이더넷 포트를 LAN 포트로 구성한다." />
+  <message msgid="opmode nat" msgstr="NAT 설정" />
+  
+  <message msgid="login apply" msgstr="로그인" />
+  <message msgid="login userid" msgstr="사용자ID :" />
+  <message msgid="login passwd" msgstr="암호 :" />
+  <message msgid="login ipaddr" msgstr="외부IP 주소 " />
+  <message msgid="login dns" msgstr="DNS 서버 " />
+  <message msgid="login conntype" msgstr="연결 모드 " />
+  <message msgid="login linksts" msgstr="연결 상태 " />
+  <message msgid="login swver" msgstr="소프트웨어 버젼 " />
+  
+  <message msgid="treeapp ap scan" msgstr="AP SCAN" />
+  <message msgid="treeapp watchdog" msgstr="단말감시" />
+  <message msgid="treeapp wol" msgstr="WOL" />
+
+  <message msgid="treeapp otv" msgstr="OTV Settings" />  
+</po>

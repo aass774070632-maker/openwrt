@@ -1,0 +1,8 @@
+Package: flash_test
+Version: 1
+Depends: libc, lmbench, lmbench-lmdd
+Source: package/mtk/applications/flash_test
+Section: MTK Properties
+Architecture: mipsel_24kc
+Installed-Size: 3574
+Description:  Some Mediatek flash tools to do test for SNOR/NAND/eMMC flash

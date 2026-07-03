@@ -1,0 +1,10 @@
+Package: mcr-busybox
+Version: 1.25.1-1
+Depends: libc, mcr-common, libmcr-leaf, mcr-cfghandler, libmcr-mwl
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/apps/mcr-busybox
+License: GPL-2.0
+LicenseFiles: LICENSE archival/libarchive/bz/LICENSE
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 233115
+Description:  Mercury busybox-1.25.1

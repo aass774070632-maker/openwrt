@@ -5,17 +5,46 @@ USE_PROCD=1
 
 start_service() {
 	[ "$(uci -q get hotspot_openwrt.main.enabled)" = '1' ] || return 0
-	/usr/libexec/hotspot-openwrt/apply --start
+
+	# Run apply once (one-shot) at boot — NOT wrapped in procd respawn.
+	# apply --start configures chilli/network and then exits; procd must NOT
+	# restart it as a daemon or chilli will never stay running.
+	/usr/libexec/hotspot-openwrt/apply --start > /tmp/hotspot-apply-boot.log 2>&1
+
+	# Start presence-watchdog via procd
+	if [ -x /usr/libexec/hotspot-openwrt/presence-watchdog ]; then
+		procd_open_instance
+		procd_set_param command /usr/libexec/hotspot-openwrt/presence-watchdog
+		procd_set_param respawn
+		procd_close_instance
+	fi
+
+	# Start mac-cookie-watchdog via procd
+	if [ -x /usr/libexec/hotspot-openwrt/mac-cookie-watchdog ]; then
+		procd_open_instance
+		procd_set_param command /usr/libexec/hotspot-openwrt/mac-cookie-watchdog
+		procd_set_param respawn
+		procd_close_instance
+	fi
+
+	# Start maint-watchdog via procd (only if explicitly enabled)
+	if [ "$(uci -q get hotspot_openwrt.main.maint_enabled)" = '1' ] && [ -x /usr/libexec/hotspot-openwrt/maint-watchdog ]; then
+		procd_open_instance
+		procd_set_param command /usr/libexec/hotspot-openwrt/maint-watchdog
+		procd_set_param respawn
+		procd_close_instance
+	fi
+
+	# Run enforcement-check on startup
+	if [ -x /usr/libexec/hotspot-openwrt/enforcement-check ]; then
+		/usr/libexec/hotspot-openwrt/enforcement-check > /dev/null 2>&1 &
+	fi
 }
 
 stop_service() {
-	if [ -s /var/run/hotspot-openwrt-presence-watchdog.pid ]; then
-		kill "$(cat /var/run/hotspot-openwrt-presence-watchdog.pid 2>/dev/null)" 2>/dev/null || true
-		rm -f /var/run/hotspot-openwrt-presence-watchdog.pid
-	fi
-	if [ -s /var/run/hotspot-openwrt-mac-cookie-watchdog.pid ]; then
-		kill "$(cat /var/run/hotspot-openwrt-mac-cookie-watchdog.pid 2>/dev/null)" 2>/dev/null || true
-		rm -f /var/run/hotspot-openwrt-mac-cookie-watchdog.pid
-	fi
-	/etc/init.d/chilli stop 2>/dev/null || true
+	/etc/init.d/chilli stop > /dev/null 2>&1 || true
+}
+
+service_triggers() {
+	procd_add_reload_trigger "hotspot_openwrt"
 }

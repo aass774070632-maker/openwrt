@@ -1,0 +1,8 @@
+Package: mapd
+Version: 1
+Depends: libc, wapp, 1905daemon, libmapd
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/4210-mediatek-package-folder/mtk/applications/mapd
+Section: MTK Properties
+Architecture: mipsel_24kc
+Installed-Size: 432223
+Description:  wifi app daemon

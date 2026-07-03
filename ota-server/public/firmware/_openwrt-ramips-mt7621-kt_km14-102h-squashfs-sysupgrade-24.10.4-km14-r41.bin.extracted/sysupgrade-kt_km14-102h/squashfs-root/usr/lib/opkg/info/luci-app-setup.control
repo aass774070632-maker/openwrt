@@ -1,0 +1,14 @@
+Package: luci-app-setup
+Version: 1.0-r120
+Depends: libc, luci-base, luci-theme-bootstrap, rpcd
+Source: feeds/base/luci-app-setup
+SourceName: luci-app-setup
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1779591039
+Architecture: mipsel_24kc
+Installed-Size: 645120
+Description:  Portable ALemprator LuCI frontend for standard OpenWrt LAN, Wi-Fi and button policies.
+ Optional backend binaries may still be used on targets where they are available.
+ When luci-app-hotspot-openwrt is also installed, the setup wizard gains a quick-setup
+ step for CoovaChilli + MikroTik RADIUS (Hotspot) without opening the separate hotspot page.

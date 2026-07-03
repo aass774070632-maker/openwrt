@@ -1,0 +1,127 @@
+<po>
+  <message msgid="storage disable" msgstr="Disable" />
+  <message msgid="storage enable" msgstr="Enable" />
+  <message msgid="storage add" msgstr="Add" />
+  <message msgid="storage edit" msgstr="Edit" />
+  <message msgid="storage del" msgstr="Delete" />
+  <message msgid="storage apply" msgstr="Apply" />
+  <message msgid="storage cancel" msgstr="Cancel" />
+  <message msgid="storage reset" msgstr="Reset" />
+
+  <message msgid="storage adm title" msgstr="Administration" />
+  <message msgid="storage adm introduction" msgstr="" />
+  <message msgid="storage adm user" msgstr="User Management" />
+  <message msgid="storage user name" msgstr="User Name" />
+  <message msgid="storage user ftp" msgstr="FTP used" />
+  <message msgid="storage user smb" msgstr="Samba used" />
+
+  <message msgid="adduser name" msgstr="User Name" />
+  <message msgid="adduser password" msgstr="Password" />
+  <message msgid="adduser ftp" msgstr="Ftp Setup" />
+  <message msgid="adduser mullogins" msgstr="Multiple Logins Capability" />
+  <message msgid="adduser maxlogins" msgstr="Maximum Login" />
+  <message msgid="adduser download" msgstr="Download Capability" />
+  <message msgid="adduser upload" msgstr="Upload Capability" />
+  <message msgid="adduser overwrite" msgstr="Overwrite Capability" />
+  <message msgid="adduser erase" msgstr="Erase Capability" />
+  <message msgid="adduser smb" msgstr="Samba Setup" />
+  
+  <message msgid="ftp title" msgstr="FTP Settings" />
+  <message msgid="ftp introduction" msgstr="" />
+  <message msgid="ftp server setup" msgstr="FTP Server Setup" />
+  <message msgid="ftp server enable" msgstr="FTP Server" />
+  <message msgid="ftp server anonymous" msgstr="Anonymous Login" />
+  <message msgid="ftp server port" msgstr="FTP Port" />
+  <message msgid="ftp server maxusers" msgstr="Max. Users" />
+  <message msgid="ftp server logintimeout" msgstr="Login Timeout" />
+  <message msgid="ftp server staytimeout" msgstr="Stay Timeout" />
+  
+  <message msgid="smb title" msgstr="SAMBA Settings" />
+  <message msgid="smb introduction" msgstr="" />
+  <message msgid="smb server setup" msgstr="SAMBA Server Setup" />
+  <message msgid="smb server enable" msgstr="SAMBA Server" />
+  <message msgid="smb server workgroup" msgstr="Workgroup" />
+  <message msgid="smb server netbios" msgstr="NetBIOS Name" />
+  <message msgid="smb server dirlist" msgstr="Sharing Directory List" />
+  <message msgid="smb server dirname" msgstr="Directory Name" />
+  <message msgid="smb server allowuser" msgstr="Allowes Users" />
+  <message msgid="smb adddir name" msgstr="Directory Name" />
+  <message msgid="smb adddir accessusers" msgstr="Access User" />
+
+  <message msgid="sipgen title" msgstr="SIP general configuration" />
+  <message msgid="sipgen introduction" msgstr="Config gerneral VoIP function" />
+  <message msgid="sipgen sectitle" msgstr="SIP general configuration" />
+  <message msgid="sipgen modifyfeature host" msgstr="Config Host" />
+  <message msgid="sipgen hostinterface" msgstr="Interface" />
+  <message msgid="sipgen hostinterface1" msgstr="eth1" />
+  <message msgid="sipgen hostinterface2" msgstr="eth0" />
+  <message msgid="sipgen hostinterface3" msgstr="br0" />
+  <message msgid="sipgen hostprtno" msgstr="Port No" />
+  <message msgid="sipgen hosttranprt" msgstr="Transport" />
+  <message msgid="sipgen hosttranprt1" msgstr="UDP" />
+  <message msgid="sipgen hosttranprt2" msgstr="TCP" />
+  <message msgid="sipgen modifyfeature proxy" msgstr="Config Proxy" />
+  <message msgid="sipgen proxyaddress" msgstr="Address" />
+  <message msgid="sipgen proxyprtno" msgstr="PortNo" />
+  <message msgid="sipgen proxyenable" msgstr="Enabled" />
+  <message msgid="sipgen modifyfeature register" msgstr="Config Register" />
+  <message msgid="sipgen registeraddress" msgstr="Address" />
+  <message msgid="sipgen registerprtno" msgstr="PortNo" />
+  <message msgid="sipgen registerexpr" msgstr="Expires" />
+  <message msgid="sipgen registerproxy" msgstr="Proxy-Require" />
+  <message msgid="sipgen registertimer" msgstr="Ping Timer" />
+
+  <message msgid="sipgen modifyfeature bound" msgstr="Config Bound Proxy and Register" />
+
+  <message msgid="sipgen modifyfeature bproxy" msgstr="Proxy   " />
+  <message msgid="sipgen bproxyaddress" msgstr="Address" />
+  <message msgid="sipgen bproxyprtno" msgstr="Port No" />
+  <message msgid="sipgen bproxyenable" msgstr="Enabled" />
+  <message msgid="sipgen modifyfeature bregister" msgstr="Register" />
+  <message msgid="sipgen bregisteraddress" msgstr="Address :" />
+  <message msgid="sipgen bregisterprtno" msgstr="Port No" />
+  <message msgid="sipgen modifyfeature rtpntos" msgstr="Config extra parameter" />
+  <message msgid="sipgen sippackettos" msgstr="TOS" />
+  <message msgid="sipgen modifyfeature rtp" msgstr="   RTP " />
+  <message msgid="sipgen rtpprtsport" msgstr="Start Port : " />
+  <message msgid="sipgen rtpprteport" msgstr="End Port : " />
+
+  <message msgid="sipphone title" msgstr="SIP Phone configuration" />
+  <message msgid="sipphone introduction" msgstr="Config Phone configuration" />
+  <message msgid="sipphone modifyfeature host" msgstr="Phone configuration"/>
+  <message msgid="sipphone state" msgstr="Phone status" />
+  <message msgid="sipphone calllstate" msgstr="Call status" />
+  <message msgid="sipphone uname" msgstr="Phone Number" />
+  <message msgid="sipphone dname" msgstr="Display Name" />
+  <message msgid="sipphone codec" msgstr="Codec" />
+  <message msgid="sipphone codecpcmu" msgstr="PCMU" />
+  <message msgid="sipphone codecpcma" msgstr="PCMA" />
+  <message msgid="sipphone codecg73" msgstr="G723" />
+  <message msgid="sipphone codecg79" msgstr="G729" />
+  <message msgid="sipphone pkperiod" msgstr="Pack. Period" />
+  <message msgid="sipphone callwat" msgstr="Call Waiting" />
+  <message msgid="sipphone callenable" msgstr="Enable" />
+  <message msgid="sipphone calldiable" msgstr="Disable" />
+  <message msgid="sipphone dtmf" msgstr="DTMF" />
+  <message msgid="sipphone dtmfin" msgstr="Inband" />
+  <message msgid="sipphone dtmfout" msgstr="Outband" />
+  <message msgid="sipphone dtmfrfc" msgstr="RFC2833" />
+  <message msgid="sipphone cid" msgstr="CID" />
+  <message msgid="sipphone cidenable" msgstr="Enable" />
+  <message msgid="sipphone ciddisable" msgstr="Disable" />
+  <message msgid="sipphone inphonenum" msgstr="ì ~Dí™~Të²~Hí˜¸ ì˜¤ë¥˜ìž~Eë‹~Hë‹¤. ì ~Uìƒ~Aì ~Aì¸ ì ~Dí™~Të²~Hí˜¸ë¥¼ ìž~Eë ¥í~U~Xì‹­ì~K~\ì˜>
+¤." />
+  <message msgid="sipphone indisplayname" msgstr="í™~Të©´ì~W~P ì¶~\ë ¥ë~P  ì´ë¦„ì~D ìž~Eë ¥í~U~Xì‹­ì~K~\ì˜¤."/>
+  <message msgid="sipphone pperiod" msgstr="ì ~Uìƒ~Aì ~Aì¸ Pack. Period ëŠ~T 10-60 ìž~Eë‹~Hë‹¤. 10ì~X ë°°ì~H~Xë¡~\ ìž~Eë ¥í~U´ì~U¼í~U©ë~K~
+Hë‹¤."/>
+  <message msgid="sipphone pperiod723" msgstr="G723ì~D ìœ~Dí•~\ Pack. PeriodëŠ~T 30-60ìœ¼ë¡œ 30ì~X ë°°ì~H~Xë¡~\ ìž~Eë ¥í~U´ì~U¼í~U©ë~K~Hë‹
+¤."/>
+
+  <message msgid="sipauth title" msgstr="SIP ì¸ì¦ ì„¤ì •"/>
+  <message msgid="sipauth introduction" msgstr="SIP ì¸ì¦ì~D ìœ~Dí•~\ ì‚¬ì~Z©ì~^~P, ë¹~Dë°~@ë²~Hí˜¸ë¥¼ ì„¤ì •í•~\ë‹¤." />
+  <message msgid="sipauth modifyfeature host" msgstr="SIP ì¸ì¦ ì ~Uë³´ ë³~@ê²½" />
+  <message msgid="sipauth uname" msgstr="ì‚¬ì~Z©ì~^~P" />
+  <message msgid="sipauth passwd" msgstr="ë¹~Dë°~@ë²~Hí˜¸" />
+  <message msgid="sipauth verify passwd" msgstr="ë¹~Dë°~@ë²~Hí˜¸í~Y~Uì¸" />
+  <message msgid="sipauth mismatch" msgstr="ë¹~Dë°~@ë²~Hí˜¸ë¥¼ ìž~Xëª» ìž~Eë ¥ë~P~Xì—~HìŠµë~K~Hë‹¤." /> 
+</po>

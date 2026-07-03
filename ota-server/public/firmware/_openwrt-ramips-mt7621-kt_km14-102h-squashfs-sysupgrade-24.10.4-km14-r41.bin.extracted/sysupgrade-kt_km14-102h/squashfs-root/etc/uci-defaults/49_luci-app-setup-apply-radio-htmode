@@ -1,0 +1,48 @@
+#!/bin/sh
+
+htmode_from_selection() {
+	local band="$1"
+	local mode="$2"
+	local width="$3"
+
+	case "$band:$mode:$width" in
+		2g:n:40) echo 'HT40' ;;
+		2g:n:20|2g:n:*) echo 'HT20' ;;
+		2g:ax:40) echo 'HE40' ;;
+		2g:ax:20|2g:ax:*) echo 'HE20' ;;
+		5g:n:40) echo 'HT40' ;;
+		5g:n:20|5g:n:*) echo 'HT20' ;;
+		5g:ac:80) echo 'VHT80' ;;
+		5g:ac:40) echo 'VHT40' ;;
+		5g:ac:20|5g:ac:*) echo 'VHT20' ;;
+		5g:ax:80) echo 'HE80' ;;
+		5g:ax:40) echo 'HE40' ;;
+		5g:ax:20|5g:ax:*) echo 'HE20' ;;
+		*) echo '' ;;
+	esac
+}
+
+mode_2g="$(uci -q get setup.default.wifi_mode_2g)"
+width_2g="$(uci -q get setup.default.wifi_width_2g)"
+mode_5g="$(uci -q get setup.default.wifi_mode_5g)"
+width_5g="$(uci -q get setup.default.wifi_width_5g)"
+target_2g="$(htmode_from_selection 2g "$mode_2g" "$width_2g")"
+target_5g="$(htmode_from_selection 5g "$mode_5g" "$width_5g")"
+changed=0
+
+if [ -n "$target_2g" ] && [ "$(uci -q get wireless.radio0.htmode)" != "$target_2g" ]; then
+	uci -q set wireless.radio0.htmode="$target_2g"
+	changed=1
+fi
+
+if [ -n "$target_5g" ] && [ "$(uci -q get wireless.radio1.htmode)" != "$target_5g" ]; then
+	uci -q set wireless.radio1.htmode="$target_5g"
+	changed=1
+fi
+
+if [ "$changed" = 1 ]; then
+	uci -q commit wireless
+	wifi reload >/dev/null 2>&1 || /etc/init.d/network reload >/dev/null 2>&1 || true
+fi
+
+exit 0

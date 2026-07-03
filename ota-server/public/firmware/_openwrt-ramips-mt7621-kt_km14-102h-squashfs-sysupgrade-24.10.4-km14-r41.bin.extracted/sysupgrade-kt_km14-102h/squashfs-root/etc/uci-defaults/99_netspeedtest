@@ -1,0 +1,22 @@
+#!/bin/sh
+touch /etc/config/netspeedtest
+uci -q batch <<-EOF >/dev/null
+	set netspeedtest.config=netspeedtest
+	commit netspeedtest
+EOF
+
+uci -q get netspeedtest.config.iperf3_client_port >/dev/null || uci set netspeedtest.config.iperf3_client_port='5201'
+uci -q get netspeedtest.config.iperf3_client_protocol >/dev/null || uci set netspeedtest.config.iperf3_client_protocol='tcp'
+uci -q get netspeedtest.config.iperf3_client_bandwidth >/dev/null || uci set netspeedtest.config.iperf3_client_bandwidth='10M'
+uci -q get netspeedtest.config.iperf3_client_duration >/dev/null || uci set netspeedtest.config.iperf3_client_duration='10'
+uci -q get netspeedtest.config.iperf3_client_interval >/dev/null || uci set netspeedtest.config.iperf3_client_interval='1'
+uci -q get netspeedtest.config.iperf3_client_parallel >/dev/null || uci set netspeedtest.config.iperf3_client_parallel='1'
+uci -q get netspeedtest.config.iperf3_client_reverse >/dev/null || uci set netspeedtest.config.iperf3_client_reverse='0'
+uci -q get netspeedtest.config.mikrotik_btest_port >/dev/null || uci set netspeedtest.config.mikrotik_btest_port='2000'
+uci -q get netspeedtest.config.mikrotik_btest_direction >/dev/null || uci set netspeedtest.config.mikrotik_btest_direction='receive'
+uci -q get netspeedtest.config.mikrotik_btest_duration >/dev/null || uci set netspeedtest.config.mikrotik_btest_duration='8'
+uci -q get netspeedtest.config.mikrotik_btest_mtu >/dev/null || uci set netspeedtest.config.mikrotik_btest_mtu='1500'
+uci -q get netspeedtest.config.openspeedtest_local_port >/dev/null || uci set netspeedtest.config.openspeedtest_local_port='3000'
+uci -q get netspeedtest.config.openspeedtest_server_enabled >/dev/null || uci set netspeedtest.config.openspeedtest_server_enabled='0'
+uci -q get netspeedtest.config.openspeedtest_server_port >/dev/null || uci set netspeedtest.config.openspeedtest_server_port='3000'
+uci commit netspeedtest

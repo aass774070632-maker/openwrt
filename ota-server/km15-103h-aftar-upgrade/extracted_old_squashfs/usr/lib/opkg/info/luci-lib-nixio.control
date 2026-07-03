@@ -1,0 +1,8 @@
+Package: luci-lib-nixio
+Version: svn-r16-1
+Depends: libc, liblua
+Source: package/luci/libs/luci-lib-nixio
+Section: luci
+Architecture: mipsel_24kc
+Installed-Size: 26859
+Description:  NIXIO POSIX library

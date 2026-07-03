@@ -1,0 +1,14 @@
+Package: luci-app-alemprator-ota
+Version: 1.0-r39
+Depends: libc, luci-base, rpcd, rpcd-mod-file, cgi-io, uclient-fetch, jsonfilter, libubox20240329, ca-bundle, openssl-util
+Source: feeds/base/luci-app-alemprator-ota
+SourceName: luci-app-alemprator-ota
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1779002215
+Maintainer: ALemprator
+Architecture: mipsel_24kc
+Installed-Size: 163840
+Description:  Lightweight OTA identity and update system for ALemprator OpenWrt builds.
+ Supports device registration, periodic update checks, staged rollout gates,
+ update windows, retries, and a LuCI page under System -> System Update.

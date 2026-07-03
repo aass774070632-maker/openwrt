@@ -4,7 +4,8 @@
 # Default archive path: /tmp/hotspot-openwrt-upload
 
 ARCHIVE="${1:-/tmp/hotspot-openwrt-upload}"
-TMPDIR="/tmp/hotspot-openwrt-import.$$"
+TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR"' EXIT
 
 # Allowed destination directories for certificate files
 ALLOWED_CERT_DIRS='/etc/chilli /etc/ssl/certs'
@@ -40,6 +41,7 @@ tar -xzf "$ARCHIVE" -C "$TMPDIR" 2>/dev/null || {
 }
 
 imported=''
+skipped=''
 
 # Restore UCI exports
 for export_file in "$TMPDIR/etc/config/"*.export; do
@@ -48,11 +50,26 @@ for export_file in "$TMPDIR/etc/config/"*.export; do
 	uci import "$pkg" < "$export_file" 2>/dev/null && uci commit "$pkg" 2>/dev/null && imported="$imported $pkg"
 done
 
-# Restore chilli files (only from the known safe etc/chilli directory)
+# Restore chilli assets ONLY for safe static file types. Chilli executes
+# up.sh/down.sh/conup.sh/condown.sh as root, so importing any *.sh (or any
+# executable) from an untrusted archive is a root RCE vector — skip them.
 if [ -d "$TMPDIR/etc/chilli" ]; then
 	mkdir -p /etc/chilli
-	cp "$TMPDIR/etc/chilli/"* /etc/chilli/ 2>/dev/null || true
-	imported="$imported chilli-files"
+	chilli_imported='0'
+	for f in "$TMPDIR/etc/chilli/"*; do
+		[ -f "$f" ] || continue
+		name="$(basename "$f")"
+		case "$name" in
+			*.conf|*.crt|*.pem|*.key)
+				[ -x "$f" ] && { skipped="$skipped $name"; continue; }
+				cp "$f" "/etc/chilli/" 2>/dev/null && chilli_imported='1'
+				;;
+			*)
+				skipped="$skipped $name"
+				;;
+		esac
+	done
+	[ "$chilli_imported" = '1' ] && imported="$imported chilli-files"
 fi
 
 # Restore SSL certs only to allowed directories
@@ -66,5 +83,11 @@ done
 rm -rf "$TMPDIR"
 rm -f "$ARCHIVE"
 
-printf '{"ok":true,"imported":"%s","message":"تم استيراد الإعدادات. يرجى الضغط على حفظ وتطبيق لإعادة تشغيل الهوتسبوت."}\n' \
-	"$(json_escape "$(printf '%s' "$imported" | sed 's/^ *//')")"
+imported_clean="$(printf '%s' "$imported" | sed 's/^ *//')"
+skipped_clean="$(printf '%s' "$skipped" | sed 's/^ *//')"
+message='تم استيراد الإعدادات. يرجى الضغط على حفظ وتطبيق لإعادة تشغيل الهوتسبوت.'
+[ -n "$skipped_clean" ] && message="$message تم تخطّي الملفات التنفيذية/hooks لأسباب أمنية: $skipped_clean"
+printf '{"ok":true,"imported":"%s","skipped":"%s","message":"%s"}\n' \
+	"$(json_escape "$imported_clean")" \
+	"$(json_escape "$skipped_clean")" \
+	"$(json_escape "$message")"

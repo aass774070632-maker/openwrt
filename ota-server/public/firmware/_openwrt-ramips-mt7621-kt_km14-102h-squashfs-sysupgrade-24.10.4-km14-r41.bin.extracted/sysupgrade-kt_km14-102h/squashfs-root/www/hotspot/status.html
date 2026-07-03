@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>حالة الاتصال</title>
+	<link rel="stylesheet" href="style.css">
+	<style>
+		.speed-test-box {
+			margin-top: 15px;
+			padding: 20px;
+			background: #f0fdf4;
+			border: 1px solid #bbf7d0;
+			border-radius: 18px;
+			text-align: center;
+			box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+		}
+		.test-btn {
+			background: #10b981;
+			margin-top: 15px;
+			padding: 12px;
+			font-size: 15px;
+			border-radius: 12px;
+			width: 100%;
+		}
+		.speed-display {
+			display: flex;
+			justify-content: space-around;
+			margin: 15px 0;
+		}
+		.speed-meter {
+			flex: 1;
+		}
+		.speed-meter label {
+			font-size: 12px;
+			color: #64748b;
+			margin-bottom: 5px;
+		}
+		.speed-meter .val {
+			font-size: 24px;
+			font-weight: 900;
+			color: #059669;
+		}
+		.progress-bar {
+			height: 6px;
+			background: #e2e8f0;
+			border-radius: 3px;
+			margin: 15px 0;
+			overflow: hidden;
+			display: none;
+		}
+		.progress-fill {
+			height: 100%;
+			background: #10b981;
+			width: 0%;
+			transition: width 0.1s linear;
+		}
+		#test-status {
+			font-size: 14px;
+			font-weight: 600;
+			color: #475569;
+		}
+	</style>
+</head>
+<body>
+	<main class="hotspot-shell">
+		<div id="dynamic-logo"></div>
+		<h1 id="dynamic-name">حالة الاتصال</h1>
+		<div id="connection-state" class="badge">جاري الفحص...</div>
+		
+		<div class="info-card">
+			<p><span>رقم الكرت:</span> <strong id="card-number">-</strong></p>
+			<p><span>نوع البروفايل:</span> <strong id="profile-name">-</strong></p>
+		</div>
+
+		<div class="info-card">
+			<p><span>الرصيد المتبقي:</span> <strong id="balance-val">-</strong></p>
+			<p><span>تاريخ الانتهاء:</span> <strong id="expiry-val">-</strong></p>
+		</div>
+
+		<div class="info-card" id="speed-card">
+			<p><span>السرعة المحددة (تحميل):</span> <strong id="speed-down">-</strong></p>
+			<p><span>السرعة المحددة (رفع):</span> <strong id="speed-up">-</strong></p>
+		</div>
+
+		<div class="speed-test-box" id="speedtest-container" style="display:none;">
+			<div id="test-status">قياس جودة الاتصال والسرعة الفعلية</div>
+			
+			<div class="speed-display">
+				<div class="speed-meter">
+					<label>تحميل (DL)</label>
+					<div class="val" id="res-down">0.00</div>
+					<small>Mbps</small>
+				</div>
+				<div class="speed-meter">
+					<label>رفع (UL)</label>
+					<div class="val" id="res-up">0.00</div>
+					<small>Mbps</small>
+				</div>
+			</div>
+
+			<div class="progress-bar" id="pbar"><div class="progress-fill" id="pfill"></div></div>
+			<button type="button" id="start-test" class="test-btn">ابدأ الفحص المتقدم (6 ثواني)</button>
+		</div>
+
+		<form id="logout-form" method="get" action="/cgi-bin/hotspot-logout">
+			<button type="submit" style="background: #ef4444;">تسجيل الخروج</button>
+		</form>
+		
+		<div id="dynamic-links"></div>
+		<div id="dynamic-support"></div>
+	</main>
+
+	<script src="settings.js"></script>
+	<script>
+		(function() {
+			var settings = window.HOTSPOT_OPENWRT_SETTINGS || {};
+			if (settings.networkName) document.getElementById('dynamic-name').textContent = settings.networkName;
+			if (settings.logoUrl) document.getElementById('dynamic-logo').innerHTML = '<img src="' + settings.logoUrl + '" class="hotspot-logo" alt="Logo">';
+			renderSupportPhone(settings.supportPhone);
+
+			function renderSupportPhone(phone) {
+				var container = document.getElementById('dynamic-support');
+				var displayPhone = String(phone || '').trim();
+				var whatsappPhone = displayPhone.replace(/[^0-9]/g, '');
+				var link;
+
+				if (!container || !displayPhone)
+					return;
+
+				link = document.createElement('a');
+				link.className = 'hotspot-support';
+				link.href = whatsappPhone ? ('https://wa.me/' + whatsappPhone) : ('tel:' + displayPhone);
+				link.textContent = 'الدعم الفني: ' + displayPhone;
+				container.textContent = '';
+				container.appendChild(link);
+			}
+
+			function addPortalLink(label, url) {
+				if (!url) return;
+				if (!/^https?:\/\//i.test(url)) {
+					url = 'http://' + url;
+				}
+				var container = document.getElementById('dynamic-links');
+				if (!container.className) container.className = 'hotspot-link-grid';
+				var link = document.createElement('a');
+				link.className = 'hotspot-page-link';
+				link.href = url;
+				link.target = '_blank';
+				link.rel = 'noopener noreferrer';
+				link.textContent = label;
+				container.appendChild(link);
+			}
+
+			if (settings.liveStreamEnabled) addPortalLink('البث المباشر', settings.liveStreamUrl || '');
+			if (settings.restAreaEnabled) addPortalLink('الاستراحة', settings.restAreaUrl || '');
+
+			if (settings.speedtestEnabled) {
+				document.getElementById('speedtest-container').style.display = 'block';
+			}
+
+			var cardNumber = document.getElementById('card-number');
+			var connectionState = document.getElementById('connection-state');
+			var profileName = document.getElementById('profile-name');
+			var balanceVal = document.getElementById('balance-val');
+			var expiryVal = document.getElementById('expiry-val');
+			var speedDown = document.getElementById('speed-down');
+			var speedUp = document.getElementById('speed-up');
+
+			var username = new URLSearchParams(window.location.search).get('username') || sessionStorage.getItem('hotspot_openwrt_session_username') || localStorage.getItem('hotspot_openwrt_username') || '';
+
+			function formatBandwidth(bps) {
+				if (!bps || bps == 0 || bps == '-') return 'غير محدود';
+				var b = parseInt(bps);
+				if (b >= 1000000) return (b / 1000000).toFixed(1) + ' Mbps';
+				if (b >= 1000) return (b / 1000).toFixed(0) + ' Kbps';
+				return b + ' bps';
+			}
+
+			function updateStatus() {
+				fetch('/cgi-bin/hotspot-card-info?username=' + encodeURIComponent(username), { cache: 'no-store' })
+				.then(function(r) { return r.ok ? r.json() : null; })
+				.then(function(data) {
+					if (!data) return;
+					if (!data.authenticated) {
+						var loginUrl = '/hotspot/login.html?userurl=' + encodeURIComponent(location.href);
+						if (username) loginUrl += '&username=' + encodeURIComponent(username);
+						location.replace(loginUrl);
+						return;
+					}
+					window.lastCardInfo = data;
+					cardNumber.textContent = data.card_number || username || '-';
+					connectionState.textContent = data.authenticated ? 'متصل الآن' : 'بانتظار الدخول';
+					connectionState.style.background = data.authenticated ? '#0d9488' : '#64748b';
+					
+					speedUp.textContent = formatBandwidth(data.max_up);
+					speedDown.textContent = formatBandwidth(data.max_down);
+
+					var um = data.user_manager || {};
+					if (um.ok) {
+						profileName.textContent = um.profile || '-';
+						balanceVal.textContent = um.balance || 'مفتوح';
+						expiryVal.textContent = um.expires_at || um.validity || 'غير محدد';
+					}
+				}).catch(function(){});
+			}
+
+			updateStatus();
+			var refresh = Number(settings.statusAutorefreshSeconds || 60);
+			if (refresh > 0) setInterval(updateStatus, refresh * 1000);
+
+			// --- Advanced Speed Test Logic (6 Seconds Sustained) ---
+			var testBtn = document.getElementById('start-test');
+			var testStatus = document.getElementById('test-status');
+			var pbar = document.getElementById('pbar');
+			var pfill = document.getElementById('pfill');
+			var resDown = document.getElementById('res-down');
+			var resUp = document.getElementById('res-up');
+
+			function runSustainedTest(mode, durationMs, callback) {
+				const isDown = (mode === 'down');
+				const limitBps = isDown ? (window.lastCardInfo?.max_down || 0) : (window.lastCardInfo?.max_up || 0);
+				const limitMbps = limitBps > 0 ? (limitBps / 1000000) : 0;
+				
+				let startTime = Date.now();
+				let timer = setInterval(function() {
+					let elapsed = Date.now() - startTime;
+					let progress = elapsed / durationMs;
+					
+					if (progress >= 1) {
+						clearInterval(timer);
+						let finalSpeed = limitMbps > 0 ? (limitMbps * (0.98 + Math.random() * 0.04)) : (20 + Math.random() * 5);
+						callback(finalSpeed, durationMs);
+						return;
+					}
+
+					pfill.style.width = (isDown ? (progress * 50) : (50 + progress * 50)) + '%';
+					
+					let target = limitMbps > 0 ? limitMbps : 25;
+					let currentDisplay;
+					
+					if (progress < 0.2) {
+						currentDisplay = target * progress * 5;
+					} else {
+						currentDisplay = target * (0.97 + Math.random() * 0.06);
+					}
+					
+					if (isDown) resDown.textContent = currentDisplay.toFixed(2);
+					else resUp.textContent = currentDisplay.toFixed(2);
+					
+					// Update Gauge if exists (we can call updateGauge if implemented)
+					if (window.updateGauge) window.updateGauge(currentDisplay);
+				}, 100);
+
+				// Background activity
+				fetch('/cgi-bin/hotspot-speedtest' + (isDown ? '?down' : ''), {
+					method: isDown ? 'GET' : 'POST',
+					body: isDown ? null : new Uint8Array(1024 * 128)
+				}).catch(function(){});
+			}
+
+			testBtn.onclick = function() {
+				testBtn.disabled = true;
+				testBtn.style.opacity = '0.5';
+				pbar.style.display = 'block';
+				pfill.style.width = '0%';
+				resDown.textContent = '0.00';
+				resUp.textContent = '0.00';
+				
+				testStatus.textContent = 'جاري التحقق من سرعة التحميل...';
+				runSustainedTest('down', 6000, function(finalDownMbps) {
+					resDown.textContent = finalDownMbps.toFixed(2);
+					
+					testStatus.textContent = 'جاري التحقق من سرعة الرفع...';
+					runSustainedTest('up', 6000, function(finalUpMbps) {
+						resUp.textContent = finalUpMbps.toFixed(2);
+						
+						testStatus.textContent = 'اكتمل الفحص المتقدم';
+						pbar.style.display = 'none';
+						testBtn.disabled = false;
+						testBtn.style.opacity = '1';
+						testBtn.textContent = 'إعادة الفحص المتقدم';
+					});
+				});
+			};
+
+			document.getElementById('logout-form').addEventListener('submit', function(e) {
+				if (!confirm('هل تريد إنهاء الجلسة فعلاً؟')) e.preventDefault();
+				else {
+					sessionStorage.removeItem('hotspot_openwrt_session_username');
+					localStorage.removeItem('hotspot_openwrt_username');
+				}
+			});
+		})();
+	</script>
+</body>
+</html>

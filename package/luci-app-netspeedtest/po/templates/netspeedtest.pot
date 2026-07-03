@@ -1,412 +1,412 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:141
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:141
 msgid "#"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:192
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:169
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:176
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:192
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:169
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:176
 msgid "%d samples"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:192
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:192
 msgid "Average"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:292
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:292
 msgid "Bandwidth"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:28
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:28
 msgid "Bilibili hdslb"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:257
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:257
 msgid "Both"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:125
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:125
 msgid "Change to a fixed port and try again."
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:351
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:351
 msgid "Client Result"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/root/usr/share/luci/menu.d/luci-app-netspeedtest.json:38
+#: /home/galal/openwrt/package/luci-app-netspeedtest/root/usr/share/luci/menu.d/luci-app-netspeedtest.json:38
 msgid "Client SpeedTest"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:262
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:262
 msgid "Collecting data ..."
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:191
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:191
 msgid "Current"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:142
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:254
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:142
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:254
 msgid "Direction"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:303
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:261
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:303
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:261
 msgid "Duration"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:105
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:162
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:105
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:162
 msgid "Enable"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:149
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:149
 msgid "Enable HTTP2"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:153
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:153
 msgid "Enable TLS"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:269
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:269
 msgid "Enable server"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/root/usr/share/rpcd/acl.d/luci-app-netspeedtest.json:3
+#: /home/galal/openwrt/package/luci-app-netspeedtest/root/usr/share/rpcd/acl.d/luci-app-netspeedtest.json:3
 msgid "Grant access to netspeedtest procedures"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:197
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:314
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:197
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:314
 msgid "Installed"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:158
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:308
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:158
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:308
 msgid "Interval"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:300
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:300
 msgid "Invalid bandwidth"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:239
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:93
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:239
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:93
 msgid "Invalid server address"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:191
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:168
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:175
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:191
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:168
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:175
 msgid "Latest sample"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:144
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:144
 msgid "Listen Port"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:24
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:24
 msgid "Local OpenSpeedTest"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:221
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:221
 msgid "Local OpenSpeedTest port"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:212
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:212
 msgid "Local OpenSpeedTest server"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:194
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:171
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:178
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:194
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:171
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:178
 msgid "Lowest"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:266
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:266
 msgid "MTU"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:193
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:193
 msgid "Maximum"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:299
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:299
 msgid "MikroTik BTest Result"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:232
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:232
 msgid "MikroTik server address"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:194
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:194
 msgid "Minimum"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:29
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:29
 msgid "Netflix Fast"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:169
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:151
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:169
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:151
 msgid "No result."
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:197
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:314
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:197
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:314
 msgid "Not Installed"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:23
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:23
 msgid "OpenSpeedTest"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:166
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:166
 msgid "OpenSpeedTest server port"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:187
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:187
 msgid "OpenSpeedTest server status"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:313
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:313
 msgid "Parallel streams"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:250
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:250
 msgid "Password"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:193
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:170
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:177
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:193
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:170
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:177
 msgid "Peak"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:281
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:242
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:281
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:242
 msgid "Port"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:286
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:286
 msgid "Protocol"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:113
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:123
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:113
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:123
 msgid "Random port (port=0) is not supported."
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:161
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:143
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:161
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:143
 msgid "Rate"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:140
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:124
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:140
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:124
 msgid "Raw output"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:255
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:255
 msgid "Receive"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:199
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:199
 msgid "Receiver"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:318
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:318
 msgid "Reverse mode"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:25
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:25
 msgid "Router OpenSpeedTest"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:193
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:193
 msgid "Router OpenSpeedTest URL"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:159
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:159
 msgid "Router OpenSpeedTest server"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/root/usr/share/luci/menu.d/luci-app-netspeedtest.json:30
+#: /home/galal/openwrt/package/luci-app-netspeedtest/root/usr/share/luci/menu.d/luci-app-netspeedtest.json:30
 msgid "Router SpeedTest"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:109
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:109
 msgid "Router librespeed URL"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:169
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:169
 msgid "Rx average"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:168
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:168
 msgid "Rx current"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:170
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:170
 msgid "Rx maximum"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:171
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:171
 msgid "Rx minimum"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:241
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:63
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:71
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:104
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:258
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:241
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:63
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:71
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:104
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:258
 msgid "SERVER NOT RUNNING"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:239
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:63
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:71
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:104
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:258
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:239
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:63
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:71
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:104
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:258
 msgid "SERVER RUNNING"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:256
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:256
 msgid "Send"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:199
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:199
 msgid "Sender"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:276
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:276
 msgid "Server address"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:203
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:203
 msgid "Service list"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/root/usr/share/luci/menu.d/luci-app-netspeedtest.json:3
+#: /home/galal/openwrt/package/luci-app-netspeedtest/root/usr/share/luci/menu.d/luci-app-netspeedtest.json:3
 msgid "SpeedTest"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:322
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:322
 msgid "Start Client Test"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:271
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:271
 msgid "Start MikroTik Test"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:323
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:272
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:323
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:272
 msgid "Start Test"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:138
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:138
 msgid "Status"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:159
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:159
 msgid "Stream"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:159
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:159
 msgid "TLS Cert file"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:165
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:165
 msgid "TLS Key file"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:178
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:158
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:178
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:158
 msgid "Test failed"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:343
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:291
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:343
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:291
 msgid "Test failed: %s"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:173
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:154
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:173
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:154
 msgid "Testing in progress..."
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:160
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:160
 msgid "Transfer"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:176
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:176
 msgid "Tx average"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:175
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:175
 msgid "Tx current"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:177
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:177
 msgid "Tx maximum"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:178
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:178
 msgid "Tx minimum"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:30
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:30
 msgid "USTC EDU SpeedTest"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:247
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:247
 msgid "Username"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:157
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/webspeedtest.js:157
 msgid "Web SpeedTest"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:256
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:256
 msgid "iperf3 Bandwidth Performance Test"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:273
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:273
 msgid "iperf3 Client Test"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:360
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:360
 msgid "iperf3 Common commands reference"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:266
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/iperf3.js:266
 msgid "iperf3 Server"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/root/usr/share/luci/menu.d/luci-app-netspeedtest.json:14
+#: /home/galal/openwrt/package/luci-app-netspeedtest/root/usr/share/luci/menu.d/luci-app-netspeedtest.json:14
 msgid "iperf3 Server/Client"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:134
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:134
 msgid "librespeed Config"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:99
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/root/usr/share/luci/menu.d/luci-app-netspeedtest.json:22
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:99
+#: /home/galal/openwrt/package/luci-app-netspeedtest/root/usr/share/luci/menu.d/luci-app-netspeedtest.json:22
 msgid "librespeed Server"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:102
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/librespeed.js:102
 msgid "librespeed Site Speed Test"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:221
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:223
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:221
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:223
 msgid "mikrotik bandwidth test tools in openwrt"
 msgstr ""
 
-#: /home/baalwy/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:226
+#: /home/galal/openwrt/package/luci-app-netspeedtest/htdocs/luci-static/resources/view/netspeedtest/speedtest.js:226
 msgid "mikrotik_btest Status"
 msgstr ""

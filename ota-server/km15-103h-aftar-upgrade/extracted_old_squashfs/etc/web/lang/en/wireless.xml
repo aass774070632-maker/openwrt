@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<po>
+  <!-- general -->
+  <message msgid="wireless apply" msgstr="Apply" />
+  <message msgid="wireless cancel" msgstr="Cancel" />
+  <message msgid="wireless default" msgstr="Default" />
+  <message msgid="wireless reset" msgstr="Reset" />
+  <message msgid="wireless close" msgstr="Close" />
+  <message msgid="wireless enable" msgstr="Enable" />
+  <message msgid="wireless disable" msgstr="Disable" />
+  <message msgid="wireless allow" msgstr="Allow" />
+  <message msgid="wireless reject" msgstr="Reject" />
+  <message msgid="wireless auto" msgstr="Auto" />
+  <message msgid="wireless long" msgstr="Long" />
+  <message msgid="wireless on" msgstr="On" />
+  <message msgid="wireless off" msgstr="Off" />
+  <message msgid="wireless none" msgstr="None" />
+  <message msgid="wireless msg failed" msgstr="Failed:" />
+  <message msgid="wireless add" msgstr="Add" />
+  <message msgid="wireless delete" msgstr="Delete" />
+  <message msgid="wireless refresh" msgstr="refresh" />
+  <message msgid="wireless back" msgstr="Back" />
+  <message msgid="wireless error korean" msgstr="Korean Language Input Error" />
+
+  <message msgid="wireless unit sec" msgstr="sec" />
+  <message msgid="wireless ssid" msgstr="Network Name(SSID)" />
+  <message msgid="wireless ssid broadcast" msgstr="Broadcast SSID" />
+
+  <!-- basic -->
+  <message msgid="basic title" msgstr="Basic Wireless Settings " />
+  <message msgid="basic introduction" msgstr="You could configure the minimum number of Wireless settings for communication, such as Network Name (SSID) and Channel. The Access Point can be set simply with only the minimum setting items. " />
+  <message msgid="basic header" msgstr="Basic Wireless Settings" />
+  <!-- basic general -->
+  <message msgid="basic radio activity" msgstr="Radio Activity" />
+  <message msgid="basic mode" msgstr="Wireless Mode" />
+  <message msgid="basic bssid" msgstr="BSSID" />
+  <message msgid="basic channel" msgstr="Frequency (Channel)" />
+  <message msgid="basic scan" msgstr="Channel Scan" />
+  
+  <!-- advanced -->
+  <message msgid="adv title" msgstr="Advanced Wireless Settings" />
+  <message msgid="adv introduction" msgstr="Use the Advanced Setup page to make detailed settings for the Wireless. Advanced Setup includes items that are not available from the Basic Setup page, such as Beacon Interval, Control Tx Rates and Basic Data Rates." />
+  <message msgid="adv header" msgstr="Advanced Wireless Settings" />
+  <!-- advanced general -->
+  <message msgid="adv beacon interval" msgstr="Beacon Interval" />
+  <message msgid="adv beacon interval desc" msgstr="ms (50~1024), default:100" />
+  <message msgid="adv dtim" msgstr="DTIM Interval" />
+  <message msgid="adv dtim desc" msgstr="(1~255)" />
+  <message msgid="adv rts threshold" msgstr="RTS Threshold" />
+  <message msgid="adv rts threshold desc" msgstr="bytes (1~2347), default:2347" />
+  <message msgid="adv fragment threshold" msgstr="Fragment Threshold" />
+  <message msgid="adv fragment threshold desc" msgstr="bytes (256~2346), default:2346" />
+  <message msgid="adv bgpro" msgstr="Protection Mode" />
+  <message msgid="adv frame aggregate" msgstr="Frame Aggregation" />
+  <message msgid="adv tx power" msgstr="TX Power" />
+  <message msgid="adv tx power realtek" msgstr="TX Power (100, 70, 50, 35, 15 Only)" />
+  <message msgid="adv tx power desc" msgstr="% (1~100), default:100" />
+  <message msgid="adv tx burst" msgstr="Tx Burst" />
+  <message msgid="adv short slot" msgstr="Short Slot" />
+  <message msgid="adv preamble" msgstr="Preamble Type" />
+  <message msgid="adv preamble long" msgstr="Long Preamble" />
+  <message msgid="adv preamble short" msgstr="Short Preamble" />
+  <message msgid="adv sta association" msgstr="Max Station Count(0:No Limit)" />
+  <!-- advanced 11n -->
+  <message msgid="adv channel bandwidth" msgstr="Channel BandWidth" />
+  <message msgid="adv channel bandwidth 20" msgstr="20M" />
+  <message msgid="adv channel bandwidth 40" msgstr="20/40M" />
+  <message msgid="adv mcs" msgstr="Data Rate" />
+  <message msgid="adv channel extension" msgstr="Channel Extension" />
+  <message msgid="adv rdg" msgstr="Reverse Direction Grant(RDG)" />
+  <message msgid="adv txstream" msgstr="TxStream" />
+  <message msgid="adv rxstream" msgstr="RxStream" />
+  <message msgid="adv ldpc" msgstr="LDPC" />
+  <message msgid="adv txbf" msgstr="TX Beamforming" />
+  <message msgid="adv iapp" msgstr="IAPP" />
+  <message msgid="adv m2u" msgstr="Multicast to Unicast" />
+  <message msgid="adv stbc" msgstr="STBC" />
+  <message msgid="adv dot11d" msgstr="802.11d" />  
+
+  <!-- wmm -->
+  <message msgid="wmm title" msgstr="Wi-Fi Multimedia Settings " />
+  <message msgid="wmm introduction" msgstr="You could configure the Wi-Fi Multimedia paramters " />
+  <message msgid="wmm header ap" msgstr="WMM Parameters of AP" />
+  <message msgid="wmm header sta" msgstr="WMM Parameters of Station" />
+  <message msgid="wmm activity" msgstr="WMM Activity" />
+  <message msgid="wmm header priority" msgstr="WMM TOS Mapping" />
+
+  <!-- security -->
+  <message msgid="secure title" msgstr="Wireless Security/Encryption Settings" />
+  <message msgid="secure introduction" msgstr="Setup the wireless security and encryption to prevent from unauthorized access and monitoring." />
+  <message msgid="secure header" msgstr="Wireless Security/Encryption Settings" />
+
+  <message msgid="secure security mode" msgstr="Security Mode" />
+  <message msgid="secure security mode 00" msgstr="Disable" />
+  <message msgid="secure security mode 01" msgstr="Open" />
+  <message msgid="secure security mode 02" msgstr="Shared" />
+  <message msgid="secure security mode 03" msgstr="Auto" />
+  <message msgid="secure security mode 04" msgstr="WPA-PSK" />
+  <message msgid="secure security mode 05" msgstr="WPA2-PSK" />
+  <message msgid="secure security mode 06" msgstr="WPA/WPA2-PSK" />
+  <message msgid="secure security mode 07" msgstr="WPA-Enterprise" />
+  <message msgid="secure security mode 08" msgstr="WPA2-Enterprise" />
+  <message msgid="secure security mode 09" msgstr="WPA/WPA2-Enterprise" />
+  <message msgid="secure security mode 10" msgstr="802.1X" />
+
+  <message msgid="secure encryp type" msgstr="Encrypt Type" />
+  
+  <message msgid="secure key label" msgstr="Network Key" />
+
+  <message msgid="secure wep index" msgstr="WEP Index" />
+  <message msgid="secure key type" msgstr="Key Type" />
+  <message msgid="secure wep key" msgstr="WEP Key" />
+  <message msgid="secure psk key" msgstr="PSK" />
+  <message msgid="secure wpa rekey" msgstr="Group Key Renewal Interval(sec)" />
+
+  <message msgid="secure radius header" msgstr="Radius Configuration" />
+  <message msgid="secure radius address" msgstr="Radius Address" />
+  <message msgid="secure radius address name" msgstr="Name" />
+  <message msgid="secure radius address ip" msgstr="IP Address" />
+  <message msgid="secure radius address port" msgstr="Port" />
+  <message msgid="secure radius address secret" msgstr="Secret" />
+  <message msgid="secure radius address auth name" msgstr="Auth" />
+  <message msgid="secure radius address acct name" msgstr="Acct" />
+
+  <message msgid="secure radius rekey" msgstr="WEP Rekey" />
+  <message msgid="secure radius rekey activity" msgstr="Activity" />
+  <message msgid="secure radius rekey length" msgstr="Length" />
+  <message msgid="secure radius rekey interval" msgstr="Interval" />
+
+  <message msgid="secure radius macauth" msgstr="MAC Auth" />
+  <message msgid="secure radius redirect" msgstr="Web Redirect" />
+  <message msgid="secure radius interim interval" msgstr="Interim Interval" />
+  <message msgid="secure radius auth retry" msgstr="Max Auth Retry" />
+  <message msgid="secure radius auth interval" msgstr="Max Auth Interval" />
+  <message msgid="secure radius acct retry" msgstr="Max Acct Retry" />
+  <message msgid="secure radius acct interval" msgstr="Max Acct Interval" />
+  <message msgid="secure radius session timeout" msgstr="Session Timeout" />
+  <message msgid="secure radius idle timeout" msgstr="Idle Timeout" />
+  <message msgid="secure radius expire timeout" msgstr="Station Timeout(POD)" />
+  
+  <!-- WebRedirect -->
+  <message msgid="secure redirect title" msgstr="Wireless Web Redirect Settings" />
+  <message msgid="secure redirect introduction" msgstr="Setup Web Redirect for Enterprise AAA" />
+  <message msgid="secure redirect header" msgstr="Wireless Web Redirect Settings" />
+
+  <message msgid="secure redirect redirectURL" msgstr="Redirect URL" />
+  <message msgid="secure redirect whitelist" msgstr="whitelist" />
+  <message msgid="secure redirect whitelist nolist" msgstr="No list" />
+  <message msgid="secure redirect whitelist duplicate" msgstr="Duplicated" />
+  <message msgid="secure redirect whitelist overflow" msgstr="Can't Add whitelist" />
+  <message msgid="secure redirect whitelist refresh interval" msgstr="Refresh Interval" />
+  <message msgid="secure redirect whitelist refresh interval desc" msgstr="sec" />
+  
+  <!-- MSSID -->
+  <message msgid="mssid title" msgstr="Wireless Multi-SSID Settings" />
+  <message msgid="mssid introduction" msgstr="You could configure the MultiSSID paramters " />
+  <message msgid="mssid header" msgstr="Wireless Multi-SSID Settings" />
+  
+  <message msgid="mssid index" msgstr="Index" />
+  <message msgid="mssid activity" msgstr="Activity" />
+  <message msgid="mssid ssid broadcast" msgstr="SSID broadcast" />
+  <message msgid="mssid sta association" msgstr="Max Station Count (0:No Limit)" />
+  <message msgid="mssid expire timeout" msgstr="Station Timeout (POD)" />
+  <message msgid="mssid access type" msgstr="Access" />
+  <message msgid="mssid rssi thresh" msgstr="RSSI Threshold (dBm)" />
+  <message msgid="mssid rate limit download" msgstr="Rate Limit (DN)" />
+  <message msgid="mssid rate limit upload" msgstr="Rate Limit (UP)" />
+  
+  <!-- station list -->
+  <message msgid="stalist title" msgstr="Station List" />
+  <message msgid="stalist introduction" msgstr="You could monitor stations which associated to this AP here. " />
+  <message msgid="stalist header" msgstr="Station List" />
+  <message msgid="stalist wireless network" msgstr="Station List" />
+  <message msgid="stalist reset" msgstr="Reset" />
+  <message msgid="stalist select all" msgstr="select all" />
+  <message msgid="stalist nolist" msgstr="No Station" />
+  
+  <message msgid="stalist aid" msgstr="AID" />
+  <message msgid="stalist mac" msgstr="MAC" />
+  <message msgid="stalist ip" msgstr="IP" />
+  <message msgid="stalist id" msgstr="UserID" />
+  <message msgid="stalist mode" msgstr="Mode" />
+  <message msgid="stalist rate" msgstr="Rate" />
+  <message msgid="stalist signal" msgstr="Signal" />
+  <message msgid="stalist rx" msgstr="RX Packets" />
+  <message msgid="stalist tx" msgstr="TX Packets" />
+  <message msgid="stalist time" msgstr="Conn Time" />
+
+  <!-- channel scan -->
+  <message msgid="channel title" msgstr="Site Survey" />
+  <message msgid="channel introduction" msgstr="This page provides tool to scan the wireless network. You could choose channel manually." />
+  <message msgid="channel header" msgstr="Site Survey" />
+  <message msgid="channel wait" msgstr="Now Channel Scanning....." />
+   <message msgid="channel nolist" msgstr="No Channel info" />
+ 
+  <message msgid="channel header ssid" msgstr="SSID" />
+  <message msgid="channel header bssid" msgstr="BSSID" />
+  <message msgid="channel header channel" msgstr="CHANNEL" />
+  <message msgid="channel header rate" msgstr="RATE" />
+  <message msgid="channel header rssi" msgstr="RSSI" />
+  <message msgid="channel header enctype" msgstr="EncType" />
+
+  <!-- access ctrl -->
+  <message msgid="accessctrl title" msgstr="Wireless Access Control" />
+  <message msgid="accessctrl introduction" msgstr="You could setup acces list" />
+
+  <message msgid="accessctrl nolist" msgstr="no list" />
+  <message msgid="accessctrl msg invalid" msgstr="Invalid input string => (XX:XX:XX:XX:XX:XX)" />
+  <message msgid="accessctrl msg overflow" msgstr="Maxmium MAC Count overflow" />
+  <message msgid="accessctrl msg duplicate" msgstr="Same MAC is exist" />
+
+  <message msgid="accessctrl mac" msgstr="Access List MAC" />
+  <message msgid="accessctrl maxcount" msgstr="Maxmium MAC Count:" />
+
+  <message msgid="accessctrl macfilter radius" msgstr="Radius Use" />
+  <message msgid="accessctrl policy" msgstr="Method" />
+  <message msgid="accessctrl policy disable" msgstr="Disable" />
+  <message msgid="accessctrl policy allow" msgstr="Allow" />
+  <message msgid="accessctrl policy reject" msgstr="Reject" />
+
+  <!-- Rate Limit -->
+  <message msgid="ratelimit title" msgstr="Wireless Rate Limit" />
+  <message msgid="ratelimit introduction" msgstr="You could setup rate limit" />
+
+  <message msgid="ratelimit nolist" msgstr="no list" />
+  <message msgid="ratelimit msg invalid" msgstr="Invalid input string => (XX:XX:XX:XX:XX:XX)" />
+  <message msgid="ratelimit msg overflow" msgstr="Maxmium MAC Count overflow" />
+  <message msgid="ratelimit msg duplicate" msgstr="Same MAC is exist" />
+  <message msgid="ratelimit msg range" msgstr="Invalid range" />
+
+  <message msgid="ratelimit mac" msgstr="RateLimit MAC" />
+  <message msgid="ratelimit maxcount" msgstr="Maxmium MAC Count:" />
+
+  <message msgid="ratelimit type" msgstr="Method" />
+  <message msgid="ratelimit type disable" msgstr="Disable" />
+  <message msgid="ratelimit type inband" msgstr="Inband" />
+  <message msgid="ratelimit type outband" msgstr="Outband" />
+
+  <!-- WDS -->
+  <message msgid="wds title" msgstr="WDS Setup" />
+  <message msgid="wds introduction" msgstr="You could setup WDS information." />
+  <message msgid="wds header" msgstr="WDS Setup" />
+  
+  <message msgid="wds mode" msgstr="WDS Mode" />
+  <message msgid="wds mode disable" msgstr="Disable" />
+  <message msgid="wds mode bridge" msgstr="Bridge" />
+  <message msgid="wds mode repeater" msgstr="Repeater" />
+  <message msgid="wds mode lazy" msgstr="Lazy" />
+
+  <!-- WPS -->
+  <message msgid="wps title" msgstr="Wi-Fi Protected Setup" />
+  <message msgid="wps introduction" msgstr="You could setup security easily by choosing PIN or PBC method to do Wi-Fi Protected Setup." />
+  <message msgid="wps header" msgstr="Wi-Fi Protected Setup" />
+  <message msgid="wps header status" msgstr="Status" />
+
+  <message msgid="wps activity" msgstr="WPS Activity" />
+  <message msgid="wps mode" msgstr="WPS mode" />
+  <message msgid="wps mode pin" msgstr="PIN" />
+  <message msgid="wps mode pbc" msgstr="PBC" />
+  <message msgid="wps pin num" msgstr="PIN" />
+
+  <message msgid="wps configured" msgstr="WPS Configured" />
+  <message msgid="wps ssid" msgstr="WPS SSID" />
+  <message msgid="wps security mode" msgstr="Security Mode" />
+  <message msgid="wps encryp type" msgstr="Encrypt Type" />
+  <message msgid="wps wep index" msgstr="Key Index" />
+  <message msgid="wps wep key" msgstr="Key" />
+  <message msgid="wps error msg" msgstr="Radius is Enabled. WPS is Disabled." />
+  <message msgid="wps error pin" msgstr="PIN is Invalid." />
+  <message msgid="wps error pin checksum" msgstr="PIN Checksum Error" />
+
+<!--
+  <message msgid="wps wps" msgstr="WPS: " />
+  <message msgid="wps summary" msgstr="WPS Summary" />
+  <message msgid="wps current status" msgstr="WPS Current Status: " />
+  <message msgid="wps encryp type" msgstr="WPS Encryp Type: " />
+  <message msgid="wps default key index" msgstr="WPS Default Key Index: " />
+  <message msgid="wps ap pin" msgstr="AP PIN: " />
+  <message msgid="wps reset oob" msgstr="Reset OOB" />
+  <message msgid="wps progress" msgstr="WPS Progress" />
+  <message msgid="wps status" msgstr="WPS Status" />
+-->
+
+  <!-- Realtek Hw Info -->
+  <message msgid="rtl8196b title" msgstr="Realtek 8196B H/W Setting" />
+  <message msgid="rtl8196b introduction" msgstr="You could setup Realtek 8196B H/W Information" />
+  <message msgid="rtl8196b header" msgstr="Realtek 8196B H/W Setting" />
+
+  <message msgid="rtl8196b mac" msgstr="Physical MAC" />
+
+  <message msgid="rtl8196b txPowerCCK" msgstr="TXPower CCK" />
+  <message msgid="rtl8196b txPowerHTOFDM1S" msgstr="TXPower OFDM 1S" />
+  <message msgid="rtl8196b txPowerHTOFDM2S" msgstr="TXPower OFDM 2S" />
+
+  <message msgid="rtl8196b xcap" msgstr="XCAP" />
+  <message msgid="rtl8196b LOFDMPWDA" msgstr="LOFDMPWDA" />
+  <message msgid="rtl8196b LOFDMPWDB" msgstr="LOFDMPWDB" />
+  <message msgid="rtl8196b TSS1" msgstr="TSS1" />
+  <message msgid="rtl8196b TSS2" msgstr="TSS2" />
+  <message msgid="rtl8196b THER" msgstr="THER" />
+  
+  <message msgid="rtl8196b domain" msgstr="Domain" />
+  <message msgid="rtl8196b rftype" msgstr="RF type" />
+  <message msgid="rtl8196b ledtype" msgstr="LED type" />
+
+  <!-- Realtek 819x Hw Info -->
+  <message msgid="rtl819x title" msgstr="Realtek 819x H/W Setting" />
+  <message msgid="rtl819x introduction" msgstr="You could setup Realtek 819x H/W Information" />
+  <message msgid="rtl819x header" msgstr="Realtek 819x H/W Setting" />
+
+  <message msgid="rtl819x PL_CCK_A" msgstr="Power Level CCK A" />
+  <message msgid="rtl819x PL_CCK_B" msgstr="Power Level CCK B" />
+  <message msgid="rtl819x PD_HT40_1S_A" msgstr="Power Level HT40 1S A" />
+  <message msgid="rtl819x PD_HT40_1S_B" msgstr="Power Level HT40 1S B" />
+  <message msgid="rtl819x PD_HT40_2S" msgstr="Power Diff HT40 2S" />
+  <message msgid="rtl819x PD_HT20" msgstr="Power Diff HT20" />
+  <message msgid="rtl819x PD_OFDM" msgstr="Power Diff OFDM" />
+  
+  <message msgid="rtl819x PL_5G_HT40_1S_A" msgstr="Power Level 5G HT40 1S A" />
+  <message msgid="rtl819x PL_5G_HT40_1S_B" msgstr="Power Level 5G HT40 1S B" />
+  <message msgid="rtl819x PD_5G_HT40_2S" msgstr="Power Diff 5G HT40 2S" />
+  <message msgid="rtl819x PD_5G_HT20" msgstr="Power Diff 5G HT20" />
+  <message msgid="rtl819x PD_5G_OFDM" msgstr="Power Diff 5G OFDM" />
+
+  <message msgid="rtl819x xcap" msgstr="XCAP" />
+  <message msgid="rtl819x TSS1" msgstr="TSS1" />
+  <message msgid="rtl819x TSS2" msgstr="TSS2" />
+  <message msgid="rtl819x THER" msgstr="THER" />
+  <message msgid="rtl819x TRSWITCH" msgstr="TRSWITCH" />
+  
+  <message msgid="rtl819x domain" msgstr="Domain" />
+  <message msgid="rtl819x rftype" msgstr="RF type" />
+  <message msgid="rtl819x ledtype" msgstr="LED type" />
+
+  <!-- Realtek 8812 11AC -->
+  <message msgid="rtl819x PD_20BW1S_OFDM1T_A" msgstr="Power Diff 20BW1S_OFDM1T_A" />
+  <message msgid="rtl819x PD_40BW2S_20BW2S_A" msgstr="Power Diff 40BW2S_20BW2S_A" />
+  <message msgid="rtl819x PD_5G_20BW1S_OFDM1T_A" msgstr="Power Diff 5G_20BW1S_OFDM1T_A" />
+  <message msgid="rtl819x PD_5G_40BW2S_20BW2S_A" msgstr="Power Diff 5G_40BW2S_20BW2S_A" />
+  <message msgid="rtl819x PD_5G_80BW1S_160BW1S_A" msgstr="Power Diff 5G_80BW1S_160BW1S_A" />
+  <message msgid="rtl819x PD_5G_80BW2S_160BW2S_A" msgstr="Power Diff 5G_80BW2S_160BW2S_A" />
+  <message msgid="rtl819x PD_20BW1S_OFDM1T_B" msgstr="Power Diff 20BW1S_OFDM1T_B" />
+  <message msgid="rtl819x PD_40BW2S_20BW2S_B" msgstr="Power Diff 40BW2S_20BW2S_B" />
+  <message msgid="rtl819x PD_5G_20BW1S_OFDM1T_B" msgstr="Power Diff 5G_20BW1S_OFDM1T_B" />
+  <message msgid="rtl819x PD_5G_40BW2S_20BW2S_B" msgstr="Power Diff 5G_40BW2S_20BW2S_B" />
+  <message msgid="rtl819x PD_5G_80BW1S_160BW1S_B" msgstr="Power Diff 5G_80BW1S_160BW1S_B" />
+  <message msgid="rtl819x PD_5G_80BW2S_160BW2S_B" msgstr="Power Diff 5G_80BW2S_160BW2S_B" />
+
+  <!-- Realtek 819x tunning -->
+  <message msgid="rtl819xAdv title" msgstr="Wireless Advanced Control" />
+  <message msgid="rtl819xAdv introduction" msgstr="Realtek Wireless device driver Advance Control" />
+  <message msgid="rtl819xAdv header" msgstr="Realtek Wireless device driver Advance Control" />
+  
+  <!-- KT Radius Auto Setup -->
+  <message msgid="kt radius title" msgstr="Radius Auto Setup" />
+  <message msgid="kt radius introduction" msgstr="Radius Auto Setup" />
+  <message msgid="kt radius header" msgstr="Radius Auto Setup" />
+  
+  <message msgid="kt radius activity" msgstr="Radius Auto Setup" />
+  <message msgid="kt radius enabled desc" msgstr="KT Radius AutoSetup Enabled" />
+  <message msgid="kt radius activity type" msgstr="Activity" />
+</po>

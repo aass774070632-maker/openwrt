@@ -1,0 +1,13 @@
+WARNING: Makefile 'package/feeds/feed_ipq/hostapd-qca/Makefile' has a dependency on 'kmod-qca-nss-macsec', which does not exist
+WARNING: Makefile 'package/feeds/feed_ipq/hostapd-qca/Makefile' has a dependency on 'kmod-qca-nss-macsec', which does not exist
+WARNING: Makefile 'package/feeds/feed_ipq/mac80211-qca/Makefile' has a dependency on 'ath9k-qca-htc-firmware', which does not exist
+WARNING: Makefile 'package/feeds/feed_ipq/platform_drivers/Makefile' has a dependency on 'kmod-crypto-aes', which does not exist
+WARNING: Makefile 'package/feeds/feed_ipq/platform_drivers/Makefile' has a dependency on 'kmod-crypto-core', which does not exist
+WARNING: Makefile 'package/feeds/feed_ipq/platform_drivers/Makefile' has a dependency on 'kmod-crypto-core', which does not exist
+WARNING: Makefile 'package/feeds/feed_ipq/platform_drivers/Makefile' has a dependency on 'kmod-regmap', which does not exist
+WARNING: Makefile 'package/feeds/feed_ipq/qca-ssdk-qca/Makefile' has a dependency on 'kmod-qca-rfs', which does not exist
+make[2]: Entering directory '/home/galal/openwrt/scripts/config'
+make[2]: 'conf' is up to date.
+make[2]: Leaving directory '/home/galal/openwrt/scripts/config'
+ make[1] target/install
+ make[2] -C target/linux install

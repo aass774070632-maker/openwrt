@@ -1,0 +1,12 @@
+Package: kmod-mt7915-firmware
+Version: 6.6.110.2025.09.15~6467af3b-r1
+Depends: kernel (=6.6.110~45abed69991e5f55c1a82ce65f14e560-r1), kmod-mac80211, kmod-mt7915e
+Source: feeds/base/kernel/mt76
+SourceName: mt76
+License: GPLv2
+Section: kernel
+SourceDateEpoch: 1757936495
+Maintainer: Felix Fietkau <nbd@nbd.name>
+Architecture: mipsel_24kc
+Installed-Size: 1525760
+Description:  MediaTek MT7915 firmware

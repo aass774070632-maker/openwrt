@@ -1,0 +1,8 @@
+Package: mcr-wol
+Version: 1
+Depends: libc, mcr-common
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/apps/mcr-wol
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 3187
+Description:  Mercury wol-

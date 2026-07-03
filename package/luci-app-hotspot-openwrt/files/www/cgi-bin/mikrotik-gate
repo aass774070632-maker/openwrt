@@ -1,0 +1,119 @@
+#!/bin/sh
+
+# Mikrotik Hotspot Template Interpreter for OpenWrt (CoovaChilli)
+# Created by GitHub Copilot for KM14 Hotspot System
+
+query_value() {
+	printf '%s' "&$QUERY_STRING" | sed -n "s/.*[&?]$1=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%2[Ff]/\//g; s/%3[Aa]/:/g; s/%3[Ff]/?/g; s/%3[Dd]/=/g; s/%26/\&/g; s/%5[Ff]/_/g'
+}
+
+urlencode() {
+    printf '%s' "$1" | awk '
+        BEGIN { for (i = 0; i < 256; i++) hex[sprintf("%c", i)] = sprintf("%%%02X", i) }
+        {
+            out = ""
+            for (i = 1; i <= length($0); i++) {
+                c = substr($0, i, 1)
+                if (c ~ /[A-Za-z0-9_.~-]/) out = out c
+                else if (c == " ") out = out "%20"
+                else out = out hex[c]
+            }
+            printf "%s", out
+        }'
+}
+
+# HTML-escape all metacharacters before injecting values into template output.
+# Neutralises reflected XSS from client-controlled query params (mac/username/...).
+html_escape() {
+    printf '%s' "$1" | awk '
+        BEGIN { q = sprintf("%c", 39) }
+        {
+            out = ""
+            for (i = 1; i <= length($0); i++) {
+                c = substr($0, i, 1)
+                if (c == "&") out = out "&amp;"
+                else if (c == "<") out = out "&lt;"
+                else if (c == ">") out = out "&gt;"
+                else if (c == "\"") out = out "&#34;"
+                else if (c == q) out = out "&#39;"
+                else if (c == "/") out = out "&#x2F;"
+                else out = out c
+            }
+            printf "%s%s", (NR>1 ? "\n" : ""), out
+        }'
+}
+
+# Make a value safe for use in a sed s/// replacement (escape & and /).
+sedesc() { printf '%s' "$1" | sed 's/[&/]/\\&/g'; }
+
+# CoovaChilli URL params
+res="$(query_value res)"
+uamip="$(query_value uamip)"
+uamport="$(query_value uamport)"
+challenge="$(query_value challenge)"
+userurl="$(query_value userurl)"
+error_code="$(query_value error)"
+nasip="$(query_value nasip)"
+mac="$(query_value mac)"
+username="$(query_value username)"
+
+# Map Chilli 'res' to Mikrotik files
+case "$res" in
+	success) file="alogin.html" ;;
+	failed) file="login.html" ;;
+	logoff) file="logout.html" ;;
+	*) file="login.html" ;;
+esac
+
+# Paths
+storage_path="$(uci -q get hotspot_openwrt.main.portal_storage_path || echo /www/hotspot)"
+target_file="$storage_path/$file"
+
+# If file doesn't exist, fallback to login.html
+[ -f "$target_file" ] || target_file="$storage_path/login.html"
+
+# Common Mikrotik Tag values
+hostname="$(uci -q get hotspot_openwrt.main.domain || echo hotspot.local)"
+link_login="/cgi-bin/mikrotik-gate?challenge=$challenge&uamip=$uamip&uamport=$uamport&userurl=$(urlencode "$userurl")"
+link_loginonly="/cgi-bin/hotspot-login?mikrotik=1&challenge=$challenge&uamip=$uamip&uamport=$uamport&userurl=$(urlencode "$userurl")"
+link_logout="/cgi-bin/hotspot-logout"
+link_status="/hotspot/status.html"
+
+# --- Error Messages ---
+MSG_TIMEOUT='انتهى الوقت المسموح به.'
+MSG_EXPIRED='انتهى رصيد الكرت.'
+MSG_GENERAL_FAIL='فشل الدخول'
+
+error_msg=""
+case "$error_code" in
+	1) error_msg="$MSG_TIMEOUT" ;;
+	2) error_msg="$MSG_EXPIRED" ;;
+	*) [ -n "$error_code" ] && error_msg="$MSG_GENERAL_FAIL ($error_code)" ;;
+esac
+
+# Output HTTP header
+printf "Content-Type: text/html\r\n\r\n"
+
+# Stream file and replace tags on the fly. Every injected value is HTML-escaped
+# (and then sed-escaped for the replacement) to prevent reflected XSS.
+if [ -f "$target_file" ]; then
+	v_link_loginonly="$(sedesc "$(html_escape "$link_loginonly")")"
+	v_link_login="$(sedesc "$(html_escape "$link_login")")"
+	v_link_logout="$(sedesc "$(html_escape "$link_logout")")"
+	v_link_status="$(sedesc "$(html_escape "$link_status")")"
+	v_hostname="$(sedesc "$(html_escape "$hostname")")"
+	v_mac="$(sedesc "$(html_escape "$mac")")"
+	v_error="$(sedesc "$(html_escape "$error_msg")")"
+	v_username="$(sedesc "$(html_escape "$username")")"
+	sed "s/\$(link-loginonly)/$v_link_loginonly/g;
+	     s/\$(link-login)/$v_link_login/g;
+	     s/\$(link-logout)/$v_link_logout/g;
+	     s/\$(link-status)/$v_link_status/g;
+	     s/\$(hostname)/$v_hostname/g;
+	     s/\$(mac)/$v_mac/g;
+	     s/\$(error)/$v_error/g;
+	     s/\$(username)/$v_username/g" "$target_file"
+else
+	printf "<html><body><h1>Hotspot error</h1><p>Template %s not found in %s</p></body></html>" \
+		"$(html_escape "$file")" "$(html_escape "$storage_path")"
+fi

@@ -1,0 +1,13 @@
+Package: kmod-nf-reject
+Version: 6.6.110-r1
+Depends: kernel (=6.6.110~45abed69991e5f55c1a82ce65f14e560-r1)
+Source: feeds/base/kernel/linux
+SourceName: kernel
+License: GPL-2.0-only
+LicenseFiles: COPYING
+Section: kernel
+SourceDateEpoch: 1760884652
+CPE-ID: cpe:/o:linux:linux_kernel
+Architecture: mipsel_24kc
+Installed-Size: 20480
+Description:  Netfilter IPv4 reject support

@@ -1,9 +1,14 @@
 #!/bin/sh
 # export-config — Export hotspot configuration as a tar.gz archive
 # Output: writes /tmp/hotspot-openwrt-export.tar.gz and prints JSON result
+# Usage: export-config [--include-key]
+#   --include-key : include the SSL private key (excluded by default for security)
 
 OUTPUT='/tmp/hotspot-openwrt-export.tar.gz'
-TMPDIR="/tmp/hotspot-openwrt-export.$$"
+TMPDIR="$(mktemp -d)"
+INCLUDE_KEY='0'
+[ "$1" = '--include-key' ] && INCLUDE_KEY='1'
+trap 'rm -rf "$TMPDIR"' EXIT
 
 json_escape() {
 	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
@@ -24,21 +29,25 @@ for f in /etc/chilli/config /etc/chilli/up.sh /etc/chilli/down.sh /etc/chilli/co
 	[ -f "$f" ] && cp "$f" "$TMPDIR/etc/chilli/" 2>/dev/null || true
 done
 
-# Copy SSL certs if present
+# Copy SSL cert (always) and private key (only with --include-key).
+# The private key is excluded by default to prevent accidental disclosure.
 CERT="$(uci -q get hotspot_openwrt.main.uamssl_cert || echo '')"
 KEY="$(uci -q get hotspot_openwrt.main.uamssl_key || echo '')"
 [ -f "$CERT" ] && { mkdir -p "$TMPDIR$(dirname "$CERT")"; cp "$CERT" "$TMPDIR$CERT" 2>/dev/null || true; }
-[ -f "$KEY"  ] && { mkdir -p "$TMPDIR$(dirname "$KEY")";  cp "$KEY"  "$TMPDIR$KEY"  2>/dev/null || true; }
+if [ "$INCLUDE_KEY" = '1' ] && [ -f "$KEY" ]; then
+	mkdir -p "$TMPDIR$(dirname "$KEY")"; cp "$KEY" "$TMPDIR$KEY" 2>/dev/null || true
+fi
 
-# Create archive
+# Create archive with restrictive permissions
 tar -czf "$OUTPUT" -C "$TMPDIR" . 2>/dev/null
 RET=$?
 rm -rf "$TMPDIR"
 
 if [ $RET -eq 0 ]; then
+	chmod 0600 "$OUTPUT" 2>/dev/null || true
 	SIZE="$(wc -c < "$OUTPUT" 2>/dev/null | awk '{print $1+0}')"
-	printf '{"ok":true,"path":"%s","size":%d,"message":"تم تصدير الإعدادات بنجاح."}\n' \
-		"$(json_escape "$OUTPUT")" "$SIZE"
+	printf '{"ok":true,"path":"%s","size":%d,"include_key":%s,"message":"تم تصدير الإعدادات بنجاح."}\n' \
+		"$(json_escape "$OUTPUT")" "$SIZE" "$INCLUDE_KEY"
 else
 	printf '{"ok":false,"message":"فشل إنشاء ملف الأرشيف."}\n'
 	exit 1

@@ -1,0 +1,13 @@
+Package: luci-app-lldpd
+Version: 25.292.66247~75e41cb
+Depends: libc, lldpd, rpcd-mod-ucode
+Source: feeds/luci/applications/luci-app-lldpd
+SourceName: luci-app-lldpd
+License: MIT
+Section: luci
+SourceDateEpoch: 1760898247
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 61440
+Description:  LuCI support for LLDP daemon

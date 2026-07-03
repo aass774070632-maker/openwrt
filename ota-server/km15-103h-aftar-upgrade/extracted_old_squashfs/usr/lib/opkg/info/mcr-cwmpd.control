@@ -1,0 +1,8 @@
+Package: mcr-cwmpd
+Version: 1
+Depends: libc, mcr-common, libmcr-leaf, libmcr-ixml, mcr-cfghandler, libmcr-upgrade, libcurl, libopenssl, libcares
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/apps/mcr-cwmpd
+Section: applications
+Architecture: mipsel_24kc
+Installed-Size: 239101
+Description:  Mercury cwmpd-

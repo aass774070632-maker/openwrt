@@ -8,6 +8,24 @@ json_bool() {
 	[ "$1" = '1' ] && printf true || printf false
 }
 
+# Escape a value for safe embedding in a JS string literal (single or double
+# quoted) inside HTML. Handles JSON-string escaping AND breaks </script>
+# sequences to prevent stored XSS when admin-controlled UCI values are injected
+# into settings.js / index.html (H1).
+js_str_escape() {
+	printf '%s' "$1" | awk '
+		BEGIN { q = sprintf("%c", 39) }
+		{
+			gsub(/\\/, "\\\\")
+			gsub(/"/, "\\\"")
+			gsub(q, "\\" q)
+			gsub(/</, "\\u003C")
+			gsub(/>/, "\\u003E")
+			gsub(/&/, "\\u0026")
+			printf "%s%s", (NR>1 ? "\\n" : ""), $0
+		}'
+}
+
 fail_json() {
 	printf '{"ok":false,"stage":"%s","message":"%s"}\n' "$(json_escape "$1")" "$(json_escape "$2")"
 	exit 1
@@ -18,15 +36,20 @@ last_octet() {
 }
 
 network_for() {
-	local ipaddr="$1" cidr="$2" output
-	output="$(/bin/ipcalc.sh "$ipaddr/$cidr" 2>/dev/null)" || return 1
-	eval "$output"
-	printf '%s' "$NETWORK"
+	local ipaddr="$1" cidr="$2"
+	/bin/ipcalc.sh "$ipaddr/$cidr" 2>/dev/null | awk -F= '$1 == "NETWORK" { print $2 }'
 }
 
 valid_ipv4() {
 	case "$1" in ''|*[!0-9.]*) return 1 ;; esac
 	printf '%s' "$1" | awk -F. 'NF == 4 { for (i = 1; i <= 4; i++) if ($i == "" || $i < 0 || $i > 255) exit 1; exit 0 } { exit 1 }'
+}
+
+valid_mac() {
+	case "$1" in
+		*[!0-9a-fA-F:]*) return 1 ;;
+	esac
+	printf '%s' "$1" | awk -F: 'NF == 6 { for (i = 1; i <= 6; i++) if (length($i) != 2) exit 1; exit 0 } { exit 1 }'
 }
 
 section_exists() {
@@ -62,12 +85,13 @@ enable_zone_masquerade() {
 }
 
 backup_configs() {
-	local backup_dir="/etc/hotspot-openwrt/backups/$(date +%Y%m%d-%H%M%S)"
-	mkdir -p "$backup_dir" || return 1
+	BACKUP_DIR="/etc/hotspot-openwrt/backups/$(date +%Y%m%d-%H%M%S)"
+	mkdir -p "$BACKUP_DIR" || return 1
 	for package in network dhcp firewall chilli wireless hotspot_openwrt; do
-		uci -q export "$package" > "$backup_dir/$package.uci" 2>/dev/null || true
+		uci -q export "$package" > "$BACKUP_DIR/$package.uci" 2>/dev/null || true
 	done
-	printf '%s' "$backup_dir"
+	RESTORE_DIR="$BACKUP_DIR"
+	printf '%s' "$BACKUP_DIR"
 }
 
 verify_runtime() {
@@ -99,15 +123,12 @@ set_bridge_ports() {
 }
 
 configure_wireless() {
-	local wifi_iface="$1" subscriber_interface="$2" disabled_value
+	local wifi_iface="$1" subscriber_interface="$2"
 	[ -n "$wifi_iface" ] || return 0
 	section_exists "wireless.$wifi_iface" || fail_json 'wireless' "WiFi section '$wifi_iface' was not found"
-	disabled_value='0'
-	if [ "$mode" = 'start' ] && [ "$(uci -q get wireless.$wifi_iface.disabled)" = '1' ]; then
-		disabled_value='1'
-	fi
+	# Always enable the hotspot wifi interface on apply/start so clients can connect.
 	uci set wireless.$wifi_iface.network="$subscriber_interface"
-	uci set wireless.$wifi_iface.disabled="$disabled_value"
+	uci set wireless.$wifi_iface.disabled='0'
 	uci set wireless.$wifi_iface.isolate='1'
 	uci commit wireless
 }
@@ -156,12 +177,9 @@ configure_quick_wireless() {
 	[ -n "$wifi_key" ] || wifi_key="$(uci -q get wireless.wizard_hotspot_quick_secondary.key)"
 	[ -n "$wifi_key" ] || wifi_key="$(uci -q get wireless.default_radio0.key)"
 	[ -n "$wifi_key" ] || wifi_key="$(uci -q get wireless.default_radio1.key)"
+	# Always enable hotspot interfaces on apply/start — never inherit a stale disabled=1.
 	primary_disabled='0'
 	secondary_disabled='0'
-	if [ "$mode" = 'start' ]; then
-		[ "$(uci -q get wireless.wizard_hotspot_quick_primary.disabled)" = '1' ] && primary_disabled='1'
-		[ "$(uci -q get wireless.wizard_hotspot_quick_secondary.disabled)" = '1' ] && secondary_disabled='1'
-	fi
 
 	encryption="$(uci -q get wireless.wizard_hotspot_quick_primary.encryption)"
 	[ -n "$encryption" ] || encryption="$(uci -q get wireless.wizard_hotspot_quick_secondary.encryption)"
@@ -319,6 +337,11 @@ configure_domain_landing() {
 		*) portal_path='/hotspot' ;;
 	esac
 	[ -f "$backup_file" ] || cp "$index_file" "$backup_file" 2>/dev/null || true
+	local esc_domain esc_ip esc_sec_ip esc_portal
+	esc_domain="$(js_str_escape "$domain")"
+	esc_ip="$(js_str_escape "$hotspot_ip")"
+	esc_sec_ip="$(js_str_escape "$secondary_hotspot_ip")"
+	esc_portal="$(js_str_escape "$portal_path")"
 	cat > "$index_file" <<-EOF
 	<!doctype html>
 	<html>
@@ -329,9 +352,9 @@ configure_domain_landing() {
 		<script>
 		(function() {
 			var hostname = String(location.hostname || '').toLowerCase();
-			var domain = '$domain'.toLowerCase();
-			if (hostname === domain || hostname === '$hotspot_ip' || hostname === '$secondary_hotspot_ip')
-				location.replace('http://' + location.hostname + '$portal_path/status.html');
+			var domain = '$esc_domain'.toLowerCase();
+			if (hostname === domain || hostname === '$esc_ip' || hostname === '$esc_sec_ip')
+				location.replace('http://' + location.hostname + '$esc_portal/status.html');
 		})();
 		</script>
 	</head>
@@ -345,8 +368,11 @@ configure_domain_landing() {
 
 configure_portal_files() {
 	local hotspot_ip="$1" portal_path="$2" portal_storage_path="$3" terms_enabled="$4"
-	local browser_cookie_enabled="$5" browser_cookie_days="$6" open_status_page="$7" status_autorefresh_seconds="$8" source_dir='/www/hotspot'
-	local login_url status_url post_login_url
+	local browser_cookie_enabled="$5" browser_cookie_days="$6" open_status_page="$7" status_autorefresh_seconds="$8"
+	local mikrotik_compat="$9"
+	local source_dir='/www/hotspot'
+	local login_url status_url post_login_url radius_routing_list
+	radius_routing_list="$(uci -q get hotspot_openwrt.main.radius_routing | tr '\n' ',' | sed 's/,$//')"
 
 	case "$portal_path" in
 		/*) ;;
@@ -359,13 +385,18 @@ configure_portal_files() {
 
 	mkdir -p "$portal_storage_path" || return 1
 	if [ "$portal_storage_path" != "$source_dir" ] && [ -d "$source_dir" ]; then
-		cp "$source_dir/login.html" "$portal_storage_path/login.html" 2>/dev/null || true
-		cp "$source_dir/status.html" "$portal_storage_path/status.html" 2>/dev/null || true
-		cp "$source_dir/terms.html" "$portal_storage_path/terms.html" 2>/dev/null || true
-		cp "$source_dir/style.css" "$portal_storage_path/style.css" 2>/dev/null || true
+		# If compabitility mode is off, we ensure basic files exist
+		if [ "$mikrotik_compat" != '1' ]; then
+			cp "$source_dir/login.html" "$portal_storage_path/login.html" 2>/dev/null || true
+			cp "$source_dir/status.html" "$portal_storage_path/status.html" 2>/dev/null || true
+			cp "$source_dir/terms.html" "$portal_storage_path/terms.html" 2>/dev/null || true
+			cp "$source_dir/style.css" "$portal_storage_path/style.css" 2>/dev/null || true
+		fi
 	fi
 
-	if [ "$terms_enabled" = '1' ]; then
+	if [ "$mikrotik_compat" = '1' ]; then
+		login_url="http://$hotspot_ip/cgi-bin/mikrotik-gate"
+	elif [ "$terms_enabled" = '1' ]; then
 		login_url="http://$hotspot_ip$portal_path/terms.html"
 	else
 		login_url="http://$hotspot_ip$portal_path/login.html"
@@ -380,7 +411,7 @@ configure_portal_files() {
 	{"captive":true,"user-portal-url":"$login_url","venue-info-url":"$login_url","can-extend-session":true}
 	EOF
 	cat > "$portal_storage_path/settings.js" <<-EOF
-	window.HOTSPOT_OPENWRT_SETTINGS={browserCookieEnabled:$([ "$browser_cookie_enabled" = '1' ] && echo true || echo false),browserCookieDays:$(printf '%s' "$browser_cookie_days" | awk '{ v=$1+0; if (v < 1) v=7; if (v > 365) v=365; print v }'),openStatusPage:"$open_status_page",postLoginUrl:$(if [ "$post_login_url" = 'dynamic' ]; then printf '("http://"+window.location.hostname+"%s/status.html")' "$portal_path"; else printf '"%s"' "$post_login_url"; fi),statusAutorefreshSeconds:$(printf '%s' "$status_autorefresh_seconds" | awk '{ v=$1+0; if (v < 0) v=0; if (v > 86400) v=86400; print v }'),networkName:"$(json_escape "$network_name")",supportPhone:"$(json_escape "$support_phone")",logoUrl:"$(json_escape "$logo_url")",noticeText:"$(json_escape "$notice_text")",liveStreamEnabled:$([ "$live_stream_enabled" = '1' ] && echo true || echo false),liveStreamUrl:"$(json_escape "$live_stream_url")",restAreaEnabled:$([ "$rest_area_enabled" = '1' ] && echo true || echo false),restAreaUrl:"$(json_escape "$rest_area_url")",loginMode:"$(json_escape "${login_mode:-both}")",availableSpeeds:"$(json_escape "$available_speeds")",speedtestEnabled:$([ "$speedtest_enabled" = '1' ] && echo true || echo false)};
+	window.HOTSPOT_OPENWRT_SETTINGS={browserCookieEnabled:$([ "$browser_cookie_enabled" = '1' ] && echo true || echo false),browserCookieDays:$(printf '%s' "$browser_cookie_days" | awk '{ v=$1+0; if (v < 1) v=7; if (v > 365) v=365; print v }'),openStatusPage:"$open_status_page",postLoginUrl:$(if [ "$post_login_url" = 'dynamic' ]; then printf '("http://"+window.location.hostname+"%s/status.html")' "$portal_path"; else printf '"%s"' "$post_login_url"; fi),statusAutorefreshSeconds:$(printf '%s' "$status_autorefresh_seconds" | awk '{ v=$1+0; if (v < 0) v=0; if (v > 86400) v=86400; print v }'),networkName:"$(js_str_escape "$network_name")",supportPhone:"$(js_str_escape "$support_phone")",logoUrl:"$(js_str_escape "$logo_url")",noticeText:"$(js_str_escape "$notice_text")",liveStreamEnabled:$([ "$live_stream_enabled" = '1' ] && echo true || echo false),liveStreamUrl:"$(js_str_escape "$live_stream_url")",restAreaEnabled:$([ "$rest_area_enabled" = '1' ] && echo true || echo false),restAreaUrl:"$(js_str_escape "$rest_area_url")",loginMode:"$(js_str_escape "${login_mode:-both}")",availableSpeeds:"$(js_str_escape "$available_speeds")",speedtestEnabled:$([ "$speedtest_enabled" = '1' ] && echo true || echo false),radiusRouting:"$(js_str_escape "$radius_routing_list")"};
 	EOF
 	chmod 0644 "$portal_storage_path/api.json" "$portal_storage_path/settings.js" 2>/dev/null || true
 }
@@ -567,43 +598,28 @@ configure_firewall_nft_compat() {
 	return 0
 }
 
-restart_presence_watchdog() {
-	local pid_file='/var/run/hotspot-openwrt-presence-watchdog.pid' mac_pid_file='/var/run/hotspot-openwrt-mac-cookie-watchdog.pid' pid
-	if [ -s "$pid_file" ]; then
-		pid="$(cat "$pid_file" 2>/dev/null)"
-		[ -n "$pid" ] && kill "$pid" >/dev/null 2>&1 || true
-		rm -f "$pid_file"
-	fi
-	[ -x /usr/libexec/hotspot-openwrt/presence-watchdog ] || return 0
-	/usr/libexec/hotspot-openwrt/presence-watchdog >/dev/null 2>&1 &
-	echo $! > "$pid_file"
-	if [ -s "$mac_pid_file" ]; then
-		pid="$(cat "$mac_pid_file" 2>/dev/null)"
-		[ -n "$pid" ] && kill "$pid" >/dev/null 2>&1 || true
-		rm -f "$mac_pid_file"
-	fi
-	[ -x /usr/libexec/hotspot-openwrt/mac-cookie-watchdog ] || return 0
-	/usr/libexec/hotspot-openwrt/mac-cookie-watchdog >/dev/null 2>&1 &
-	echo $! > "$mac_pid_file"
-}
-
 apply_config() {
-	local backup_dir subscriber_interface bridge_ports bridge_ageing_time wan_interface device_section device_name
+	local subscriber_interface bridge_ports bridge_ageing_time wan_interface device_section device_name
 	local hotspot_ip hotspot_cidr pool_start pool_end dhcp_start dhcp_end dhcp_limit
 	local domain radius_server radius_server2 radius_secret radius_auth_port radius_acct_port radius_nas_ip radius_nas_id
 	local terms_enabled portal_path portal_storage_path captive_notify mac_cookie_enabled browser_cookie_enabled browser_cookie_days open_status_page
 	local session_timeout idle_timeout status_autorefresh shared_users rate_limit_rx_tx
 	local session_timeout_seconds idle_timeout_seconds status_autorefresh_seconds bandwidth_up bandwidth_down rate_rx rate_tx
-	local uam_page dns_list dns1 dns2 wan_zone calc_output network_addr netmask walled_garden walled_garden_ip runtime_mode
+	local uam_page dns1 dns2 wan_zone calc_output network_addr netmask walled_garden walled_garden_ip runtime_mode
 	local acct_interim coa_enabled coa_port trial_enabled trial_duration trial_uptime_limit mac_auth_enabled mac_auth_suffix mac_auth_password
 	local uamssl_enabled uamssl_cert uamssl_key
 
 	subscriber_interface="$(normalize_interface_name "$(uci -q get hotspot_openwrt.main.subscriber_interface)" 'hotspot')"
+	[ "$subscriber_interface" = 'lan' ] || [ "$subscriber_interface" = 'wan' ] && subscriber_interface='hotspot'
 	bridge_ports="$(uci -q get hotspot_openwrt.main.bridge_ports)"
 	bridge_ageing_time="$(uci -q get hotspot_openwrt.main.bridge_ageing_time)"
 	wan_interface="$(normalize_interface_name "$(uci -q get hotspot_openwrt.main.wan_interface)" 'lan')"
 	hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip)"
 	hotspot_cidr="$(uci -q get hotspot_openwrt.main.hotspot_cidr)"
+	mtu="$(uci -q get hotspot_openwrt.main.mtu)"
+	txqueuelen="$(uci -q get hotspot_openwrt.main.txqueuelen)"
+	sndbuf="$(uci -q get hotspot_openwrt.main.sndbuf)"
+	rcvbuf="$(uci -q get hotspot_openwrt.main.rcvbuf)"
 	pool_start="$(uci -q get hotspot_openwrt.main.pool_start)"
 	pool_end="$(uci -q get hotspot_openwrt.main.pool_end)"
 	domain="$(uci -q get hotspot_openwrt.main.domain)"
@@ -634,6 +650,7 @@ apply_config() {
 	terms_enabled="$(uci -q get hotspot_openwrt.main.terms_enabled)"
 	portal_path="$(uci -q get hotspot_openwrt.main.portal_path)"
 	portal_storage_path="$(uci -q get hotspot_openwrt.main.portal_storage_path)"
+	mikrotik_compat="$(uci -q get hotspot_openwrt.main.mikrotik_compat)"
 	captive_notify="$(uci -q get hotspot_openwrt.main.captive_notify)"
 	mac_cookie_enabled="$(uci -q get hotspot_openwrt.main.mac_cookie_enabled)"
 	browser_cookie_enabled="$(uci -q get hotspot_openwrt.main.browser_cookie_enabled)"
@@ -668,6 +685,10 @@ apply_config() {
 	[ -n "$portal_path" ] || portal_path='/hotspot'
 	[ -n "$portal_storage_path" ] || portal_storage_path='/www/hotspot'
 	[ -n "$browser_cookie_days" ] || browser_cookie_days='7'
+	[ -n "$mtu" ] || mtu='1400'
+	[ -n "$txqueuelen" ] || txqueuelen='500'
+	[ -n "$sndbuf" ] || sndbuf='0'
+	[ -n "$rcvbuf" ] || rcvbuf='0'
 	case "$bridge_ageing_time" in ''|*[!0-9]*) bridge_ageing_time='10' ;; esac
 	[ "$bridge_ageing_time" -ge 1 ] 2>/dev/null && [ "$bridge_ageing_time" -le 86400 ] 2>/dev/null || bridge_ageing_time='10'
 	[ -n "$open_status_page" ] || open_status_page='always'
@@ -682,7 +703,6 @@ apply_config() {
 	[ -n "$trial_duration" ] || trial_duration='30'
 	[ -n "$trial_uptime_limit" ] || trial_uptime_limit='30'
 	[ -n "$mac_auth_suffix" ] || mac_auth_suffix='@mac'
-	[ -n "$mac_auth_password" ] || mac_auth_password='mac'
 	[ -n "$uamssl_cert" ] || uamssl_cert='/etc/chilli/hotspot.crt'
 	[ -n "$uamssl_key" ] || uamssl_key='/etc/chilli/hotspot.key'
 	[ -n "$radius_nas_ip" ] || radius_nas_ip="$(ip -4 addr show br-lan 2>/dev/null | awk '/inet / { sub(/\/.*/, "", $2); print $2; exit }')"
@@ -703,24 +723,28 @@ apply_config() {
 	[ -n "$quick_ssid_secondary" ] || quick_ssid_secondary='Hotspot-2'
 
 	dual_quick_mode='0'
-	if [ "$quick_setup_enabled" = '1' ] && [ "$quick_runtime_dual_enabled" != '0' ]; then
-		dual_quick_mode='1'
+	if [ "$quick_setup_enabled" = '1' ]; then
+		local quick_wan_iface="$(uci -q get hotspot_openwrt.main.quick_wan_interface)"
+		[ -n "$quick_wan_iface" ] && wan_interface="$(normalize_interface_name "$quick_wan_iface" "$wan_interface")"
 		subscriber_interface="$(normalize_interface_name "$quick_subscriber_interface" "$subscriber_interface")"
 		[ -n "$quick_gateway_primary" ] && hotspot_ip="$quick_gateway_primary"
 		[ -n "$quick_pool_start_primary" ] && pool_start="$quick_pool_start_primary"
 		[ -n "$quick_pool_end_primary" ] && pool_end="$quick_pool_end_primary"
-		secondary_subscriber_interface="$(normalize_interface_name "$quick_subscriber_interface_secondary" "$(derive_secondary_interface "$subscriber_interface")")"
-		secondary_hotspot_ip="${quick_gateway_secondary:-192.168.20.1}"
-		secondary_hotspot_cidr="${hotspot_cidr:-24}"
-		secondary_pool_start="${quick_pool_start_secondary:-192.168.20.10}"
-		secondary_pool_end="${quick_pool_end_secondary:-192.168.20.199}"
-		if [ "$secondary_subscriber_interface" = "$subscriber_interface" ]; then
-			secondary_subscriber_interface="$(derive_secondary_interface "$subscriber_interface")"
+
+		if [ "$quick_runtime_dual_enabled" != '0' ]; then
+			dual_quick_mode='1'
+			secondary_subscriber_interface="$(normalize_interface_name "$quick_subscriber_interface_secondary" "$(derive_secondary_interface "$subscriber_interface")")"
+			secondary_hotspot_ip="${quick_gateway_secondary:-192.168.20.1}"
+			secondary_hotspot_cidr="${hotspot_cidr:-24}"
+			secondary_pool_start="${quick_pool_start_secondary:-192.168.20.10}"
+			secondary_pool_end="${quick_pool_end_secondary:-192.168.20.199}"
+			if [ "$secondary_subscriber_interface" = "$subscriber_interface" ]; then
+				secondary_subscriber_interface="$(derive_secondary_interface "$subscriber_interface")"
+			fi
 		fi
 	fi
-	dns_list="$(uci -q get hotspot_openwrt.main.dns)"
-	dns1="$(printf '%s\n' $dns_list | sed -n '1p')"
-	dns2="$(printf '%s\n' $dns_list | sed -n '2p')"
+	dns1="$(uci -q get hotspot_openwrt.main.dns1)"
+	dns2="$(uci -q get hotspot_openwrt.main.dns2)"
 	[ -n "$dns1" ] || dns1='8.8.8.8'
 	[ -n "$dns2" ] || dns2="$dns1"
 	walled_garden="$(uci -q get hotspot_openwrt.main.walled_garden | tr ' ' ',')"
@@ -728,18 +752,11 @@ apply_config() {
 	mac_allowed="$(uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | sed "s/^.*='//;s/'$//" | awk 'tolower($1) == "bypassed" { print $2 }' | tr 'A-Z-' 'a-z:' | tr '\n' ',' | sed 's/,$//')"
 	old_secondary_subscriber_interface="$(normalize_interface_name "$(uci -q get hotspot_openwrt.main.quick_subscriber_interface_secondary)" '')"
 
-	# [Symbiotic Defense-in-Depth] Check for dhcp-sentinel heartbeat
-	if [ -f "/var/run/alemprator.heartbeat" ]; then
-		HEARTBEAT_TOKEN=$(cat /var/run/alemprator.heartbeat 2>/dev/null)
-		[ -n "$HEARTBEAT_TOKEN" ] || fail_json "security" "Symbiotic sentinel heartbeat token is empty. Hotspot is locked."
-	else
-		fail_json "security" "Symbiotic sentinel heartbeat not found. The DHCP Sentinel engine is dead or tampered with. Hotspot subsystem halted."
-	fi
-	backup_dir="$(backup_configs)" || fail_json 'backup' 'Could not create configuration backup'
+	backup_file="$(backup_configs)" || fail_json 'backup' 'Could not create configuration backup'
+	backup_dir="$backup_file"
 	calc_output="$(/bin/ipcalc.sh "$hotspot_ip/$hotspot_cidr" 2>/dev/null)" || fail_json 'network' 'Invalid hotspot IP/CIDR'
-	eval "$calc_output"
-	network_addr="$NETWORK"
-	netmask="$NETMASK"
+	network_addr="$(printf '%s' "$calc_output" | awk -F= '$1 == "NETWORK" {print $2}')"
+	netmask="$(printf '%s' "$calc_output" | awk -F= '$1 == "NETMASK" {print $2}')"
 
 	dhcp_start="$(last_octet "$pool_start")"
 	dhcp_end="$(last_octet "$pool_end")"
@@ -751,9 +768,8 @@ apply_config() {
 
 	if [ "$dual_quick_mode" = '1' ]; then
 		secondary_calc_output="$(/bin/ipcalc.sh "$secondary_hotspot_ip/$secondary_hotspot_cidr" 2>/dev/null)" || fail_json 'quick' 'Secondary hotspot IP/CIDR is invalid'
-		eval "$secondary_calc_output"
-		secondary_network_addr="$NETWORK"
-		secondary_netmask="$NETMASK"
+		secondary_network_addr="$(printf '%s' "$secondary_calc_output" | awk -F= '$1 == "NETWORK" {print $2}')"
+		secondary_netmask="$(printf '%s' "$secondary_calc_output" | awk -F= '$1 == "NETMASK" {print $2}')"
 
 		secondary_dhcp_start="$(last_octet "$secondary_pool_start")"
 		secondary_dhcp_end="$(last_octet "$secondary_pool_end")"
@@ -778,6 +794,7 @@ apply_config() {
 	wan_zone="$(zone_for_network "$wan_interface")"
 	uam_page="$portal_path/login.html"
 	[ "$terms_enabled" = '1' ] && uam_page="$portal_path/terms.html"
+	[ "$mikrotik_compat" = '1' ] && uam_page="/cgi-bin/mikrotik-gate"
 	runtime_mode='chilli'
 	if [ ! -x /etc/init.d/chilli ] || ! modprobe tun >/dev/null 2>&1; then
 		runtime_mode='dnsmasq'
@@ -956,8 +973,39 @@ apply_config() {
 		set firewall.hotspot_openwrt_zone.output='ACCEPT'
 		set firewall.hotspot_openwrt_zone.forward='REJECT'
 		delete firewall.hotspot_openwrt_zone.network
-		add_list firewall.hotspot_openwrt_zone.network='$subscriber_interface'
 		delete firewall.hotspot_openwrt_forward
+	EOF
+	uci add_list firewall.hotspot_openwrt_zone.network="$subscriber_interface"
+
+	uci -q batch <<-EOF
+		# Whitelist essential portal services (DNS, DHCP, HTTP, Chilli UAM)
+		set firewall.hotspot_dns=rule
+		set firewall.hotspot_dns.name='Allow-Hotspot-DNS'
+		set firewall.hotspot_dns.src='hotspot'
+		set firewall.hotspot_dns.dest_port='53'
+		set firewall.hotspot_dns.proto='tcp udp'
+		set firewall.hotspot_dns.target='ACCEPT'
+		
+		set firewall.hotspot_dhcp=rule
+		set firewall.hotspot_dhcp.name='Allow-Hotspot-DHCP'
+		set firewall.hotspot_dhcp.src='hotspot'
+		set firewall.hotspot_dhcp.dest_port='67'
+		set firewall.hotspot_dhcp.proto='udp'
+		set firewall.hotspot_dhcp.target='ACCEPT'
+
+		set firewall.hotspot_web=rule
+		set firewall.hotspot_web.name='Allow-Hotspot-Web'
+		set firewall.hotspot_web.src='hotspot'
+		set firewall.hotspot_web.dest_port='80 443'
+		set firewall.hotspot_web.proto='tcp'
+		set firewall.hotspot_web.target='ACCEPT'
+
+		set firewall.hotspot_uam=rule
+		set firewall.hotspot_uam.name='Allow-Hotspot-UAM'
+		set firewall.hotspot_uam.src='hotspot'
+		set firewall.hotspot_uam.dest_port='3990 3991'
+		set firewall.hotspot_uam.proto='tcp'
+		set firewall.hotspot_uam.target='ACCEPT'
 	EOF
 	if [ "$dual_quick_mode" = '1' ]; then
 		uci add_list firewall.hotspot_openwrt_zone.network="$secondary_subscriber_interface"
@@ -977,6 +1025,7 @@ apply_config() {
 		set chilli.hotspot_openwrt=chilli
 		set chilli.hotspot_openwrt.disabled='0'
 		set chilli.hotspot_openwrt.tundev='tun0'
+		set chilli.hotspot_openwrt.dhcpif='br-hotspot'
 		set chilli.hotspot_openwrt.ipup='/etc/chilli/up.sh'
 		set chilli.hotspot_openwrt.ipdown='/etc/chilli/down.sh'
 		set chilli.hotspot_openwrt.conup='/etc/chilli/conup.sh'
@@ -991,11 +1040,11 @@ apply_config() {
 		set chilli.hotspot_openwrt.nochallenge='1'
 		set chilli.hotspot_openwrt.uamserver='http://$hotspot_ip$uam_page'
 		set chilli.hotspot_openwrt.uamhomepage='http://$hotspot_ip$uam_page'
-		set chilli.hotspot_openwrt.radiusserver1='$radius_server'
-		set chilli.hotspot_openwrt.radiusserver2='$radius_server2'
+		set chilli.hotspot_openwrt.radiusserver1='127.0.0.1'
+		set chilli.hotspot_openwrt.radiusserver2='127.0.0.1'
 		set chilli.hotspot_openwrt.radiussecret='$radius_secret'
-		set chilli.hotspot_openwrt.radiusauthport='$radius_auth_port'
-		set chilli.hotspot_openwrt.radiusacctport='$radius_acct_port'
+		set chilli.hotspot_openwrt.radiusauthport='1812'
+		set chilli.hotspot_openwrt.radiusacctport='1813'
 		set chilli.hotspot_openwrt.nasip='$radius_nas_ip'
 		set chilli.hotspot_openwrt.radiusnasid='$radius_nas_id'
 		set chilli.hotspot_openwrt.acctupdate='1'
@@ -1008,6 +1057,9 @@ apply_config() {
 		set chilli.hotspot_openwrt.forcedns2port='53'
 		set chilli.hotspot_openwrt.uamanydns='1'
 		set chilli.hotspot_openwrt.uamdomainttl='5'
+		set chilli.hotspot_openwrt.mtu='$mtu'
+		set chilli.hotspot_openwrt.sndbuf='$sndbuf'
+		set chilli.hotspot_openwrt.rcvbuf='$rcvbuf'
 		set chilli.hotspot_openwrt.uamallowed='$hotspot_ip,$hotspot_ip:80,$hotspot_ip:3990,$hotspot_ip:3991,$domain,$domain:80'
 		delete chilli.hotspot_openwrt.dhcpopt
 		delete chilli.hotspot_openwrt.defsessiontimeout
@@ -1071,6 +1123,7 @@ apply_config() {
 			set chilli.hotspot_openwrt_secondary=chilli
 			set chilli.hotspot_openwrt_secondary.disabled='0'
 			set chilli.hotspot_openwrt_secondary.tundev='tun1'
+			set chilli.hotspot_openwrt_secondary.dhcpif='br-hotspot2'
 			set chilli.hotspot_openwrt_secondary.ipup='/etc/chilli/up.sh'
 			set chilli.hotspot_openwrt_secondary.ipdown='/etc/chilli/down.sh'
 			set chilli.hotspot_openwrt_secondary.conup='/etc/chilli/conup.sh'
@@ -1085,11 +1138,11 @@ apply_config() {
 			set chilli.hotspot_openwrt_secondary.nochallenge='1'
 			set chilli.hotspot_openwrt_secondary.uamserver='http://$secondary_hotspot_ip$uam_page'
 			set chilli.hotspot_openwrt_secondary.uamhomepage='http://$secondary_hotspot_ip$uam_page'
-			set chilli.hotspot_openwrt_secondary.radiusserver1='$radius_server'
-			set chilli.hotspot_openwrt_secondary.radiusserver2='$radius_server2'
+			set chilli.hotspot_openwrt_secondary.radiusserver1='127.0.0.1'
+			set chilli.hotspot_openwrt_secondary.radiusserver2='127.0.0.1'
 			set chilli.hotspot_openwrt_secondary.radiussecret='$radius_secret'
-			set chilli.hotspot_openwrt_secondary.radiusauthport='$radius_auth_port'
-			set chilli.hotspot_openwrt_secondary.radiusacctport='$radius_acct_port'
+			set chilli.hotspot_openwrt_secondary.radiusauthport='1812'
+			set chilli.hotspot_openwrt_secondary.radiusacctport='1813'
 			set chilli.hotspot_openwrt_secondary.nasip='$radius_nas_ip'
 			set chilli.hotspot_openwrt_secondary.radiusnasid='$radius_nas_id'
 			set chilli.hotspot_openwrt_secondary.acctupdate='1'
@@ -1102,6 +1155,9 @@ apply_config() {
 			set chilli.hotspot_openwrt_secondary.forcedns2port='53'
 			set chilli.hotspot_openwrt_secondary.uamanydns='1'
 			set chilli.hotspot_openwrt_secondary.uamdomainttl='5'
+			set chilli.hotspot_openwrt_secondary.mtu='$mtu'
+			set chilli.hotspot_openwrt_secondary.sndbuf='$sndbuf'
+			set chilli.hotspot_openwrt_secondary.rcvbuf='$rcvbuf'
 			set chilli.hotspot_openwrt_secondary.uamallowed='$secondary_hotspot_ip,$secondary_hotspot_ip:80,$secondary_hotspot_ip:3990,$secondary_hotspot_ip:3991,$domain,$domain:80'
 			delete chilli.hotspot_openwrt_secondary.dhcpopt
 			delete chilli.hotspot_openwrt_secondary.defsessiontimeout
@@ -1149,7 +1205,7 @@ apply_config() {
 		uci -q delete chilli.hotspot_openwrt_secondary
 	fi
 	uci commit chilli
-	configure_portal_files "$hotspot_ip" "$portal_path" "$portal_storage_path" "$terms_enabled" "$browser_cookie_enabled" "$browser_cookie_days" "$open_status_page" "$status_autorefresh_seconds" || fail_json 'portal' 'Could not update portal page files'
+	configure_portal_files "$hotspot_ip" "$portal_path" "$portal_storage_path" "$terms_enabled" "$browser_cookie_enabled" "$browser_cookie_days" "$open_status_page" "$status_autorefresh_seconds" "$mikrotik_compat" || fail_json 'portal' 'Could not update portal page files'
 	configure_domain_landing "$hotspot_ip" "$portal_path" "$domain" "$([ "$dual_quick_mode" = '1' ] && printf '%s' "$secondary_hotspot_ip")" || fail_json 'portal' 'Could not update hotspot domain landing page'
 	configure_chilli_local_access || fail_json 'chilli' 'Could not update /etc/chilli/config for local portal access'
 	configure_dnsmasq_compat "$hotspot_ip" "$portal_path" "$captive_notify" "$domain" "$([ "$dual_quick_mode" = '1' ] && printf '%s' "$secondary_hotspot_ip")" "$dns1" "$dns2" || fail_json 'dnsmasq' 'Could not update dnsmasq captive portal compatibility settings'
@@ -1167,9 +1223,11 @@ apply_config() {
 	blocked_macs="$(uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | sed "s/^.*='//;s/'$//" | awk 'tolower($1)=="blocked"{ mac=tolower($2); gsub(/-/,":",mac); print mac }')"
 	bypassed_macs="$(uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | sed "s/^.*='//;s/'$//" | awk 'tolower($1)=="bypassed"{ mac=tolower($2); gsub(/-/,":",mac); print mac }')"
 	for mac in $blocked_macs; do
+		valid_mac "$mac" || continue
 		nft "add element inet fw4 hotspot_blocked_mac { $mac }" 2>/dev/null || true
 	done
 	for mac in $bypassed_macs; do
+		valid_mac "$mac" || continue
 		nft "add element inet fw4 hotspot_bypass_mac { $mac }" 2>/dev/null || true
 	done
 
@@ -1214,11 +1272,38 @@ apply_config() {
 		return 0
 	fi
 
+	# Wait for bridge interface(s) to become available before restarting chilli
+	local bridge_check_device="br-$subscriber_interface"
+	[ "$subscriber_interface" = 'hotspot' ] && bridge_check_device='br-hotspot'
+	logger -t hotspot-openwrt "Waiting for interface $bridge_check_device to become ready..."
+	for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+		if ip link show "$bridge_check_device" >/dev/null 2>&1; then
+			logger -t hotspot-openwrt "Interface $bridge_check_device is ready."
+			break
+		fi
+		sleep 1
+	done
+
+	if [ "$dual_quick_mode" = '1' ]; then
+		local secondary_bridge_check_device="br-$secondary_subscriber_interface"
+		[ "$secondary_subscriber_interface" = 'hotspot' ] && secondary_bridge_check_device='br-hotspot'
+		logger -t hotspot-openwrt "Waiting for secondary interface $secondary_bridge_check_device to become ready..."
+		for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+			if ip link show "$secondary_bridge_check_device" >/dev/null 2>&1; then
+				logger -t hotspot-openwrt "Secondary interface $secondary_bridge_check_device is ready."
+				break
+			fi
+			sleep 1
+		done
+	fi
+
+	/etc/init.d/radius-proxy enable >/dev/null 2>&1 || true
+	/etc/init.d/radius-proxy restart >/dev/null 2>&1 || true
 	/etc/init.d/chilli enable >/dev/null 2>&1 || true
 	/etc/init.d/chilli restart >/dev/null 2>&1 || true
 
 	runtime_error=''
-	for attempt in 1 2 3 4 5 6 7 8 9 10; do
+	for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
 		if runtime_error="$(verify_runtime "$subscriber_interface" "$hotspot_ip" 'tun0')"; then
 			runtime_error=''
 			break
@@ -1228,7 +1313,7 @@ apply_config() {
 
 	secondary_runtime_error=''
 	if [ -z "$runtime_error" ] && [ "$dual_quick_mode" = '1' ]; then
-		for attempt in 1 2 3 4 5 6 7 8 9 10; do
+		for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
 			if secondary_runtime_error="$(verify_runtime "$secondary_subscriber_interface" "$secondary_hotspot_ip" 'tun1')"; then
 				secondary_runtime_error=''
 				break
@@ -1245,13 +1330,25 @@ apply_config() {
 
 	if [ -n "$runtime_error" ]; then
 		/etc/init.d/chilli stop >/dev/null 2>&1 || true
-		/etc/init.d/chilli disable >/dev/null 2>&1 || true
-		uci set hotspot_openwrt.main.enabled='0'
-		uci commit hotspot_openwrt
-		fail_json 'runtime' "Hotspot configuration was saved, but runtime verification failed: $runtime_error. Backup: $backup_dir"
+		/etc/init.d/radius-proxy stop >/dev/null 2>&1 || true
+		if [ "$mode" != 'start' ]; then
+			/etc/init.d/chilli disable >/dev/null 2>&1 || true
+			/etc/init.d/radius-proxy disable >/dev/null 2>&1 || true
+			uci set hotspot_openwrt.main.enabled='0'
+			uci commit hotspot_openwrt
+			fail_json 'runtime' "Hotspot configuration was saved, but runtime verification failed: $runtime_error. Backup: $backup_dir"
+		else
+			logger -t hotspot-openwrt "Warning: Boot-time runtime verification failed: $runtime_error. Retrying services may be needed."
+			exit 1
+		fi
 	fi
 
-	restart_presence_watchdog
+	# Advanced tuning
+	if [ -n "$txqueuelen" ] && [ "$txqueuelen" -gt 0 ] 2>/dev/null; then
+		ip link set tun0 txqueuelen "$txqueuelen" 2>/dev/null || true
+		[ "$dual_quick_mode" = '1' ] && ip link set tun1 txqueuelen "$txqueuelen" 2>/dev/null || true
+	fi
+	# Note: watchdogs are now managed by init.d/hotspot-openwrt via procd respawn
 
 	printf '{'
 	printf '"ok":true,'
@@ -1275,16 +1372,36 @@ apply_config() {
 	printf '}\n'
 }
 
+# Cleanup function for auto-restore on failure (3.9)
+cleanup_and_restore() {
+	[ -n "$RESTORE_DIR" ] && [ -d "$RESTORE_DIR" ] && [ "${APPLY_SUCCESS:-0}" != "1" ] && {
+		logger -t hotspot-audit "Apply failed, restoring from $RESTORE_DIR"
+		for f in "$RESTORE_DIR"/*.uci; do
+			[ -f "$f" ] || continue
+			pkg="$(basename "$f" .uci)"
+			[ -s "$f" ] && uci -q batch < "$f" 2>/dev/null || true
+		done
+		uci -q commit firewall 2>/dev/null || true
+		uci -q commit network 2>/dev/null || true
+		uci -q commit chilli 2>/dev/null || true
+	}
+}
+
 mode='draft'
 [ "$1" = '--start' ] && mode='start'
 
-if ! /usr/libexec/hotspot-openwrt/license-check; then
-	fail_json 'license' "This hardware is not authorized to run Hotspot Alemprator. Please contact technical support."
-fi
+# Use flock for exclusive lock to prevent concurrent apply runs
+LOCKFILE='/var/lock/hotspot-openwrt-apply.lock'
+exec 9>"$LOCKFILE"
+flock -n 9 || exit 0
 
-if ! validation="$(/usr/libexec/hotspot-openwrt/validate 2>/dev/null)"; then
-	printf '{"ok":false,"stage":"validate","message":"Validation failed","validation":%s}\n' "${validation:-{}}"
-	exit 1
-fi
+trap 'cleanup_and_restore' EXIT INT TERM
 
 apply_config
+apply_result=$?
+APPLY_SUCCESS='1'
+
+[ $apply_result -ne 0 ] && exit 1
+
+exit 0
+

@@ -1,0 +1,8 @@
+Package: libmcr-ixml
+Version: 1
+Depends: libc
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/libs/libmcr-ixml
+Section: libraries
+Architecture: mipsel_24kc
+Installed-Size: 16608
+Description:  Mercury xml utility library

@@ -1,0 +1,61 @@
+#!/bin/sh
+
+primary_socket_path='/var/run/chilli_hotspot_openwrt.sock'
+secondary_socket_path='/var/run/chilli_hotspot_openwrt_secondary.sock'
+mac="$1"
+ip="$2"
+state="$3"
+
+printf '{"ok":'
+
+if [ -z "$mac" ]; then
+	printf 'false,"message":"Missing MAC address"}\n'
+	exit 0
+fi
+
+if ! command -v chilli_query >/dev/null 2>&1; then
+	printf 'false,"message":"CoovaChilli is not running"}\n'
+	exit 0
+fi
+
+# Normalize MAC for dhcp-release
+normalized_mac="$(printf '%s' "$mac" | tr 'A-Z-' 'a-z:')"
+socket_path=''
+
+for candidate_socket in "$primary_socket_path" "$secondary_socket_path"; do
+	[ -S "$candidate_socket" ] || continue
+	if [ -n "$ip" ] && [ "$ip" != '-' ]; then
+		chilli_query -s "$candidate_socket" list 2>/dev/null | awk -v ip="$ip" '$2 == ip { found = 1; exit } END { exit found ? 0 : 1 }' || continue
+	else
+		chilli_query -s "$candidate_socket" list 2>/dev/null | awk -v mac="$normalized_mac" 'tolower($1) == mac { found = 1; exit } END { exit found ? 0 : 1 }' || continue
+	fi
+	socket_path="$candidate_socket"
+	break
+done
+
+if [ -z "$socket_path" ]; then
+	for candidate_socket in "$primary_socket_path" "$secondary_socket_path"; do
+		[ -S "$candidate_socket" ] || continue
+		socket_path="$candidate_socket"
+		break
+	done
+fi
+
+if [ -z "$socket_path" ]; then
+	printf 'false,"message":"CoovaChilli is not running"}\n'
+	exit 0
+fi
+
+if [ "$state" = "pass" ]; then
+	if [ -n "$ip" ] && [ "$ip" != "-" ]; then
+		chilli_query -s "$socket_path" logout ip "$ip" >/dev/null 2>&1
+	else
+		chilli_query -s "$socket_path" logout mac "$normalized_mac" >/dev/null 2>&1
+	fi
+	printf 'true,"message":"تم تسجيل خروج الجهاز من قائمة Active."}\n'
+else
+	chilli_query -s "$socket_path" dhcp-release "$normalized_mac" >/dev/null 2>&1
+	printf 'true,"message":"تم حذف الجهاز من قائمة Hosts."}\n'
+fi
+
+exit 0

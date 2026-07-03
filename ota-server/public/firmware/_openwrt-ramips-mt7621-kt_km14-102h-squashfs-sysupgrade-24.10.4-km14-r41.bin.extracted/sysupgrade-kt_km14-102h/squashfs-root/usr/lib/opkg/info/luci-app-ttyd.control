@@ -1,0 +1,13 @@
+Package: luci-app-ttyd
+Version: 25.292.66247~75e41cb
+Depends: libc, luci-base, ttyd
+Source: feeds/luci/applications/luci-app-ttyd
+SourceName: luci-app-ttyd
+License: Apache-2.0
+Section: luci
+SourceDateEpoch: 1760898247
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 20480
+Description:  ttyd - Command-line tool for sharing terminal over the web

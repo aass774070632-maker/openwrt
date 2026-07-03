@@ -42,6 +42,9 @@ authenticated='false'
 source='browser'
 user_manager='{"enabled":false,"ok":false,"source":"not_requested","message":"لم يتم طلب معلومات MikroTik User Manager."}'
 message='لم يتم العثور على جلسة CoovaChilli لهذا الجهاز بعد.'
+err_code='NO_SESSION'
+auth_out="$(mktemp)"
+trap 'rm -f "$auth_out"' EXIT
 
 if command -v chilli_query >/dev/null 2>&1; then
 	client_line="$(
@@ -49,7 +52,7 @@ if command -v chilli_query >/dev/null 2>&1; then
 			[ -S "$socket_path" ] || continue
 			chilli_query -s "$socket_path" list 2>/dev/null | awk -v remote_addr="$remote_addr" -v requested_username="$requested_username" '
 				remote_addr != "" && $2 == remote_addr { print; found = 1; exit }
-				requested_username != "" && $0 ~ requested_username { print; found = 1; exit }
+				requested_username != "" && $6 == requested_username { print; found = 1; exit }
 				END { if (!found) exit 0 }
 			'
 		done | sed -n '1p'
@@ -82,19 +85,19 @@ if command -v chilli_query >/dev/null 2>&1; then
 				cookie_username="$(printf '%s' "$cookie_line" | awk -F '\t' '{ print $3 }')"
 				cookie_card="$(printf '%s' "$cookie_line" | awk -F '\t' '{ print $4 }')"
 				if [ -n "$cookie_username" ]; then
-					chilli_query -s "$selected_socket_path" authorize ip "$client_ip" username "$cookie_username" url "$(status_url_for_ip "$client_ip")?username=$cookie_card" >/tmp/h-card-info-auth.$$ 2>&1 || true
+					chilli_query -s "$selected_socket_path" authorize ip "$client_ip" username "$cookie_username" url "$(status_url_for_ip "$client_ip")?username=$cookie_card" >"$auth_out" 2>&1 || true
 					client_line="$(chilli_query -s "$selected_socket_path" list 2>/dev/null | awk -v ip="$client_ip" '$2 == ip { print; exit }')"
 					client_state="$(printf '%s' "$client_line" | awk '{ print $3 }')"
 					client_username="$(printf '%s' "$client_line" | awk '{ print $6 }')"
 					[ "$client_username" = '-' ] && client_username="$cookie_username"
-					requested_card="${cookie_card:-$(strip_realm "$client_username")}" 
-					rm -f /tmp/h-card-info-auth.$$
+					requested_card="${cookie_card:-$(strip_realm "$client_username")}"
 				fi
 			fi
 		fi
 		[ "$client_state" = 'pass' ] && authenticated='true'
 		source='coovachilli'
 		message='تمت قراءة حالة الجلسة من CoovaChilli، وسيتم إرفاق معلومات MikroTik User Manager عند توفرها.'
+		err_code='SUCCESS_CHILLI'
 	fi
 fi
 

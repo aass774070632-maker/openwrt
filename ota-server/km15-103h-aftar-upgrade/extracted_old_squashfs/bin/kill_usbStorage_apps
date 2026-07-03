@@ -1,0 +1,7 @@
+#!/bin/sh
+
+killall -9 minidlna 
+killall -9 smbd 
+killall -9 nmbd	
+killall -9 lighttpd
+#killall -9 vsftpd 

@@ -1,0 +1,8 @@
+Package: hostapd-2.7
+Version: 2.7-0
+Depends: libc, libnl-tiny, libopenssl, libmcr-mwl
+Source: /home/pkg_dlv/GWH-AX-PI2_0/firmware/mcr_platform/4210-mediatek-package-folder/mtk/applications/hostapd-2.7
+Section: MTK Properties
+Architecture: mipsel_24kc
+Installed-Size: 714619
+Description:  WPA hostapd V2.7

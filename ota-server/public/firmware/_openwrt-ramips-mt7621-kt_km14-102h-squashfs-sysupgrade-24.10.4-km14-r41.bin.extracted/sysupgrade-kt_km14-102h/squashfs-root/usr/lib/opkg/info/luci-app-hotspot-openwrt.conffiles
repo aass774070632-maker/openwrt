@@ -1,0 +1,3 @@
+/etc/config/hotspot_licensing
+/etc/config/hotspot_openwrt
+/etc/hotspot-openwrt/firewall.sh

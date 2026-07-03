@@ -1,0 +1,76 @@
+#!/bin/sh
+
+# Hotspot OpenWrt Connectivity Tester
+# Tests RADIUS reachability and RouterOS REST API
+
+MODE="$1" # "radius" or "rest"
+
+fail() {
+	printf '{"ok":false,"message":"%s"}\n' "$1"
+	exit 1
+}
+
+success() {
+	printf '{"ok":true,"message":"%s"}\n' "$1"
+	exit 0
+}
+
+RADIUS_SERVER="$(uci -q get hotspot_openwrt.main.radius_server)"
+RADIUS_SECRET="$(uci -q get hotspot_openwrt.main.radius_secret)"
+RADIUS_PORT="$(uci -q get hotspot_openwrt.main.radius_auth_port)"
+[ -n "$RADIUS_PORT" ] || RADIUS_PORT='1812'
+
+REST_SCHEME="$(uci -q get hotspot_openwrt.main.userman_rest_scheme)"
+REST_HOST="$(uci -q get hotspot_openwrt.main.userman_rest_host)"
+REST_PORT="$(uci -q get hotspot_openwrt.main.userman_rest_port)"
+REST_USER="$(uci -q get hotspot_openwrt.main.userman_rest_username)"
+REST_PASS="$(uci -q get hotspot_openwrt.main.userman_rest_password)"
+REST_INSECURE="$(uci -q get hotspot_openwrt.main.userman_rest_insecure_ssl)"
+[ -n "$REST_PORT" ] || REST_PORT='443'
+[ -z "$REST_SCHEME" ] && REST_SCHEME='https'
+
+if [ "$MODE" = "radius" ]; then
+	[ -n "$RADIUS_SERVER" ] || fail "RADIUS server address is not set."
+	
+	# Try to ping first
+	if ! ping -c 1 -W 2 "$RADIUS_SERVER" >/dev/null 2>&1; then
+		# Ping failed, but maybe UDP is open? Continue anyway.
+		PING_STATUS=" (Server did not respond to ICMP ping)"
+	fi
+
+	# Use nc to check if UDP port might be reachable (nc -u is tricky but we can try)
+	# Since it's UDP, we can't easily "check" without a real request. 
+	# For now, we just report that the server is reachable via ping if it was.
+	
+	if [ -n "$PING_STATUS" ]; then
+		fail "RADIUS server ($RADIUS_SERVER) is unreachable $PING_STATUS."
+	else
+		success "RADIUS server ($RADIUS_SERVER) responded to ping. Port $RADIUS_PORT is configured."
+	fi
+
+elif [ "$MODE" = "rest" ]; then
+	[ -n "$REST_HOST" ] || fail "REST Host is not set."
+	[ -n "$REST_USER" ] || fail "REST Username is not set."
+	
+	CURL_OPTS="-s -m 5"
+	[ "$REST_INSECURE" = "1" ] && CURL_OPTS="$CURL_OPTS -k"
+	
+	# Test basic connectivity and authentication using /system/resource
+	URL="${REST_SCHEME}://${REST_HOST}:${REST_PORT}/rest/system/resource"
+	
+	RESPONSE=$(curl $CURL_OPTS -u "$REST_USER:$REST_PASS" "$URL" 2>/dev/null)
+	RET=$?
+	
+	if [ $RET -eq 0 ] && [ -n "$RESPONSE" ]; then
+		if echo "$RESPONSE" | grep -q '"version"'; then
+			success "RouterOS REST API reached successfully. Auth OK."
+		else
+			fail "REST API reached, but response was invalid. Check credentials or permissions."
+		fi
+	else
+		fail "Failed to reach RouterOS REST API. Error code: $RET. Check Host/Port/Firewall."
+	fi
+
+else
+	fail "Invalid test mode."
+fi

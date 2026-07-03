@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ALemprator - تسجيل الدخول</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    overflow: hidden;
+  }
+
+  /* خلفية متحركة */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(120,40,200,0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 50%, rgba(0,200,180,0.1) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 24px;
+    padding: 48px 40px 40px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+    animation: fadeUp 0.6s ease;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .logo {
+    width: 72px; height: 72px;
+    background: linear-gradient(135deg, #7c3aed, #06b6d4);
+    border-radius: 20px;
+    margin: 0 auto 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px;
+    box-shadow: 0 8px 25px rgba(124,58,237,0.4);
+  }
+
+  h1 {
+    color: #fff;
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+
+  .subtitle {
+    color: rgba(255,255,255,0.5);
+    font-size: 0.9rem;
+    margin-bottom: 32px;
+  }
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    margin: 0 0 28px;
+  }
+
+  .info-box {
+    background: rgba(6,182,212,0.08);
+    border: 1px solid rgba(6,182,212,0.2);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    color: rgba(255,255,255,0.75);
+    font-size: 0.88rem;
+    line-height: 1.6;
+    text-align: right;
+  }
+
+  .info-box strong { color: #06b6d4; }
+
+  .btn-login {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%);
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    text-decoration: none;
+    letter-spacing: 0.3px;
+    box-shadow: 0 8px 25px rgba(124,58,237,0.35);
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-login:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 35px rgba(124,58,237,0.5);
+  }
+
+  .btn-login:active {
+    transform: translateY(0);
+  }
+
+  .btn-login::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(rgba(255,255,255,0.15), transparent);
+    pointer-events: none;
+  }
+
+  .footer {
+    margin-top: 24px;
+    color: rgba(255,255,255,0.25);
+    font-size: 0.75rem;
+  }
+
+  /* نبضة للزر */
+  @keyframes pulse-ring {
+    0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(124,58,237,0.5); }
+    70%  { transform: scale(1);    box-shadow: 0 0 0 12px rgba(124,58,237,0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(124,58,237,0); }
+  }
+  .btn-login { animation: pulse-ring 2.5s ease-in-out infinite; }
+  .btn-login:hover { animation: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">📡</div>
+  <h1>ALemprator</h1>
+  <p class="subtitle">شبكة الإعداد المؤقتة</p>
+  <div class="divider"></div>
+  <div class="info-box">
+    <strong>مرحباً بك!</strong><br>
+    أنت متصل بشبكة الإعداد الأولي للجهاز.<br>
+    اضغط على الزر للبدء في إعداد الجهاز.
+  </div>
+  <a href="/cgi-bin/luci/admin/applications/alemprator" class="btn-login">
+    🚀 دخول صفحة الإعداد
+  </a>
+  <div class="footer">ALemprator KartNet &copy; 2025</div>
+</div>
+
+<script>
+// دعم Captive Portal لكل الأجهزة
+(function() {
+  var path = window.location.pathname;
+  // إذا كان طلب Captive Portal من iOS أو Android أو Windows → عرض الصفحة
+  var captivePaths = [
+    '/hotspot-detect.html', '/library/test/success.html',
+    '/generate_204', '/connecttest.txt', '/redirect',
+    '/ncsi.txt', '/canonical.html', '/success.txt'
+  ];
+  for (var i = 0; i < captivePaths.length; i++) {
+    if (path === captivePaths[i] || path.indexOf(captivePaths[i]) === 0) {
+      // لا تحوّل - أظهر الصفحة
+      return;
+    }
+  }
+})();
+</script>
+</body>
+</html>

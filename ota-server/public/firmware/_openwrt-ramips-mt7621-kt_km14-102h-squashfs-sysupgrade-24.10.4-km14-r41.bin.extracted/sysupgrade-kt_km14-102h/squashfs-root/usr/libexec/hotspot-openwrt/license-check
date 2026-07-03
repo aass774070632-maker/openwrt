@@ -1,0 +1,3 @@
+#!/bin/sh
+# Alemprator Guard - License Check Wrapper (Restored)
+exit 0
