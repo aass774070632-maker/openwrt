@@ -4,7 +4,7 @@
             "outputFile": "com.alemprator.setup.app-mergeDebugResources-53:/values-ldltr-v21/values-ldltr-v21.xml",
             "map": [
                 {
-                    "source": "/home/galal/.gradle/caches/transforms-3/99871f8ad6d0bba8343a2b88647c2075/transformed/appcompat-1.1.0/res/values-ldltr-v21/values-ldltr-v21.xml",
+                    "source": "/home/galal/.gradle/caches/transforms-3/620656e4e44271cbb262c660a1c22996/transformed/appcompat-1.1.0/res/values-ldltr-v21/values-ldltr-v21.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",

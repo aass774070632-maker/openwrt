@@ -3572,6 +3572,14 @@ return view.extend({
 				notify(_('أدخل اسم الشبكة اللاسلكية الأساسي.'));
 				return false;
 			}
+
+			if (self.state.mode == 'mesh') {
+				var meshChannel = (self.state.meshBand == '5g') ? self.state.channel5g : self.state.channel2g;
+				if (!meshChannel || meshChannel == 'auto') {
+					notify(_('في وضع الميش، يجب تحديد قناة ثابتة للراديو المخصص.'));
+					return false;
+				}
+			}
 		}
 
 		if (STEP_KEYS[index] == 'hotspot_net') {

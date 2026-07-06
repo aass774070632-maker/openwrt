@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+<resources xmlns:ns١="urn:oasis:names:tc:xliff:document:1.2">
     <string msgid="7903180715631665059" name="abc_action_bar_home_description">"హోమ్‌కు నావిగేట్ చేస్తుంది"</string>
     <string msgid="6794660482873516081" name="abc_action_bar_up_description">"పైకి నావిగేట్ చేస్తుంది"</string>
     <string msgid="1155814932213556626" name="abc_action_menu_overflow_description">"మరిన్ని ఎంపికలు"</string>
@@ -25,7 +25,7 @@
     <string msgid="8203855622131699655" name="abc_searchview_description_submit">"ప్రశ్నని సమర్పిస్తుంది"</string>
     <string msgid="3478748990613108725" name="abc_searchview_description_voice">"వాయిస్ శోధన"</string>
     <string msgid="2650565705514630347" name="abc_shareactionprovider_share_with">"వీరితో షేర్ చేస్తుంది"</string>
-    <string msgid="9009661856846212431" name="abc_shareactionprovider_share_with_application">"<ns1:g id="APPLICATION_NAME">%s</ns1:g>తో షేర్ చేస్తుంది"</string>
+    <string msgid="9009661856846212431" name="abc_shareactionprovider_share_with_application">"<ns١:g id="APPLICATION_NAME">%s</ns١:g>తో షేర్ చేస్తుంది"</string>
     <string msgid="6389460216547290468" name="abc_toolbar_collapse_description">"కుదిస్తుంది"</string>
     <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"దిగువున ఉన్న షీట్‌ను కుదిస్తుంది"</string>
     <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"దిగువున ఉన్న షీట్‌ను విస్మరిస్తుంది"</string>
@@ -111,7 +111,7 @@
     <string msgid="7189888345201419934" name="suggestions_available">"సూచనలు దిగువున ఉన్నాయి"</string>
     <string msgid="2561197295334830845" name="switch_role">"Switch"</string>
     <string msgid="1672349317127674378" name="tab">"ట్యాబ్"</string>
-    <string msgid="5946805113151406391" name="template_percent">"<ns1:g id="PERCENTAGE">%1$d</ns1:g> శాతం."</string>
+    <string msgid="5946805113151406391" name="template_percent">"<ns١:g id="PERCENTAGE">%1$d</ns١:g> శాతం."</string>
     <string msgid="5096144640014509074" name="time_picker_am">"AM"</string>
     <string msgid="7241191970823415723" name="time_picker_hour">"గంట"</string>
     <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d గంటలు"</string>

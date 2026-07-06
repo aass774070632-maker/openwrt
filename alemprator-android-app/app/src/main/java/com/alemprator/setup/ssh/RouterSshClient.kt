@@ -1,5 +1,6 @@
 package com.alemprator.setup.ssh
 
+import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import kotlinx.coroutines.Dispatchers
@@ -10,12 +11,12 @@ class RouterSshClient(
     private val host: String = "192.168.8.1",
     private val port: Int = 22,
     private val username: String = "root",
-    private val password: String = "123456"
+    private val password: String = "testing321"
 ) {
 
     /**
      * Executes a list of shell commands on the router sequentially.
-     * Returns true if all commands execute successfully, false otherwise.
+     * Returns true if all commands execute successfully.
      */
     suspend fun executeCommands(commands: List<String>): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         val jsch = JSch()
@@ -26,47 +27,40 @@ class RouterSshClient(
             session = jsch.getSession(username, host, port)
             session.setPassword(password)
             
-            // Skip host key verification for fast local network setup
             val config = java.util.Properties()
             config["StrictHostKeyChecking"] = "no"
             session.setConfig(config)
             
-            session.connect(10000) // 10 seconds timeout
+            session.connect(10000)
             
             for (cmd in commands) {
                 if (cmd.trim().isEmpty()) continue
                 
-                val channel = session.openChannel("exec") as com.jcraft.jsch.ChannelExec
+                val channel = session.openChannel("exec") as ChannelExec
                 channel.setCommand(cmd)
                 
                 val outputStream = ByteArrayOutputStream()
-                val errorStream = ByteArrayOutputStream()
                 channel.outputStream = outputStream
-                channel.setErrStream(errorStream)
                 
                 channel.connect()
                 
-                // Wait for command completion
                 while (!channel.isClosed) {
                     Thread.sleep(100)
                 }
                 
+                val out = outputStream.toString().trim()
                 val exitStatus = channel.exitStatus
-                val out = outputStream.toString()
-                val err = errorStream.toString()
+                channel.disconnect()
                 
                 outputLog.append("\n$ $cmd\n")
                 if (out.isNotEmpty()) outputLog.append(out)
-                if (err.isNotEmpty()) outputLog.append("ERROR: $err")
-                
-                channel.disconnect()
                 
                 if (exitStatus != 0) {
-                    return@withContext Pair(false, "فشل تنفيذ الأمر: $cmd\nالخطأ: $err")
+                    return@withContext Pair(false, "فشل تنفيذ الأمر: $cmd")
                 }
             }
             
-            return@withContext Pair(true, "تم تطبيق الإعدادات بنجاح!\n${outputLog.toString()}")
+            return@withContext Pair(true, outputLog.toString().ifEmpty { "تم تطبيق الإعدادات" })
             
         } catch (e: Exception) {
             return@withContext Pair(false, "فشل الاتصال بـ SSH: ${e.message}")

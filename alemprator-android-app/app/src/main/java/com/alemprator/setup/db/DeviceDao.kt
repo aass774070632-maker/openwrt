@@ -13,6 +13,9 @@ interface DeviceDao {
     @Query("SELECT * FROM devices WHERE lanIp = :ip LIMIT 1")
     suspend fun getDeviceByIp(ip: String): Device?
 
+    @Query("SELECT * FROM devices WHERE isTemplate = 1 ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLastTemplate(): Device?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDevice(device: Device)
 

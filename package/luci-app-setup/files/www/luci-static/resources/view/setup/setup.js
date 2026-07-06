@@ -3421,7 +3421,7 @@ return view.extend({
 		self.refs.prevButton.disabled = (self.stepIndex === 0);
 		setElementVisible(self.refs.nextButton, self.stepIndex !== lastStep);
 		setElementVisible(self.refs.saveButton, self.stepIndex === lastStep);
-		setElementVisible(self.refs.uplinkSettingsWrapper, (self.state.mode == 'sta_wds' || self.state.mode == 'ap_wds'));
+		setElementVisible(self.refs.uplinkSettingsWrapper, (self.state.mode == 'sta_wds'));
 		setElementVisible(self.refs.meshSettingsWrapper, self.state.mode == 'mesh');
 		setElementVisible(self.refs.hotspotQuickDetailsWrapper, !!(self.state || {}).hotspotQuickEnabled);
 		setElementVisible(self.refs.hotspotQuickAuthWrapper, !!(self.state || {}).hotspotQuickEnabled);
@@ -3632,6 +3632,14 @@ return view.extend({
 			if (!(self.state || {}).hotspotQuickEnabled && !apVlanOnlyMode && !self.state.wifiSsid) {
 				notify(_('أدخل اسم الشبكة اللاسلكية الأساسي.'));
 				return false;
+			}
+
+			if (self.state.mode == 'mesh') {
+				var meshChannel = (self.state.meshBand == '5g') ? self.state.channel5g : self.state.channel2g;
+				if (!meshChannel || meshChannel == 'auto') {
+					notify(_('في وضع الميش، يجب تحديد قناة ثابتة للراديو المخصص.'));
+					return false;
+				}
 			}
 		}
 

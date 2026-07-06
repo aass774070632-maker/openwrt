@@ -19,7 +19,7 @@ public final class RouterSshClient {
     
     /**
      * Executes a list of shell commands on the router sequentially.
-     * Returns true if all commands execute successfully, false otherwise.
+     * Returns true if all commands execute successfully.
      */
     @org.jetbrains.annotations.Nullable
     public final java.lang.Object executeCommands(@org.jetbrains.annotations.NotNull

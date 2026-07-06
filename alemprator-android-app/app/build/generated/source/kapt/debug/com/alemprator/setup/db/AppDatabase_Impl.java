@@ -31,13 +31,13 @@ public final class AppDatabase_Impl extends AppDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(11) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(15) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS `devices` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `macAddress` TEXT NOT NULL, `deviceName` TEXT NOT NULL, `deviceType` TEXT NOT NULL, `lanIp` TEXT NOT NULL, `wifiSsid` TEXT, `wifiKey` TEXT, `wifiChannel` TEXT, `wifi2gChannel` TEXT NOT NULL, `wifi2gMode` TEXT NOT NULL, `wifi2gWidth` TEXT NOT NULL, `wifi5gChannel` TEXT NOT NULL, `wifi5gMode` TEXT NOT NULL, `wifi5gWidth` TEXT NOT NULL, `wifi5gNameType` TEXT NOT NULL, `wifi5gCustomSsid` TEXT, `appendIpToSsid` INTEGER NOT NULL, `noPassword` INTEGER NOT NULL, `vlanEnabled` INTEGER NOT NULL, `vlanId` TEXT, `appendIpToVlanSsid` INTEGER NOT NULL, `disableResetButton` INTEGER NOT NULL, `resetPressDuration` TEXT NOT NULL, `disableWpsButton` INTEGER NOT NULL, `autoRebootEnabled` INTEGER NOT NULL, `rootPassword` TEXT, `isolateClients` INTEGER NOT NULL, `hideSsid` INTEGER NOT NULL, `disableDhcp` INTEGER NOT NULL, `hotspotDnsName` TEXT NOT NULL, `hotspotCardPage` TEXT NOT NULL, `hotspotRateLimit` TEXT NOT NULL, `hotspotMacCookie` INTEGER NOT NULL, `hotspotSecondaryEnabled` INTEGER NOT NULL, `hotspotSecondarySsid` TEXT, `hotspotSecondaryIp` TEXT, `hotspotTrialEnabled` INTEGER NOT NULL, `hotspotTrialDuration` TEXT NOT NULL, `hotspotTrialUptimeLimit` TEXT NOT NULL, `radiusServer` TEXT NOT NULL, `radiusServerBackup` TEXT, `radiusSecret` TEXT, `radiusAuthPort` TEXT NOT NULL, `radiusAcctPort` TEXT NOT NULL, `radiusNasIp` TEXT NOT NULL, `radiusNasId` TEXT NOT NULL, `radiusInterimUpdate` TEXT NOT NULL, `radiusCoaEnabled` INTEGER NOT NULL, `radiusCoaPort` TEXT NOT NULL, `restApiEnabled` INTEGER NOT NULL, `restApiProto` TEXT NOT NULL, `restApiUsername` TEXT NOT NULL, `restApiPassword` TEXT, `portalSupportPhone` TEXT, `portalNotification` TEXT NOT NULL, `portalLiveEnabled` INTEGER NOT NULL, `portalLiveUrl` TEXT, `portalBreakEnabled` INTEGER NOT NULL, `portalBreakUrl` TEXT, `portalSpeedtestEnabled` INTEGER NOT NULL, `maintenanceEnabled` INTEGER NOT NULL, `maintenancePolicy` TEXT NOT NULL, `maintenanceStartTime` TEXT NOT NULL, `maintenanceEndTime` TEXT NOT NULL, `autoupdateStartTime` TEXT NOT NULL, `autoupdateEndTime` TEXT NOT NULL, `uplinkBand` TEXT NOT NULL, `uplinkSsid` TEXT, `uplinkKey` TEXT, `meshBand` TEXT NOT NULL, `meshId` TEXT, `meshKey` TEXT, `rebootHours` TEXT NOT NULL, `vlanSsid2g` TEXT, `vlanSsid5g` TEXT, `vlanSsidIpSuffix` INTEGER NOT NULL, `hotspotSecondaryPoolStart` TEXT, `hotspotSecondaryPoolEnd` TEXT, `hotspotSecondaryPolicy` TEXT NOT NULL, `hotspotMacAuthEnabled` INTEGER NOT NULL, `hotspotMacAuthSuffix` TEXT, `hotspotMacAuthPassword` TEXT, `hotspotWalledGarden` TEXT, `hotspotBrowserCookieEnabled` INTEGER NOT NULL, `hotspotBrowserCookieDays` TEXT NOT NULL, `timestamp` INTEGER NOT NULL)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `devices` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `macAddress` TEXT NOT NULL, `deviceName` TEXT NOT NULL, `deviceType` TEXT NOT NULL, `lanIp` TEXT NOT NULL, `lanNetmask` TEXT NOT NULL, `wifiSsid` TEXT, `wifiKey` TEXT, `wifiChannel` TEXT, `wifi2gChannel` TEXT NOT NULL, `wifi2gMode` TEXT NOT NULL, `wifi2gWidth` TEXT NOT NULL, `wifi5gChannel` TEXT NOT NULL, `wifi5gMode` TEXT NOT NULL, `wifi5gWidth` TEXT NOT NULL, `wifi5gNameType` TEXT NOT NULL, `wifi5gCustomSsid` TEXT, `appendIpToSsid` INTEGER NOT NULL, `otaWindowStart` TEXT NOT NULL, `otaWindowEnd` TEXT NOT NULL, `vlanEnabled` INTEGER NOT NULL, `vlanId` TEXT, `appendIpToVlanSsid` INTEGER NOT NULL, `disableResetButton` INTEGER NOT NULL, `resetPressDuration` TEXT NOT NULL, `disableWpsButton` INTEGER NOT NULL, `autoRebootEnabled` INTEGER NOT NULL, `rootPassword` TEXT, `hotspotWanInterface` TEXT NOT NULL, `hotspotSubscriberInterface` TEXT NOT NULL, `hotspotPrimaryIp` TEXT NOT NULL, `hotspotPrimaryPoolStart` TEXT, `hotspotPrimaryPoolEnd` TEXT, `hotspotPrimaryPolicy` TEXT NOT NULL, `hotspotDnsName` TEXT NOT NULL, `hotspotDns1` TEXT NOT NULL, `hotspotDns2` TEXT NOT NULL, `hotspotBridgeAgeingTime` TEXT NOT NULL, `hotspotCardPage` TEXT NOT NULL, `hotspotRateLimit` TEXT NOT NULL, `hotspotMacCookie` INTEGER NOT NULL, `hotspotAvailableSpeeds` TEXT NOT NULL, `hotspotSecondaryEnabled` INTEGER NOT NULL, `hotspotSecondarySsid` TEXT, `hotspotSecondaryIp` TEXT, `hotspotTrialEnabled` INTEGER NOT NULL, `hotspotTrialDuration` TEXT NOT NULL, `hotspotTrialUptimeLimit` TEXT NOT NULL, `radiusServer` TEXT NOT NULL, `radiusServerBackup` TEXT, `radiusSecret` TEXT, `radiusAuthPort` TEXT NOT NULL, `radiusAcctPort` TEXT NOT NULL, `radiusNasIp` TEXT NOT NULL, `radiusNasId` TEXT NOT NULL, `radiusInterimUpdate` TEXT NOT NULL, `radiusCoaEnabled` INTEGER NOT NULL, `radiusCoaPort` TEXT NOT NULL, `restApiEnabled` INTEGER NOT NULL, `restApiProto` TEXT NOT NULL, `restApiUsername` TEXT NOT NULL, `restApiPassword` TEXT, `portalSupportPhone` TEXT, `portalNotification` TEXT NOT NULL, `portalLiveEnabled` INTEGER NOT NULL, `portalLiveUrl` TEXT, `portalBreakEnabled` INTEGER NOT NULL, `portalBreakUrl` TEXT, `portalSpeedtestEnabled` INTEGER NOT NULL, `maintenanceEnabled` INTEGER NOT NULL, `maintenancePolicy` TEXT NOT NULL, `maintenanceStartTime` TEXT NOT NULL, `maintenanceEndTime` TEXT NOT NULL, `autoupdateStartTime` TEXT NOT NULL, `autoupdateEndTime` TEXT NOT NULL, `uplinkBand` TEXT NOT NULL, `uplinkSsid` TEXT, `uplinkKey` TEXT, `meshBand` TEXT NOT NULL, `meshId` TEXT, `meshKey` TEXT, `rebootHours` TEXT NOT NULL, `vlanSsid2g` TEXT, `vlanSsid5g` TEXT, `vlanSsidIpSuffix` INTEGER NOT NULL, `hotspotSecondaryPoolStart` TEXT, `hotspotSecondaryPoolEnd` TEXT, `hotspotSecondaryPolicy` TEXT NOT NULL, `hotspotMacAuthEnabled` INTEGER NOT NULL, `hotspotMacAuthSuffix` TEXT, `hotspotMacAuthPassword` TEXT, `hotspotWalledGarden` TEXT, `hotspotBrowserCookieEnabled` INTEGER NOT NULL, `hotspotBrowserCookieDays` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `isTemplate` INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE IF NOT EXISTS `subnet_pools` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `deviceMac` TEXT NOT NULL, `poolNetwork` TEXT NOT NULL, `poolStart` TEXT NOT NULL, `poolEnd` TEXT NOT NULL, `timestamp` INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '135cc93326a68ded21e0e29ddf46dd21')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '919bcfe03fa4faa7d83a62b3b8c6ed16')");
       }
 
       @Override
@@ -87,12 +87,13 @@ public final class AppDatabase_Impl extends AppDatabase {
       @NonNull
       public RoomOpenHelper.ValidationResult onValidateSchema(
           @NonNull final SupportSQLiteDatabase db) {
-        final HashMap<String, TableInfo.Column> _columnsDevices = new HashMap<String, TableInfo.Column>(86);
+        final HashMap<String, TableInfo.Column> _columnsDevices = new HashMap<String, TableInfo.Column>(96);
         _columnsDevices.put("id", new TableInfo.Column("id", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("macAddress", new TableInfo.Column("macAddress", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("deviceName", new TableInfo.Column("deviceName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("deviceType", new TableInfo.Column("deviceType", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("lanIp", new TableInfo.Column("lanIp", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("lanNetmask", new TableInfo.Column("lanNetmask", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("wifiSsid", new TableInfo.Column("wifiSsid", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("wifiKey", new TableInfo.Column("wifiKey", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("wifiChannel", new TableInfo.Column("wifiChannel", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -105,7 +106,8 @@ public final class AppDatabase_Impl extends AppDatabase {
         _columnsDevices.put("wifi5gNameType", new TableInfo.Column("wifi5gNameType", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("wifi5gCustomSsid", new TableInfo.Column("wifi5gCustomSsid", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("appendIpToSsid", new TableInfo.Column("appendIpToSsid", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsDevices.put("noPassword", new TableInfo.Column("noPassword", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("otaWindowStart", new TableInfo.Column("otaWindowStart", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("otaWindowEnd", new TableInfo.Column("otaWindowEnd", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("vlanEnabled", new TableInfo.Column("vlanEnabled", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("vlanId", new TableInfo.Column("vlanId", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("appendIpToVlanSsid", new TableInfo.Column("appendIpToVlanSsid", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -114,13 +116,20 @@ public final class AppDatabase_Impl extends AppDatabase {
         _columnsDevices.put("disableWpsButton", new TableInfo.Column("disableWpsButton", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("autoRebootEnabled", new TableInfo.Column("autoRebootEnabled", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("rootPassword", new TableInfo.Column("rootPassword", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsDevices.put("isolateClients", new TableInfo.Column("isolateClients", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsDevices.put("hideSsid", new TableInfo.Column("hideSsid", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsDevices.put("disableDhcp", new TableInfo.Column("disableDhcp", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("hotspotWanInterface", new TableInfo.Column("hotspotWanInterface", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("hotspotSubscriberInterface", new TableInfo.Column("hotspotSubscriberInterface", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("hotspotPrimaryIp", new TableInfo.Column("hotspotPrimaryIp", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("hotspotPrimaryPoolStart", new TableInfo.Column("hotspotPrimaryPoolStart", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("hotspotPrimaryPoolEnd", new TableInfo.Column("hotspotPrimaryPoolEnd", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("hotspotPrimaryPolicy", new TableInfo.Column("hotspotPrimaryPolicy", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("hotspotDnsName", new TableInfo.Column("hotspotDnsName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("hotspotDns1", new TableInfo.Column("hotspotDns1", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("hotspotDns2", new TableInfo.Column("hotspotDns2", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("hotspotBridgeAgeingTime", new TableInfo.Column("hotspotBridgeAgeingTime", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("hotspotCardPage", new TableInfo.Column("hotspotCardPage", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("hotspotRateLimit", new TableInfo.Column("hotspotRateLimit", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("hotspotMacCookie", new TableInfo.Column("hotspotMacCookie", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("hotspotAvailableSpeeds", new TableInfo.Column("hotspotAvailableSpeeds", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("hotspotSecondaryEnabled", new TableInfo.Column("hotspotSecondaryEnabled", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("hotspotSecondarySsid", new TableInfo.Column("hotspotSecondarySsid", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("hotspotSecondaryIp", new TableInfo.Column("hotspotSecondaryIp", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -174,6 +183,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         _columnsDevices.put("hotspotBrowserCookieEnabled", new TableInfo.Column("hotspotBrowserCookieEnabled", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("hotspotBrowserCookieDays", new TableInfo.Column("hotspotBrowserCookieDays", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsDevices.put("timestamp", new TableInfo.Column("timestamp", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsDevices.put("isTemplate", new TableInfo.Column("isTemplate", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysDevices = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesDevices = new HashSet<TableInfo.Index>(0);
         final TableInfo _infoDevices = new TableInfo("devices", _columnsDevices, _foreignKeysDevices, _indicesDevices);
@@ -201,7 +211,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "135cc93326a68ded21e0e29ddf46dd21", "0d2164c3de5a29b696a31faf83f23491");
+    }, "919bcfe03fa4faa7d83a62b3b8c6ed16", "0ab3d84fe6bb3307670e8e5b181359e0");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;

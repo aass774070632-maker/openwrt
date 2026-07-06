@@ -31,7 +31,8 @@
         android:icon="@android:mipmap/sym_def_app_icon"
         android:label="إمبراطور الميدان"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.NoActionBar" >
+        android:theme="@android:style/Theme.Material.NoActionBar"
+        android:usesCleartextTraffic="true" >
         <activity
             android:name="com.alemprator.setup.MainActivity"
             android:exported="true"

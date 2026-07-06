@@ -27,22 +27,22 @@
 18-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:9:58-82
 19
 20    <permission
-20-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/04b5936cf70585fe5227ada488037a2d/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
+20-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/da024fe9a862a975dbe894dae3fd994a/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
 21        android:name="com.alemprator.setup.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-21-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/04b5936cf70585fe5227ada488037a2d/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
+21-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/da024fe9a862a975dbe894dae3fd994a/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
 22        android:protectionLevel="signature" />
-22-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/04b5936cf70585fe5227ada488037a2d/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
+22-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/da024fe9a862a975dbe894dae3fd994a/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
 23
 24    <uses-permission android:name="com.alemprator.setup.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
-24-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/04b5936cf70585fe5227ada488037a2d/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
-24-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/04b5936cf70585fe5227ada488037a2d/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
+24-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/da024fe9a862a975dbe894dae3fd994a/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
+24-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/da024fe9a862a975dbe894dae3fd994a/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
 25
 26    <application
-26-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:11:5-27:19
+26-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:11:5-28:19
 27        android:allowBackup="true"
 27-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:12:9-35
 28        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-28-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/04b5936cf70585fe5227ada488037a2d/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
+28-->[androidx.core:core:1.12.0] /home/galal/.gradle/caches/transforms-3/da024fe9a862a975dbe894dae3fd994a/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
 29        android:debuggable="true"
 30        android:extractNativeLibs="false"
 31        android:icon="@android:mipmap/sym_def_app_icon"
@@ -51,205 +51,207 @@
 32-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:14:9-41
 33        android:supportsRtl="true"
 33-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:15:9-35
-34        android:theme="@android:style/Theme.Material.NoActionBar" >
-34-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:16:9-66
-35        <activity
-35-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:18:9-26:20
-36            android:name="com.alemprator.setup.MainActivity"
-36-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:19:13-41
-37            android:exported="true"
-37-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:20:13-36
-38            android:theme="@android:style/Theme.Material.NoActionBar" >
-38-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:21:13-70
-39            <intent-filter>
-39-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:22:13-25:29
-40                <action android:name="android.intent.action.MAIN" />
-40-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:23:17-69
-40-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:23:25-66
-41
-42                <category android:name="android.intent.category.LAUNCHER" />
-42-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:24:17-77
-42-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:24:27-74
-43            </intent-filter>
-44        </activity>
-45        <!--
-46        Service for holding metadata. Cannot be instantiated.
-47        Metadata will be merged from other manifests.
-48        -->
-49        <service
-49-->[androidx.camera:camera-core:1.3.1] /home/galal/.gradle/caches/transforms-3/fc568982a21f5acafd5b48a017883490/transformed/camera-core-1.3.1/AndroidManifest.xml:29:9-33:78
-50            android:name="androidx.camera.core.impl.MetadataHolderService"
-50-->[androidx.camera:camera-core:1.3.1] /home/galal/.gradle/caches/transforms-3/fc568982a21f5acafd5b48a017883490/transformed/camera-core-1.3.1/AndroidManifest.xml:30:13-75
-51            android:enabled="false"
-51-->[androidx.camera:camera-core:1.3.1] /home/galal/.gradle/caches/transforms-3/fc568982a21f5acafd5b48a017883490/transformed/camera-core-1.3.1/AndroidManifest.xml:31:13-36
-52            android:exported="false" >
-52-->[androidx.camera:camera-core:1.3.1] /home/galal/.gradle/caches/transforms-3/fc568982a21f5acafd5b48a017883490/transformed/camera-core-1.3.1/AndroidManifest.xml:32:13-37
-53            <meta-data
-53-->[androidx.camera:camera-camera2:1.3.1] /home/galal/.gradle/caches/transforms-3/9bf81b34c9f2085e75f79e38668e69a0/transformed/camera-camera2-1.3.1/AndroidManifest.xml:30:13-32:89
-54                android:name="androidx.camera.core.impl.MetadataHolderService.DEFAULT_CONFIG_PROVIDER"
-54-->[androidx.camera:camera-camera2:1.3.1] /home/galal/.gradle/caches/transforms-3/9bf81b34c9f2085e75f79e38668e69a0/transformed/camera-camera2-1.3.1/AndroidManifest.xml:31:17-103
-55                android:value="androidx.camera.camera2.Camera2Config$DefaultProvider" />
-55-->[androidx.camera:camera-camera2:1.3.1] /home/galal/.gradle/caches/transforms-3/9bf81b34c9f2085e75f79e38668e69a0/transformed/camera-camera2-1.3.1/AndroidManifest.xml:32:17-86
-56        </service>
-57        <service
-57-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/2950978d6a07cc8ed72bbcf08cfb5c7d/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:9:9-15:19
-58            android:name="com.google.mlkit.common.internal.MlKitComponentDiscoveryService"
-58-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/2950978d6a07cc8ed72bbcf08cfb5c7d/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:10:13-91
-59            android:directBootAware="true"
-59-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/26c7518d618a20789afe0be96baae5e9/transformed/common-18.9.0/AndroidManifest.xml:17:13-43
-60            android:exported="false" >
-60-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/2950978d6a07cc8ed72bbcf08cfb5c7d/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:11:13-37
-61            <meta-data
-61-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/2950978d6a07cc8ed72bbcf08cfb5c7d/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:12:13-14:85
-62                android:name="com.google.firebase.components:com.google.mlkit.vision.barcode.internal.BarcodeRegistrar"
-62-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/2950978d6a07cc8ed72bbcf08cfb5c7d/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:13:17-120
-63                android:value="com.google.firebase.components.ComponentRegistrar" />
-63-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/2950978d6a07cc8ed72bbcf08cfb5c7d/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:14:17-82
-64            <meta-data
-64-->[com.google.mlkit:vision-common:17.3.0] /home/galal/.gradle/caches/transforms-3/1ed09fcfa06de04458f359a1888af604/transformed/vision-common-17.3.0/AndroidManifest.xml:12:13-14:85
-65                android:name="com.google.firebase.components:com.google.mlkit.vision.common.internal.VisionCommonRegistrar"
-65-->[com.google.mlkit:vision-common:17.3.0] /home/galal/.gradle/caches/transforms-3/1ed09fcfa06de04458f359a1888af604/transformed/vision-common-17.3.0/AndroidManifest.xml:13:17-124
-66                android:value="com.google.firebase.components.ComponentRegistrar" />
-66-->[com.google.mlkit:vision-common:17.3.0] /home/galal/.gradle/caches/transforms-3/1ed09fcfa06de04458f359a1888af604/transformed/vision-common-17.3.0/AndroidManifest.xml:14:17-82
-67            <meta-data
-67-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/26c7518d618a20789afe0be96baae5e9/transformed/common-18.9.0/AndroidManifest.xml:20:13-22:85
-68                android:name="com.google.firebase.components:com.google.mlkit.common.internal.CommonComponentRegistrar"
-68-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/26c7518d618a20789afe0be96baae5e9/transformed/common-18.9.0/AndroidManifest.xml:21:17-120
-69                android:value="com.google.firebase.components.ComponentRegistrar" />
-69-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/26c7518d618a20789afe0be96baae5e9/transformed/common-18.9.0/AndroidManifest.xml:22:17-82
-70        </service>
-71
-72        <provider
-72-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/26c7518d618a20789afe0be96baae5e9/transformed/common-18.9.0/AndroidManifest.xml:9:9-13:38
-73            android:name="com.google.mlkit.common.internal.MlKitInitProvider"
-73-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/26c7518d618a20789afe0be96baae5e9/transformed/common-18.9.0/AndroidManifest.xml:10:13-78
-74            android:authorities="com.alemprator.setup.mlkitinitprovider"
-74-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/26c7518d618a20789afe0be96baae5e9/transformed/common-18.9.0/AndroidManifest.xml:11:13-69
-75            android:exported="false"
-75-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/26c7518d618a20789afe0be96baae5e9/transformed/common-18.9.0/AndroidManifest.xml:12:13-37
-76            android:initOrder="99" />
-76-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/26c7518d618a20789afe0be96baae5e9/transformed/common-18.9.0/AndroidManifest.xml:13:13-35
-77
-78        <activity
-78-->[com.google.android.gms:play-services-base:18.1.0] /home/galal/.gradle/caches/transforms-3/18c1d6e7825b56e46d222e49978a4b3c/transformed/play-services-base-18.1.0/AndroidManifest.xml:20:9-22:45
-79            android:name="com.google.android.gms.common.api.GoogleApiActivity"
-79-->[com.google.android.gms:play-services-base:18.1.0] /home/galal/.gradle/caches/transforms-3/18c1d6e7825b56e46d222e49978a4b3c/transformed/play-services-base-18.1.0/AndroidManifest.xml:20:19-85
-80            android:exported="false"
-80-->[com.google.android.gms:play-services-base:18.1.0] /home/galal/.gradle/caches/transforms-3/18c1d6e7825b56e46d222e49978a4b3c/transformed/play-services-base-18.1.0/AndroidManifest.xml:22:19-43
-81            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-81-->[com.google.android.gms:play-services-base:18.1.0] /home/galal/.gradle/caches/transforms-3/18c1d6e7825b56e46d222e49978a4b3c/transformed/play-services-base-18.1.0/AndroidManifest.xml:21:19-78
-82
-83        <meta-data
-83-->[com.google.android.gms:play-services-basement:18.1.0] /home/galal/.gradle/caches/transforms-3/91b6ce98ceaae261011deae5262791df/transformed/play-services-basement-18.1.0/AndroidManifest.xml:21:9-23:69
-84            android:name="com.google.android.gms.version"
-84-->[com.google.android.gms:play-services-basement:18.1.0] /home/galal/.gradle/caches/transforms-3/91b6ce98ceaae261011deae5262791df/transformed/play-services-basement-18.1.0/AndroidManifest.xml:22:13-58
-85            android:value="@integer/google_play_services_version" />
-85-->[com.google.android.gms:play-services-basement:18.1.0] /home/galal/.gradle/caches/transforms-3/91b6ce98ceaae261011deae5262791df/transformed/play-services-basement-18.1.0/AndroidManifest.xml:23:13-66
-86
-87        <provider
-87-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/05121284987d0e15b6bbefcabc6dfd5d/transformed/emoji2-1.4.0/AndroidManifest.xml:24:9-32:20
-88            android:name="androidx.startup.InitializationProvider"
-88-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/05121284987d0e15b6bbefcabc6dfd5d/transformed/emoji2-1.4.0/AndroidManifest.xml:25:13-67
-89            android:authorities="com.alemprator.setup.androidx-startup"
-89-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/05121284987d0e15b6bbefcabc6dfd5d/transformed/emoji2-1.4.0/AndroidManifest.xml:26:13-68
-90            android:exported="false" >
-90-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/05121284987d0e15b6bbefcabc6dfd5d/transformed/emoji2-1.4.0/AndroidManifest.xml:27:13-37
-91            <meta-data
-91-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/05121284987d0e15b6bbefcabc6dfd5d/transformed/emoji2-1.4.0/AndroidManifest.xml:29:13-31:52
-92                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-92-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/05121284987d0e15b6bbefcabc6dfd5d/transformed/emoji2-1.4.0/AndroidManifest.xml:30:17-75
-93                android:value="androidx.startup" />
-93-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/05121284987d0e15b6bbefcabc6dfd5d/transformed/emoji2-1.4.0/AndroidManifest.xml:31:17-49
-94            <meta-data
-94-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/galal/.gradle/caches/transforms-3/44c22a29cdd479df7121d1c898359b3f/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
-95                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-95-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/galal/.gradle/caches/transforms-3/44c22a29cdd479df7121d1c898359b3f/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
-96                android:value="androidx.startup" />
-96-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/galal/.gradle/caches/transforms-3/44c22a29cdd479df7121d1c898359b3f/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
-97            <meta-data
-97-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:29:13-31:52
-98                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-98-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:30:17-85
-99                android:value="androidx.startup" />
-99-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:31:17-49
-100        </provider>
-101
-102        <service
-102-->[androidx.room:room-runtime:2.6.1] /home/galal/.gradle/caches/transforms-3/f78251a97429bc3a48f848b27498ffe9/transformed/room-runtime-2.6.1/AndroidManifest.xml:24:9-28:63
-103            android:name="androidx.room.MultiInstanceInvalidationService"
-103-->[androidx.room:room-runtime:2.6.1] /home/galal/.gradle/caches/transforms-3/f78251a97429bc3a48f848b27498ffe9/transformed/room-runtime-2.6.1/AndroidManifest.xml:25:13-74
-104            android:directBootAware="true"
-104-->[androidx.room:room-runtime:2.6.1] /home/galal/.gradle/caches/transforms-3/f78251a97429bc3a48f848b27498ffe9/transformed/room-runtime-2.6.1/AndroidManifest.xml:26:13-43
-105            android:exported="false" />
-105-->[androidx.room:room-runtime:2.6.1] /home/galal/.gradle/caches/transforms-3/f78251a97429bc3a48f848b27498ffe9/transformed/room-runtime-2.6.1/AndroidManifest.xml:27:13-37
-106
-107        <receiver
-107-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:34:9-52:20
-108            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-108-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:35:13-76
-109            android:directBootAware="false"
-109-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:36:13-44
-110            android:enabled="true"
-110-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:37:13-35
-111            android:exported="true"
-111-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:38:13-36
-112            android:permission="android.permission.DUMP" >
-112-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:39:13-57
-113            <intent-filter>
-113-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:40:13-42:29
-114                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
-114-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:17-91
-114-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:25-88
-115            </intent-filter>
-116            <intent-filter>
-116-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:43:13-45:29
-117                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
-117-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:17-85
-117-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:25-82
-118            </intent-filter>
-119            <intent-filter>
-119-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:46:13-48:29
-120                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
-120-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:17-88
-120-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:25-85
-121            </intent-filter>
-122            <intent-filter>
-122-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:49:13-51:29
-123                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
-123-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:17-95
-123-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/0fd15156a93a77d382ea728b82dfcef1/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:25-92
-124            </intent-filter>
-125        </receiver>
-126
-127        <service
-127-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/b8dae4dae318494c2f449ae36c59a250/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:29:9-35:19
-128            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
-128-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/b8dae4dae318494c2f449ae36c59a250/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:30:13-103
-129            android:exported="false" >
-129-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/b8dae4dae318494c2f449ae36c59a250/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:31:13-37
-130            <meta-data
-130-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/b8dae4dae318494c2f449ae36c59a250/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:32:13-34:39
-131                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
-131-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/b8dae4dae318494c2f449ae36c59a250/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:33:17-94
-132                android:value="cct" />
-132-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/b8dae4dae318494c2f449ae36c59a250/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:34:17-36
-133        </service>
-134        <service
-134-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/a035bef72d04dc0cd7c6ec27e613d6c4/transformed/transport-runtime-2.2.6/AndroidManifest.xml:26:9-30:19
-135            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
-135-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/a035bef72d04dc0cd7c6ec27e613d6c4/transformed/transport-runtime-2.2.6/AndroidManifest.xml:27:13-117
-136            android:exported="false"
-136-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/a035bef72d04dc0cd7c6ec27e613d6c4/transformed/transport-runtime-2.2.6/AndroidManifest.xml:28:13-37
-137            android:permission="android.permission.BIND_JOB_SERVICE" >
-137-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/a035bef72d04dc0cd7c6ec27e613d6c4/transformed/transport-runtime-2.2.6/AndroidManifest.xml:29:13-69
-138        </service>
-139
-140        <receiver
-140-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/a035bef72d04dc0cd7c6ec27e613d6c4/transformed/transport-runtime-2.2.6/AndroidManifest.xml:32:9-34:40
-141            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
-141-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/a035bef72d04dc0cd7c6ec27e613d6c4/transformed/transport-runtime-2.2.6/AndroidManifest.xml:33:13-132
-142            android:exported="false" />
-142-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/a035bef72d04dc0cd7c6ec27e613d6c4/transformed/transport-runtime-2.2.6/AndroidManifest.xml:34:13-37
-143    </application>
-144
-145</manifest>
+34        android:theme="@android:style/Theme.Material.NoActionBar"
+34-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:17:9-66
+35        android:usesCleartextTraffic="true" >
+35-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:16:9-44
+36        <activity
+36-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:19:9-27:20
+37            android:name="com.alemprator.setup.MainActivity"
+37-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:20:13-41
+38            android:exported="true"
+38-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:21:13-36
+39            android:theme="@android:style/Theme.Material.NoActionBar" >
+39-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:22:13-70
+40            <intent-filter>
+40-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:23:13-26:29
+41                <action android:name="android.intent.action.MAIN" />
+41-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:24:17-69
+41-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:24:25-66
+42
+43                <category android:name="android.intent.category.LAUNCHER" />
+43-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:25:17-77
+43-->/home/galal/openwrt/alemprator-android-app/app/src/main/AndroidManifest.xml:25:27-74
+44            </intent-filter>
+45        </activity>
+46        <!--
+47        Service for holding metadata. Cannot be instantiated.
+48        Metadata will be merged from other manifests.
+49        -->
+50        <service
+50-->[androidx.camera:camera-core:1.3.1] /home/galal/.gradle/caches/transforms-3/a128e8c3a9d6d9ab79bd2b4f2b464fa7/transformed/camera-core-1.3.1/AndroidManifest.xml:29:9-33:78
+51            android:name="androidx.camera.core.impl.MetadataHolderService"
+51-->[androidx.camera:camera-core:1.3.1] /home/galal/.gradle/caches/transforms-3/a128e8c3a9d6d9ab79bd2b4f2b464fa7/transformed/camera-core-1.3.1/AndroidManifest.xml:30:13-75
+52            android:enabled="false"
+52-->[androidx.camera:camera-core:1.3.1] /home/galal/.gradle/caches/transforms-3/a128e8c3a9d6d9ab79bd2b4f2b464fa7/transformed/camera-core-1.3.1/AndroidManifest.xml:31:13-36
+53            android:exported="false" >
+53-->[androidx.camera:camera-core:1.3.1] /home/galal/.gradle/caches/transforms-3/a128e8c3a9d6d9ab79bd2b4f2b464fa7/transformed/camera-core-1.3.1/AndroidManifest.xml:32:13-37
+54            <meta-data
+54-->[androidx.camera:camera-camera2:1.3.1] /home/galal/.gradle/caches/transforms-3/f742648f7d1c8463eace4278988881d5/transformed/camera-camera2-1.3.1/AndroidManifest.xml:30:13-32:89
+55                android:name="androidx.camera.core.impl.MetadataHolderService.DEFAULT_CONFIG_PROVIDER"
+55-->[androidx.camera:camera-camera2:1.3.1] /home/galal/.gradle/caches/transforms-3/f742648f7d1c8463eace4278988881d5/transformed/camera-camera2-1.3.1/AndroidManifest.xml:31:17-103
+56                android:value="androidx.camera.camera2.Camera2Config$DefaultProvider" />
+56-->[androidx.camera:camera-camera2:1.3.1] /home/galal/.gradle/caches/transforms-3/f742648f7d1c8463eace4278988881d5/transformed/camera-camera2-1.3.1/AndroidManifest.xml:32:17-86
+57        </service>
+58        <service
+58-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/14adc708ff5fc1ae989150f1c04157bb/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:9:9-15:19
+59            android:name="com.google.mlkit.common.internal.MlKitComponentDiscoveryService"
+59-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/14adc708ff5fc1ae989150f1c04157bb/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:10:13-91
+60            android:directBootAware="true"
+60-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/88332434d6c97a9ae5412ddf22e5493f/transformed/common-18.9.0/AndroidManifest.xml:17:13-43
+61            android:exported="false" >
+61-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/14adc708ff5fc1ae989150f1c04157bb/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:11:13-37
+62            <meta-data
+62-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/14adc708ff5fc1ae989150f1c04157bb/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:12:13-14:85
+63                android:name="com.google.firebase.components:com.google.mlkit.vision.barcode.internal.BarcodeRegistrar"
+63-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/14adc708ff5fc1ae989150f1c04157bb/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:13:17-120
+64                android:value="com.google.firebase.components.ComponentRegistrar" />
+64-->[com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.0] /home/galal/.gradle/caches/transforms-3/14adc708ff5fc1ae989150f1c04157bb/transformed/play-services-mlkit-barcode-scanning-18.3.0/AndroidManifest.xml:14:17-82
+65            <meta-data
+65-->[com.google.mlkit:vision-common:17.3.0] /home/galal/.gradle/caches/transforms-3/801de5c55709eade012257baf5c760a9/transformed/vision-common-17.3.0/AndroidManifest.xml:12:13-14:85
+66                android:name="com.google.firebase.components:com.google.mlkit.vision.common.internal.VisionCommonRegistrar"
+66-->[com.google.mlkit:vision-common:17.3.0] /home/galal/.gradle/caches/transforms-3/801de5c55709eade012257baf5c760a9/transformed/vision-common-17.3.0/AndroidManifest.xml:13:17-124
+67                android:value="com.google.firebase.components.ComponentRegistrar" />
+67-->[com.google.mlkit:vision-common:17.3.0] /home/galal/.gradle/caches/transforms-3/801de5c55709eade012257baf5c760a9/transformed/vision-common-17.3.0/AndroidManifest.xml:14:17-82
+68            <meta-data
+68-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/88332434d6c97a9ae5412ddf22e5493f/transformed/common-18.9.0/AndroidManifest.xml:20:13-22:85
+69                android:name="com.google.firebase.components:com.google.mlkit.common.internal.CommonComponentRegistrar"
+69-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/88332434d6c97a9ae5412ddf22e5493f/transformed/common-18.9.0/AndroidManifest.xml:21:17-120
+70                android:value="com.google.firebase.components.ComponentRegistrar" />
+70-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/88332434d6c97a9ae5412ddf22e5493f/transformed/common-18.9.0/AndroidManifest.xml:22:17-82
+71        </service>
+72
+73        <provider
+73-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/88332434d6c97a9ae5412ddf22e5493f/transformed/common-18.9.0/AndroidManifest.xml:9:9-13:38
+74            android:name="com.google.mlkit.common.internal.MlKitInitProvider"
+74-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/88332434d6c97a9ae5412ddf22e5493f/transformed/common-18.9.0/AndroidManifest.xml:10:13-78
+75            android:authorities="com.alemprator.setup.mlkitinitprovider"
+75-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/88332434d6c97a9ae5412ddf22e5493f/transformed/common-18.9.0/AndroidManifest.xml:11:13-69
+76            android:exported="false"
+76-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/88332434d6c97a9ae5412ddf22e5493f/transformed/common-18.9.0/AndroidManifest.xml:12:13-37
+77            android:initOrder="99" />
+77-->[com.google.mlkit:common:18.9.0] /home/galal/.gradle/caches/transforms-3/88332434d6c97a9ae5412ddf22e5493f/transformed/common-18.9.0/AndroidManifest.xml:13:13-35
+78
+79        <activity
+79-->[com.google.android.gms:play-services-base:18.1.0] /home/galal/.gradle/caches/transforms-3/57a04e296e48249e77621051ddff7dd0/transformed/play-services-base-18.1.0/AndroidManifest.xml:20:9-22:45
+80            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+80-->[com.google.android.gms:play-services-base:18.1.0] /home/galal/.gradle/caches/transforms-3/57a04e296e48249e77621051ddff7dd0/transformed/play-services-base-18.1.0/AndroidManifest.xml:20:19-85
+81            android:exported="false"
+81-->[com.google.android.gms:play-services-base:18.1.0] /home/galal/.gradle/caches/transforms-3/57a04e296e48249e77621051ddff7dd0/transformed/play-services-base-18.1.0/AndroidManifest.xml:22:19-43
+82            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+82-->[com.google.android.gms:play-services-base:18.1.0] /home/galal/.gradle/caches/transforms-3/57a04e296e48249e77621051ddff7dd0/transformed/play-services-base-18.1.0/AndroidManifest.xml:21:19-78
+83
+84        <meta-data
+84-->[com.google.android.gms:play-services-basement:18.1.0] /home/galal/.gradle/caches/transforms-3/4e19e8b2c94aa4ff669137342f48fe2a/transformed/play-services-basement-18.1.0/AndroidManifest.xml:21:9-23:69
+85            android:name="com.google.android.gms.version"
+85-->[com.google.android.gms:play-services-basement:18.1.0] /home/galal/.gradle/caches/transforms-3/4e19e8b2c94aa4ff669137342f48fe2a/transformed/play-services-basement-18.1.0/AndroidManifest.xml:22:13-58
+86            android:value="@integer/google_play_services_version" />
+86-->[com.google.android.gms:play-services-basement:18.1.0] /home/galal/.gradle/caches/transforms-3/4e19e8b2c94aa4ff669137342f48fe2a/transformed/play-services-basement-18.1.0/AndroidManifest.xml:23:13-66
+87
+88        <provider
+88-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/2d799fa81aa0009b047008ec9e9becf9/transformed/emoji2-1.4.0/AndroidManifest.xml:24:9-32:20
+89            android:name="androidx.startup.InitializationProvider"
+89-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/2d799fa81aa0009b047008ec9e9becf9/transformed/emoji2-1.4.0/AndroidManifest.xml:25:13-67
+90            android:authorities="com.alemprator.setup.androidx-startup"
+90-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/2d799fa81aa0009b047008ec9e9becf9/transformed/emoji2-1.4.0/AndroidManifest.xml:26:13-68
+91            android:exported="false" >
+91-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/2d799fa81aa0009b047008ec9e9becf9/transformed/emoji2-1.4.0/AndroidManifest.xml:27:13-37
+92            <meta-data
+92-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/2d799fa81aa0009b047008ec9e9becf9/transformed/emoji2-1.4.0/AndroidManifest.xml:29:13-31:52
+93                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+93-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/2d799fa81aa0009b047008ec9e9becf9/transformed/emoji2-1.4.0/AndroidManifest.xml:30:17-75
+94                android:value="androidx.startup" />
+94-->[androidx.emoji2:emoji2:1.4.0] /home/galal/.gradle/caches/transforms-3/2d799fa81aa0009b047008ec9e9becf9/transformed/emoji2-1.4.0/AndroidManifest.xml:31:17-49
+95            <meta-data
+95-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/galal/.gradle/caches/transforms-3/432c4e47362ec34698903dc763999d0b/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
+96                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+96-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/galal/.gradle/caches/transforms-3/432c4e47362ec34698903dc763999d0b/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
+97                android:value="androidx.startup" />
+97-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/galal/.gradle/caches/transforms-3/432c4e47362ec34698903dc763999d0b/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
+98            <meta-data
+98-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:29:13-31:52
+99                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+99-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:30:17-85
+100                android:value="androidx.startup" />
+100-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:31:17-49
+101        </provider>
+102
+103        <service
+103-->[androidx.room:room-runtime:2.6.1] /home/galal/.gradle/caches/transforms-3/849c358d437853f7dd555aec7765f6e7/transformed/room-runtime-2.6.1/AndroidManifest.xml:24:9-28:63
+104            android:name="androidx.room.MultiInstanceInvalidationService"
+104-->[androidx.room:room-runtime:2.6.1] /home/galal/.gradle/caches/transforms-3/849c358d437853f7dd555aec7765f6e7/transformed/room-runtime-2.6.1/AndroidManifest.xml:25:13-74
+105            android:directBootAware="true"
+105-->[androidx.room:room-runtime:2.6.1] /home/galal/.gradle/caches/transforms-3/849c358d437853f7dd555aec7765f6e7/transformed/room-runtime-2.6.1/AndroidManifest.xml:26:13-43
+106            android:exported="false" />
+106-->[androidx.room:room-runtime:2.6.1] /home/galal/.gradle/caches/transforms-3/849c358d437853f7dd555aec7765f6e7/transformed/room-runtime-2.6.1/AndroidManifest.xml:27:13-37
+107
+108        <receiver
+108-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:34:9-52:20
+109            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+109-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:35:13-76
+110            android:directBootAware="false"
+110-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:36:13-44
+111            android:enabled="true"
+111-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:37:13-35
+112            android:exported="true"
+112-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:38:13-36
+113            android:permission="android.permission.DUMP" >
+113-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:39:13-57
+114            <intent-filter>
+114-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:40:13-42:29
+115                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+115-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:17-91
+115-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:25-88
+116            </intent-filter>
+117            <intent-filter>
+117-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:43:13-45:29
+118                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+118-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:17-85
+118-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:25-82
+119            </intent-filter>
+120            <intent-filter>
+120-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:46:13-48:29
+121                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+121-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:17-88
+121-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:25-85
+122            </intent-filter>
+123            <intent-filter>
+123-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:49:13-51:29
+124                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+124-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:17-95
+124-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/galal/.gradle/caches/transforms-3/f9570c9db31db6247ccfa45c8917d8f4/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:25-92
+125            </intent-filter>
+126        </receiver>
+127
+128        <service
+128-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/1d67958942beebb3907d0298a64d693a/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:29:9-35:19
+129            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+129-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/1d67958942beebb3907d0298a64d693a/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:30:13-103
+130            android:exported="false" >
+130-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/1d67958942beebb3907d0298a64d693a/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:31:13-37
+131            <meta-data
+131-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/1d67958942beebb3907d0298a64d693a/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:32:13-34:39
+132                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
+132-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/1d67958942beebb3907d0298a64d693a/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:33:17-94
+133                android:value="cct" />
+133-->[com.google.android.datatransport:transport-backend-cct:2.3.3] /home/galal/.gradle/caches/transforms-3/1d67958942beebb3907d0298a64d693a/transformed/transport-backend-cct-2.3.3/AndroidManifest.xml:34:17-36
+134        </service>
+135        <service
+135-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/08441830ed928a92faa18a84bdf33605/transformed/transport-runtime-2.2.6/AndroidManifest.xml:26:9-30:19
+136            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
+136-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/08441830ed928a92faa18a84bdf33605/transformed/transport-runtime-2.2.6/AndroidManifest.xml:27:13-117
+137            android:exported="false"
+137-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/08441830ed928a92faa18a84bdf33605/transformed/transport-runtime-2.2.6/AndroidManifest.xml:28:13-37
+138            android:permission="android.permission.BIND_JOB_SERVICE" >
+138-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/08441830ed928a92faa18a84bdf33605/transformed/transport-runtime-2.2.6/AndroidManifest.xml:29:13-69
+139        </service>
+140
+141        <receiver
+141-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/08441830ed928a92faa18a84bdf33605/transformed/transport-runtime-2.2.6/AndroidManifest.xml:32:9-34:40
+142            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
+142-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/08441830ed928a92faa18a84bdf33605/transformed/transport-runtime-2.2.6/AndroidManifest.xml:33:13-132
+143            android:exported="false" />
+143-->[com.google.android.datatransport:transport-runtime:2.2.6] /home/galal/.gradle/caches/transforms-3/08441830ed928a92faa18a84bdf33605/transformed/transport-runtime-2.2.6/AndroidManifest.xml:34:13-37
+144    </application>
+145
+146</manifest>

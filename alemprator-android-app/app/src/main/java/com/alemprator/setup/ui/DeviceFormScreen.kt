@@ -30,12 +30,16 @@ fun DeviceFormScreen(
     validationEngine: IPValidationEngine,
     onSaveDevice: (Device) -> Unit,
     onScanMacClick: () -> Unit,
-    scannedMac: String = ""
+    onShowDeviceList: () -> Unit = {},
+    scannedMac: String = "",
+    lookupDeviceByMac: suspend (String) -> Device? = { null },
+    deriveTemplateForType: suspend (String) -> Device? = { null }
 ) {
     var deviceName by remember { mutableStateOf("") }
     var macAddress by remember { mutableStateOf("") }
     var selectedMode by remember { mutableStateOf("ap") }
     var lanIp by remember { mutableStateOf("") }
+    var lanNetmask by remember { mutableStateOf("255.255.255.0") }
     var ipConflictMessage by remember { mutableStateOf<String?>(null) }
     var isIpValid by remember { mutableStateOf(true) }
 
@@ -45,9 +49,6 @@ fun DeviceFormScreen(
     var wifiChannel by remember { mutableStateOf("36") }
 
     // Advanced switch options
-    var isolateClients by remember { mutableStateOf(true) }
-    var hideSsid by remember { mutableStateOf(false) }
-    var disableDhcp by remember { mutableStateOf(true) }
 
     // 1. Radio & Channels (2.4G & 5G)
     var wifi2gChannel by remember { mutableStateOf("auto") }
@@ -58,10 +59,13 @@ fun DeviceFormScreen(
     var wifi5gWidth by remember { mutableStateOf("80") }
 
     // SSID advanced
-    var wifi5gNameType by remember { mutableStateOf("same") } // "same" or "custom"
+    var wifi5gNameType by remember { mutableStateOf("derived") } // "derived" or "custom"
     var wifi5gCustomSsid by remember { mutableStateOf("") }
     var appendIpToSsid by remember { mutableStateOf(false) }
-    var noPassword by remember { mutableStateOf(false) }
+
+    // OTA Auto-Update window
+    var otaWindowStart by remember { mutableStateOf("2") }
+    var otaWindowEnd by remember { mutableStateOf("6") }
 
     // VLAN
     var vlanEnabled by remember { mutableStateOf(false) }
@@ -80,15 +84,25 @@ fun DeviceFormScreen(
     var confirmRootPassword by remember { mutableStateOf("") }
 
     // Hotspot Network settings
+    var hotspotWanInterface by remember { mutableStateOf("lan") }
+    var hotspotSubscriberInterface by remember { mutableStateOf("hotspot") }
+    var hotspotPrimaryIp by remember { mutableStateOf("192.168.10.1") }
+    var hotspotPrimaryPoolStart by remember { mutableStateOf("192.168.10.10") }
+    var hotspotPrimaryPoolEnd by remember { mutableStateOf("192.168.10.199") }
+    var hotspotPrimaryPolicy by remember { mutableStateOf("standard") }
     var hotspotDnsName by remember { mutableStateOf("hotspot.local") }
-    var hotspotCardPage by remember { mutableStateOf("username_password") }
+    var hotspotDns1 by remember { mutableStateOf("8.8.8.8") }
+    var hotspotDns2 by remember { mutableStateOf("82.114.163.31") }
+    var hotspotBridgeAgeingTime by remember { mutableStateOf("10") }
+    var hotspotCardPage by remember { mutableStateOf("both") }
     var hotspotRateLimit by remember { mutableStateOf("2M/5M") }
     var hotspotMacCookie by remember { mutableStateOf(true) }
-    var hotspotSecondaryEnabled by remember { mutableStateOf(false) }
-    var hotspotSecondarySsid by remember { mutableStateOf("") }
-    var hotspotSecondaryIp by remember { mutableStateOf("") }
-    var hotspotSecondaryPoolStart by remember { mutableStateOf("") }
-    var hotspotSecondaryPoolEnd by remember { mutableStateOf("") }
+    var hotspotAvailableSpeeds by remember { mutableStateOf("1M/2M Standard\n2M/4M Fast") }
+    var hotspotSecondaryEnabled by remember { mutableStateOf(true) }
+    var hotspotSecondarySsid by remember { mutableStateOf("Hotspot-2") }
+    var hotspotSecondaryIp by remember { mutableStateOf("192.168.20.1") }
+    var hotspotSecondaryPoolStart by remember { mutableStateOf("192.168.20.10") }
+    var hotspotSecondaryPoolEnd by remember { mutableStateOf("192.168.20.199") }
     var hotspotSecondaryPolicy by remember { mutableStateOf("premium") }
     var hotspotMacAuthEnabled by remember { mutableStateOf(false) }
     var hotspotMacAuthSuffix by remember { mutableStateOf("@mac") }
@@ -129,7 +143,7 @@ fun DeviceFormScreen(
 
     // Scheduled Maintenance & Autoupdate
     var maintenanceEnabled by remember { mutableStateOf(false) }
-    var maintenancePolicy by remember { mutableStateOf("bypass") }
+    var maintenancePolicy by remember { mutableStateOf("free") }
     var maintenanceStartTime by remember { mutableStateOf("02:00") }
     var maintenanceEndTime by remember { mutableStateOf("03:00") }
     var autoupdateStartTime by remember { mutableStateOf("02:00") }
@@ -146,7 +160,6 @@ fun DeviceFormScreen(
     var meshKey by remember { mutableStateOf("") }
 
     // Collapsible accordion expansion states
-    var isRadioExpanded by remember { mutableStateOf(false) }
     var isWifiExpanded by remember { mutableStateOf(false) }
     var isVlanExpanded by remember { mutableStateOf(false) }
     var isMaintenanceExpanded by remember { mutableStateOf(false) }
@@ -154,8 +167,6 @@ fun DeviceFormScreen(
     // Hotspot accordion states
     var isHotspotNetExpanded by remember { mutableStateOf(false) }
     var isHotspotAuthExpanded by remember { mutableStateOf(false) }
-    var isHotspotPortalExpanded by remember { mutableStateOf(false) }
-    var isHotspotScheduleExpanded by remember { mutableStateOf(false) }
 
     // Set defaults when mode changes
     LaunchedEffect(selectedMode) {
@@ -166,8 +177,23 @@ fun DeviceFormScreen(
                 wifiChannel = "36"
             }
             "hotspot" -> {
-                wifiSsid = "ALEMPRATOR_HOTSPOT"
+                wifiSsid = "Hotspot-1"
                 wifiKey = ""
+                wifiChannel = ""
+                hotspotPrimaryIp = "192.168.10.1"
+                hotspotPrimaryPoolStart = "192.168.10.10"
+                hotspotPrimaryPoolEnd = "192.168.10.199"
+                hotspotPrimaryPolicy = "standard"
+                hotspotSecondaryEnabled = true
+                hotspotSecondarySsid = "Hotspot-2"
+                hotspotSecondaryIp = "192.168.20.1"
+                hotspotSecondaryPoolStart = "192.168.20.10"
+                hotspotSecondaryPoolEnd = "192.168.20.199"
+                hotspotSecondaryPolicy = "premium"
+            }
+            "ap_wds" -> {
+                wifiSsid = "ALEMPRATOR_AP"
+                wifiKey = "123456789"
                 wifiChannel = ""
             }
             "sta_wds" -> {
@@ -190,6 +216,103 @@ fun DeviceFormScreen(
 
     val scope = rememberCoroutineScope()
 
+    // Helper: copy all fields from a Device to state variables
+    fun loadDeviceFields(t: Device) {
+        deviceName = t.deviceName
+        lanIp = t.lanIp
+        lanNetmask = t.lanNetmask
+        wifiSsid = t.wifiSsid ?: ""
+        wifiKey = t.wifiKey ?: ""
+        wifiChannel = t.wifiChannel ?: ""
+        wifi2gChannel = t.wifi2gChannel
+        wifi2gMode = t.wifi2gMode
+        wifi2gWidth = t.wifi2gWidth
+        wifi5gChannel = t.wifi5gChannel
+        wifi5gMode = t.wifi5gMode
+        wifi5gWidth = t.wifi5gWidth
+        wifi5gNameType = t.wifi5gNameType
+        wifi5gCustomSsid = t.wifi5gCustomSsid ?: ""
+        appendIpToSsid = t.appendIpToSsid
+        otaWindowStart = t.otaWindowStart
+        otaWindowEnd = t.otaWindowEnd
+        vlanEnabled = t.vlanEnabled
+        vlanId = t.vlanId ?: ""
+        vlanSsid2g = t.vlanSsid2g ?: ""
+        vlanSsid5g = t.vlanSsid5g ?: ""
+        vlanSsidIpSuffix = t.vlanSsidIpSuffix
+        disableResetButton = t.disableResetButton
+        resetPressDuration = t.resetPressDuration
+        disableWpsButton = t.disableWpsButton
+        autoRebootEnabled = t.autoRebootEnabled
+        rootPassword = t.rootPassword ?: ""
+        hotspotWanInterface = t.hotspotWanInterface
+        hotspotSubscriberInterface = t.hotspotSubscriberInterface
+        hotspotPrimaryIp = t.hotspotPrimaryIp
+        hotspotPrimaryPoolStart = t.hotspotPrimaryPoolStart ?: ""
+        hotspotPrimaryPoolEnd = t.hotspotPrimaryPoolEnd ?: ""
+        hotspotPrimaryPolicy = t.hotspotPrimaryPolicy
+        hotspotDnsName = t.hotspotDnsName
+        hotspotDns1 = t.hotspotDns1
+        hotspotDns2 = t.hotspotDns2
+        hotspotBridgeAgeingTime = t.hotspotBridgeAgeingTime
+        hotspotCardPage = t.hotspotCardPage
+        hotspotRateLimit = t.hotspotRateLimit
+        hotspotMacCookie = t.hotspotMacCookie
+        hotspotAvailableSpeeds = t.hotspotAvailableSpeeds
+        hotspotSecondaryEnabled = t.hotspotSecondaryEnabled
+        hotspotSecondarySsid = t.hotspotSecondarySsid ?: ""
+        hotspotSecondaryIp = t.hotspotSecondaryIp ?: ""
+        hotspotSecondaryPoolStart = t.hotspotSecondaryPoolStart ?: ""
+        hotspotSecondaryPoolEnd = t.hotspotSecondaryPoolEnd ?: ""
+        hotspotSecondaryPolicy = t.hotspotSecondaryPolicy
+        hotspotTrialEnabled = t.hotspotTrialEnabled
+        hotspotTrialDuration = t.hotspotTrialDuration
+        hotspotTrialUptimeLimit = t.hotspotTrialUptimeLimit
+        radiusServer = t.radiusServer
+        radiusServerBackup = t.radiusServerBackup ?: ""
+        radiusSecret = t.radiusSecret ?: ""
+        radiusAuthPort = t.radiusAuthPort
+        radiusAcctPort = t.radiusAcctPort
+        radiusNasIp = t.radiusNasIp
+        radiusNasId = t.radiusNasId
+        radiusInterimUpdate = t.radiusInterimUpdate
+        radiusCoaEnabled = t.radiusCoaEnabled
+        radiusCoaPort = t.radiusCoaPort
+        restApiEnabled = t.restApiEnabled
+        restApiProto = t.restApiProto
+        restApiUsername = t.restApiUsername
+        restApiPassword = t.restApiPassword ?: ""
+        portalSupportPhone = t.portalSupportPhone ?: ""
+        portalNotification = t.portalNotification
+        portalLiveEnabled = t.portalLiveEnabled
+        portalLiveUrl = t.portalLiveUrl ?: ""
+        portalBreakEnabled = t.portalBreakEnabled
+        portalBreakUrl = t.portalBreakUrl ?: ""
+        portalSpeedtestEnabled = t.portalSpeedtestEnabled
+        maintenanceEnabled = t.maintenanceEnabled
+        maintenancePolicy = t.maintenancePolicy
+        maintenanceStartTime = t.maintenanceStartTime
+        maintenanceEndTime = t.maintenanceEndTime
+        autoupdateStartTime = t.autoupdateStartTime
+        autoupdateEndTime = t.autoupdateEndTime
+        uplinkBand = t.uplinkBand
+        uplinkSsid = t.uplinkSsid ?: ""
+        uplinkKey = t.uplinkKey ?: ""
+        meshBand = t.meshBand
+        meshId = t.meshId ?: ""
+        meshKey = t.meshKey ?: ""
+        hotspotSecondaryPoolStart = t.hotspotSecondaryPoolStart ?: ""
+        hotspotSecondaryPoolEnd = t.hotspotSecondaryPoolEnd ?: ""
+        hotspotSecondaryPolicy = t.hotspotSecondaryPolicy
+        hotspotMacAuthEnabled = t.hotspotMacAuthEnabled
+        hotspotMacAuthSuffix = t.hotspotMacAuthSuffix ?: ""
+        hotspotMacAuthPassword = t.hotspotMacAuthPassword ?: ""
+        hotspotWalledGarden = t.hotspotWalledGarden ?: ""
+        hotspotBrowserCookieEnabled = t.hotspotBrowserCookieEnabled
+        hotspotBrowserCookieDays = t.hotspotBrowserCookieDays
+        rebootHours = t.rebootHours
+    }
+
     // Auto-update scanned MAC from camera
     LaunchedEffect(scannedMac) {
         if (scannedMac.isNotEmpty()) {
@@ -197,9 +320,60 @@ fun DeviceFormScreen(
         }
     }
 
+    // Lookup device by MAC when it changes — load exact config if found
+    LaunchedEffect(macAddress) {
+        if (macAddress.isBlank()) return@LaunchedEffect
+        val existing = lookupDeviceByMac(macAddress)
+        if (existing != null) {
+            selectedMode = existing.deviceType
+            loadDeviceFields(existing)
+            return@LaunchedEffect
+        }
+    }
+
+    // Derive template from last device of same type (for new MACs)
+    LaunchedEffect(selectedMode) {
+        val derived = deriveTemplateForType(selectedMode) ?: return@LaunchedEffect
+        loadDeviceFields(derived)
+    }
+
     // Auto-suggest next LAN IP on load
     LaunchedEffect(Unit) {
         lanIp = validationEngine.suggestNextLanIp()
+    }
+
+    // Derive hotspot IPs from LAN IP: 192.168.{lastOctet}.1 / 192.167.{lastOctet}.1
+    LaunchedEffect(lanIp) {
+        val parts = lanIp.split(".")
+        if (parts.size == 4) {
+            val last = parts[3]
+            val derivedPrimary = "192.168.$last.1"
+            val derivedSecondary = "192.167.$last.1"
+            if (hotspotPrimaryIp != derivedPrimary) hotspotPrimaryIp = derivedPrimary
+            if (hotspotSecondaryIp != derivedSecondary) hotspotSecondaryIp = derivedSecondary
+            if (hotspotPrimaryPoolStart != "192.168.${last}.10") hotspotPrimaryPoolStart = "192.168.${last}.10"
+            if (hotspotPrimaryPoolEnd != "192.168.${last}.199") hotspotPrimaryPoolEnd = "192.168.${last}.199"
+            if (hotspotSecondaryPoolStart != "192.167.${last}.10") hotspotSecondaryPoolStart = "192.167.${last}.10"
+            if (hotspotSecondaryPoolEnd != "192.167.${last}.199") hotspotSecondaryPoolEnd = "192.167.${last}.199"
+        }
+    }
+
+    // Derive hotspot secondary SSID from 5GHz naming method in hotspot mode
+    LaunchedEffect(selectedMode, wifi5gNameType, wifiSsid, appendIpToSsid, lanIp, wifi5gCustomSsid) {
+        if (selectedMode == "hotspot" && wifiSsid.isNotBlank()) {
+            val derived5g = if (wifi5gNameType == "derived") {
+                buildString {
+                    append(wifiSsid.trim())
+                    if (appendIpToSsid && lanIp.isNotBlank()) append("_").append(lanIp.substringAfterLast('.'))
+                    append("_5G")
+                }
+            } else {
+                wifi5gCustomSsid.trim().ifEmpty { "${wifiSsid.trim()}_5G" }
+            }
+            if (derived5g.isNotBlank() && hotspotSecondarySsid != derived5g) {
+                hotspotSecondarySsid = derived5g
+            }
+        }
     }
 
     // Real-time conflict checker
@@ -218,6 +392,7 @@ fun DeviceFormScreen(
         }
     }
 
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -230,6 +405,12 @@ fun DeviceFormScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val wifiPasswordMismatch = false
+            val rootPasswordMismatch = rootPassword.isNotEmpty() && confirmRootPassword.isNotEmpty() && rootPassword != confirmRootPassword
+            val passwordConfirmationMissing = (rootPassword.isNotEmpty() && confirmRootPassword.isEmpty())
+            val meshChannelInvalid = selectedMode == "mesh" && ((meshBand == "2.4GHz" && wifi2gChannel == "auto") || (meshBand == "5GHz" && wifi5gChannel == "auto"))
+            val canSave = isIpValid && deviceName.isNotEmpty() && macAddress.isNotEmpty() && !wifiPasswordMismatch && !rootPasswordMismatch && !passwordConfirmationMissing && !meshChannelInvalid
+
             // Title
             Text(
                 text = "إعداد جهاز الإمبراطور",
@@ -320,6 +501,56 @@ fun DeviceFormScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // القنوات وإعدادات الراديو
+                    if (selectedMode == "ap" || selectedMode == "ap_wds" || selectedMode == "sta_wds" || selectedMode == "mesh") {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("📶 القنوات وإعدادات الراديو", color = GoldPrimary, fontWeight = FontWeight.Bold)
+                        Text("إعدادات راديو 2.4GHz", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        PremiumDropdownField(
+                            label = "قناة 2G",
+                            selectedValue = wifi2gChannel,
+                            options = listOf("auto", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"),
+                            onValueChange = { wifi2gChannel = it }
+                        )
+                        PremiumDropdownField(
+                            label = "النمط 2G",
+                            selectedValue = wifi2gMode,
+                            options = listOf("ax", "n", "g"),
+                            onValueChange = { wifi2gMode = it }
+                        )
+                        PremiumDropdownField(
+                            label = "عرض القناة 2G",
+                            selectedValue = wifi2gWidth,
+                            options = listOf("20", "40"),
+                            onValueChange = { wifi2gWidth = it }
+                        )
+
+                        Divider(color = Color.DarkGray, thickness = 1.dp)
+
+                        Text("إعدادات راديو 5GHz", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        PremiumDropdownField(
+                            label = "قناة 5G",
+                            selectedValue = wifi5gChannel,
+                            options = listOf("auto", "36", "40", "44", "48", "52", "56", "60", "64", "100", "104", "108", "112", "116", "120", "124", "128", "132", "136", "140", "144", "149", "153", "157", "161", "165"),
+                            onValueChange = { wifi5gChannel = it }
+                        )
+                        PremiumDropdownField(
+                            label = "النمط 5G",
+                            selectedValue = wifi5gMode,
+                            options = listOf("ax", "ac", "a"),
+                            onValueChange = { wifi5gMode = it }
+                        )
+                        PremiumDropdownField(
+                            label = "عرض القناة 5G",
+                            selectedValue = wifi5gWidth,
+                            options = listOf("20", "40", "80", "160"),
+                            onValueChange = { wifi5gWidth = it }
+                        )
+                    }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     // Dynamic Wi-Fi Fields Based on Selected Mode
                     when (selectedMode) {
                         "ap" -> {
@@ -356,26 +587,64 @@ fun DeviceFormScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
-                        "ap_wds", "sta_wds" -> {
-                            if (!vlanEnabled || selectedMode == "sta_wds") {
+                        "ap_wds" -> {
+                            if (!vlanEnabled) {
+                                val preview5gName = if (wifi5gNameType == "derived") {
+                                    buildString {
+                                        append(wifiSsid.trim())
+                                        if (appendIpToSsid && lanIp.isNotBlank()) append("_").append(lanIp.substringAfterLast('.'))
+                                        append("_5G")
+                                    }
+                                } else {
+                                    wifi5gCustomSsid.trim().ifEmpty { buildString { append(wifiSsid.trim()); if (appendIpToSsid && lanIp.isNotBlank()) append("_").append(lanIp.substringAfterLast('.')); append("_5G") } }
+                                }
+
                                 Text("إعدادات شبكة البث المحلية (Local AP)", color = GoldPrimary, fontWeight = FontWeight.Bold)
                                 OutlinedTextField(
                                     value = wifiSsid,
                                     onValueChange = { wifiSsid = it },
-                                    label = { Text("اسم الشبكة المحلية (SSID)", color = Color.Gray) },
+                                    label = { Text("اسم SSID للبث المحلي (راديو 2.4GHz)", color = Color.Gray) },
                                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                     modifier = Modifier.fillMaxWidth()
                                 )
+
+                                Text("طريقة تعيين اسم شبكة 5GHz", color = Color.Gray, fontSize = 14.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(selected = (wifi5gNameType == "derived"), onClick = { wifi5gNameType = "derived" }, colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary))
+                                    Text("تلقائي + _5G", color = Color.White, modifier = Modifier.padding(start = 4.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    RadioButton(selected = (wifi5gNameType == "custom"), onClick = { wifi5gNameType = "custom" }, colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary))
+                                    Text("اسم مخصص", color = Color.White, modifier = Modifier.padding(start = 4.dp))
+                                }
+
+                                if (wifi5gNameType == "custom") {
+                                    OutlinedTextField(
+                                        value = wifi5gCustomSsid,
+                                        onValueChange = { wifi5gCustomSsid = it },
+                                        label = { Text("الاسم المخصص لشبكة 5GHz", color = Color.Gray) },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+
+                                Text("الاسم النهائي لشبكة 5GHz: $preview5gName", color = Color.LightGray, fontSize = 13.sp)
+
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("إضافة IP إلى نهاية اسم الشبكة الأساسية", color = Color.LightGray, fontSize = 15.sp)
+                                    Checkbox(checked = appendIpToSsid, onCheckedChange = { appendIpToSsid = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
+                                }
+
                                 OutlinedTextField(
                                     value = wifiKey,
                                     onValueChange = { wifiKey = it },
-                                    label = { Text("كلمة مرور الواي فاي المحلية", color = Color.Gray) },
+                                    label = { Text("كلمة مرور الواي فاي", color = Color.Gray) },
                                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
-
-                            Divider(color = Color.DarkGray, thickness = 1.dp)
+                        }
+                        "sta_wds" -> {
+                            val localRadioLabel = if (uplinkBand == "5GHz") "2.4GHz" else "5GHz"
 
                             Text("إعدادات الربط الصاعد (Uplink Client)", color = GoldPrimary, fontWeight = FontWeight.Bold)
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -399,26 +668,63 @@ fun DeviceFormScreen(
                                 colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                 modifier = Modifier.fillMaxWidth()
                             )
-                        }
-                        "mesh" -> {
+
+                            Divider(color = Color.DarkGray, thickness = 1.dp)
+
+                            val preview5gName = if (wifi5gNameType == "derived") {
+                                buildString {
+                                    append(wifiSsid.trim())
+                                    if (appendIpToSsid && lanIp.isNotBlank()) append("_").append(lanIp.substringAfterLast('.'))
+                                    append("_5G")
+                                }
+                            } else {
+                                wifi5gCustomSsid.trim().ifEmpty { buildString { append(wifiSsid.trim()); if (appendIpToSsid && lanIp.isNotBlank()) append("_").append(lanIp.substringAfterLast('.')); append("_5G") } }
+                            }
+
                             Text("إعدادات شبكة البث المحلية (Local AP)", color = GoldPrimary, fontWeight = FontWeight.Bold)
                             OutlinedTextField(
                                 value = wifiSsid,
                                 onValueChange = { wifiSsid = it },
-                                label = { Text("اسم الشبكة المحلية (SSID)", color = Color.Gray) },
+                                label = { Text("اسم SSID للبث المحلي (راديو $localRadioLabel)", color = Color.Gray) },
                                 colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                 modifier = Modifier.fillMaxWidth()
                             )
+
+                            Text("طريقة تعيين اسم شبكة 5GHz", color = Color.Gray, fontSize = 14.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = (wifi5gNameType == "derived"), onClick = { wifi5gNameType = "derived" }, colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary))
+                                Text("تلقائي + _5G", color = Color.White, modifier = Modifier.padding(start = 4.dp))
+                                Spacer(modifier = Modifier.width(16.dp))
+                                RadioButton(selected = (wifi5gNameType == "custom"), onClick = { wifi5gNameType = "custom" }, colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary))
+                                Text("اسم مخصص", color = Color.White, modifier = Modifier.padding(start = 4.dp))
+                            }
+
+                            if (wifi5gNameType == "custom") {
+                                OutlinedTextField(
+                                    value = wifi5gCustomSsid,
+                                    onValueChange = { wifi5gCustomSsid = it },
+                                    label = { Text("الاسم المخصص لشبكة 5GHz", color = Color.Gray) },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            Text("الاسم النهائي لشبكة 5GHz: $preview5gName", color = Color.LightGray, fontSize = 13.sp)
+
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("إضافة IP إلى نهاية اسم الشبكة الأساسية", color = Color.LightGray, fontSize = 15.sp)
+                                Checkbox(checked = appendIpToSsid, onCheckedChange = { appendIpToSsid = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
+                            }
+
                             OutlinedTextField(
                                 value = wifiKey,
                                 onValueChange = { wifiKey = it },
-                                label = { Text("كلمة مرور الواي فاي المحلية", color = Color.Gray) },
+                                label = { Text("كلمة مرور الواي فاي", color = Color.Gray) },
                                 colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                 modifier = Modifier.fillMaxWidth()
                             )
-
-                            Divider(color = Color.DarkGray, thickness = 1.dp)
-
+                        }
+                        "mesh" -> {
                             Text("إعدادات ترابط الميش (Mesh)", color = GoldPrimary, fontWeight = FontWeight.Bold)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 RadioButton(selected = (meshBand == "2.4GHz"), onClick = { meshBand = "2.4GHz" }, colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary))
@@ -441,177 +747,113 @@ fun DeviceFormScreen(
                                 colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                 modifier = Modifier.fillMaxWidth()
                             )
+                            if (meshChannelInvalid) {
+                                Text("يجب تحديد قناة ثابتة (غير auto) للراديو ${if (meshBand == "5GHz") "5GHz" else "2.4GHz"} في وضع الميش", color = Color.Red, fontSize = 12.sp)
+                            }
+
+                            Divider(color = Color.DarkGray, thickness = 1.dp)
+
+                            Text("إعدادات شبكة البث المحلية (Local AP)", color = GoldPrimary, fontWeight = FontWeight.Bold)
+                            OutlinedTextField(
+                                value = wifiSsid,
+                                onValueChange = { wifiSsid = it },
+                                label = { Text("اسم الشبكة المحلية (SSID)", color = Color.Gray) },
+                                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
 
-                    // Collapsible Advanced Sections for AP Mode
-                    if (selectedMode == "ap" || selectedMode == "ap_wds" || selectedMode == "sta_wds" || selectedMode == "mesh") {
-                        // Section 1: Radio & Channels
-                        CollapsibleSection(
-                            title = "📶 القنوات وإعدادات الراديو",
-                            isExpanded = isRadioExpanded,
-                            onToggle = { isRadioExpanded = !isRadioExpanded }
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text("إعدادات راديو 2.4GHz", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                PremiumDropdownField(
-                                    label = "قناة 2G",
-                                    selectedValue = wifi2gChannel,
-                                    options = listOf("auto", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"),
-                                    onValueChange = { wifi2gChannel = it }
-                                )
-                                PremiumDropdownField(
-                                    label = "النمط 2G",
-                                    selectedValue = wifi2gMode,
-                                    options = listOf("ax", "n", "g"),
-                                    onValueChange = { wifi2gMode = it }
-                                )
-                                PremiumDropdownField(
-                                    label = "عرض القناة 2G",
-                                    selectedValue = wifi2gWidth,
-                                    options = listOf("20", "40"),
-                                    onValueChange = { wifi2gWidth = it }
-                                )
+                    // Wi-Fi Advanced Names & Security
+                    // For ap_wds/sta_wds, these fields are shown in the main view above
+                        if (selectedMode != "ap_wds" && selectedMode != "sta_wds") {
+                            Text("طريقة تعيين اسم شبكة 5GHz", color = Color.Gray, fontSize = 14.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = (wifi5gNameType == "derived"), onClick = { wifi5gNameType = "derived" }, colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary))
+                                Text("تلقائي من الاسم الأساسي + _5G", color = Color.White, modifier = Modifier.padding(start = 8.dp))
+                                Spacer(modifier = Modifier.width(16.dp))
+                                RadioButton(selected = (wifi5gNameType == "custom"), onClick = { wifi5gNameType = "custom" }, colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary))
+                                Text("اسم مخصص", color = Color.White, modifier = Modifier.padding(start = 8.dp))
+                            }
 
-                                Divider(color = Color.DarkGray, thickness = 1.dp)
+                            if (wifi5gNameType == "derived") {
+                                val preview5gName = buildString {
+                                    append(wifiSsid.trim())
+                                    if (appendIpToSsid && lanIp.isNotBlank()) append("_").append(lanIp.substringAfterLast('.'))
+                                    append("_5G")
+                                }
+                                Text("اسم شبكة 5GHz النهائي: $preview5gName", color = Color.LightGray, fontSize = 13.sp)
+                            }
 
-                                Text("إعدادات راديو 5GHz", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                PremiumDropdownField(
-                                    label = "قناة 5G",
-                                    selectedValue = wifi5gChannel,
-                                    options = listOf("auto", "36", "40", "44", "48", "52", "56", "60", "64", "100", "104", "108", "112", "116", "120", "124", "128", "132", "136", "140", "144", "149", "153", "157", "161", "165"),
-                                    onValueChange = { wifi5gChannel = it }
-                                )
-                                PremiumDropdownField(
-                                    label = "النمط 5G",
-                                    selectedValue = wifi5gMode,
-                                    options = listOf("ax", "ac", "a"),
-                                    onValueChange = { wifi5gMode = it }
-                                )
-                                PremiumDropdownField(
-                                    label = "عرض القناة 5G",
-                                    selectedValue = wifi5gWidth,
-                                    options = listOf("20", "40", "80", "160"),
-                                    onValueChange = { wifi5gWidth = it }
+                            if (wifi5gNameType == "custom") {
+                                OutlinedTextField(
+                                    value = wifi5gCustomSsid,
+                                    onValueChange = { wifi5gCustomSsid = it },
+                                    label = { Text("الاسم المخصص لشبكة 5GHz", color = Color.Gray) },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
+
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("إضافة IP إلى نهاية اسم الشبكة", color = Color.LightGray, fontSize = 15.sp)
+                                Checkbox(checked = appendIpToSsid, onCheckedChange = { appendIpToSsid = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
+                            }
+
+                            OutlinedTextField(
+                                value = wifiKey,
+                                onValueChange = { wifiKey = it },
+                                label = { Text("كلمة مرور الواي فاي", color = Color.Gray) },
+                                isError = wifiPasswordMismatch,
+                                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
                         }
 
-                        // Section 2: Wi-Fi Advanced Names & Security
-                        if (!vlanEnabled) {
+                        // Section 3: VLAN Settings (not applicable for hotspot mode)
+                        if (selectedMode != "hotspot") {
                             CollapsibleSection(
-                                title = "🔑 الشبكة اللاسلكية الأساسية والأمان",
-                                isExpanded = isWifiExpanded,
-                                onToggle = { isWifiExpanded = !isWifiExpanded }
-                            ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Text("طريقة تعيين اسم شبكة 5GHz", color = Color.Gray, fontSize = 14.sp)
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        RadioButton(selected = (wifi5gNameType == "same"), onClick = { wifi5gNameType = "same" }, colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary))
-                                        Text("مطابق لـ 2.4GHz", color = Color.White, modifier = Modifier.padding(start = 8.dp))
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                        RadioButton(selected = (wifi5gNameType == "custom"), onClick = { wifi5gNameType = "custom" }, colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary))
-                                        Text("اسم mخصص", color = Color.White, modifier = Modifier.padding(start = 8.dp))
-                                    }
-
-                                    if (wifi5gNameType == "custom") {
-                                        OutlinedTextField(
-                                            value = wifi5gCustomSsid,
-                                            onValueChange = { wifi5gCustomSsid = it },
-                                            label = { Text("الاسم المخصص لشبكة 5GHz", color = Color.Gray) },
-                                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
-
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                        Text("إضافة IP إلى نهاية اسم الشبكة", color = Color.LightGray, fontSize = 15.sp)
-                                        Checkbox(checked = appendIpToSsid, onCheckedChange = { appendIpToSsid = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
-                                    }
-
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                        Text("بدون كلمة مرور (شبكة مفتوحة)", color = Color.LightGray, fontSize = 15.sp)
-                                        Checkbox(checked = noPassword, onCheckedChange = { noPassword = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
-                                    }
-
-                                    if (!noPassword) {
-                                        OutlinedTextField(
-                                            value = wifiKey,
-                                            onValueChange = { wifiKey = it },
-                                            label = { Text("كلمة مرور الواي فاي", color = Color.Gray) },
-                                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            CollapsibleSection(
-                                title = "🔑 أمان شبكة الـ VLAN",
-                                isExpanded = isWifiExpanded,
-                                onToggle = { isWifiExpanded = !isWifiExpanded }
+                                title = "🌐 إعداد شبكة VLAN الثانوية",
+                                isExpanded = isVlanExpanded,
+                                onToggle = { isVlanExpanded = !isVlanExpanded }
                             ) {
                                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                        Text("بدون كلمة مرور (شبكة مفتوحة)", color = Color.LightGray, fontSize = 15.sp)
-                                        Checkbox(checked = noPassword, onCheckedChange = { noPassword = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
+                                        Text("تفعيل شبكة VLAN", color = Color.LightGray, fontSize = 15.sp)
+                                        Checkbox(checked = vlanEnabled, onCheckedChange = { vlanEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
                                     }
 
-                                    if (!noPassword) {
+                                    if (vlanEnabled) {
                                         OutlinedTextField(
-                                            value = wifiKey,
-                                            onValueChange = { wifiKey = it },
-                                            label = { Text("كلمة مرور شبكة الـ VLAN", color = Color.Gray) },
+                                            value = vlanId,
+                                            onValueChange = { vlanId = it },
+                                            label = { Text("VLAN ID", color = Color.Gray) },
                                             colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                             modifier = Modifier.fillMaxWidth()
                                         )
+                                        OutlinedTextField(
+                                            value = vlanSsid2g,
+                                            onValueChange = { vlanSsid2g = it },
+                                            label = { Text("اسم شبكة VLAN 2.4GHz (أو فارغ للتوليد التلقائي)", color = Color.Gray) },
+                                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        OutlinedTextField(
+                                            value = vlanSsid5g,
+                                            onValueChange = { vlanSsid5g = it },
+                                            label = { Text("اسم شبكة VLAN 5GHz (أو فارغ للتوليد التلقائي)", color = Color.Gray) },
+                                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                            Text("إضافة IP إلى أسماء واي فاي VLAN", color = Color.LightGray, fontSize = 15.sp)
+                                            Checkbox(checked = vlanSsidIpSuffix, onCheckedChange = { vlanSsidIpSuffix = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
+                                        }
                                     }
                                 }
                             }
                         }
-
-                        // Section 3: VLAN Settings
-                        CollapsibleSection(
-                            title = "🌐 إعداد شبكة VLAN الثانوية",
-                            isExpanded = isVlanExpanded,
-                            onToggle = { isVlanExpanded = !isVlanExpanded }
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                    Text("تفعيل شبكة VLAN", color = Color.LightGray, fontSize = 15.sp)
-                                    Checkbox(checked = vlanEnabled, onCheckedChange = { vlanEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
-                                }
-
-                                if (vlanEnabled) {
-                                    OutlinedTextField(
-                                        value = vlanId,
-                                        onValueChange = { vlanId = it },
-                                        label = { Text("VLAN ID", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutlinedTextField(
-                                        value = vlanSsid2g,
-                                        onValueChange = { vlanSsid2g = it },
-                                        label = { Text("اسم شبكة VLAN 2.4GHz (أو فارغ للتوليد التلقائي)", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutlinedTextField(
-                                        value = vlanSsid5g,
-                                        onValueChange = { vlanSsid5g = it },
-                                        label = { Text("اسم شبكة VLAN 5GHz (أو فارغ للتوليد التلقائي)", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                        Text("إضافة IP إلى أسماء واي فاي VLAN", color = Color.LightGray, fontSize = 15.sp)
-                                        Checkbox(checked = vlanSsidIpSuffix, onCheckedChange = { vlanSsidIpSuffix = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
-                                    }
-                                }
-                            }
-                        }
-                    }
 
                     // Collapsible Advanced Sections for Hotspot Mode
                     if (selectedMode == "hotspot") {
@@ -622,6 +864,22 @@ fun DeviceFormScreen(
                             onToggle = { isHotspotNetExpanded = !isHotspotNetExpanded }
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedTextField(
+                                        value = hotspotWanInterface,
+                                        onValueChange = { hotspotWanInterface = it },
+                                        label = { Text("واجهة الإنترنت", color = Color.Gray) },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    OutlinedTextField(
+                                        value = hotspotSubscriberInterface,
+                                        onValueChange = { hotspotSubscriberInterface = it },
+                                        label = { Text("واجهة المشتركين", color = Color.Gray) },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                                 OutlinedTextField(
                                     value = hotspotDnsName,
                                     onValueChange = { hotspotDnsName = it },
@@ -629,11 +887,52 @@ fun DeviceFormScreen(
                                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                     modifier = Modifier.fillMaxWidth()
                                 )
+                                OutlinedTextField(
+                                    value = hotspotPrimaryIp,
+                                    onValueChange = {
+                                        hotspotPrimaryIp = it
+                                        val octets = it.split(".")
+                                        if (octets.size == 4) {
+                                            hotspotPrimaryPoolStart = "${octets[0]}.${octets[1]}.${octets[2]}.10"
+                                            hotspotPrimaryPoolEnd = "${octets[0]}.${octets[1]}.${octets[2]}.199"
+                                        }
+                                    },
+                                    label = { Text("IP الشبكة الأولى", color = Color.Gray) },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                                 PremiumDropdownField(
                                     label = "طريقة تسجيل الدخول (Login Mode)",
                                     selectedValue = hotspotCardPage,
-                                    options = listOf("username_password", "card_phone", "phone"),
+                                    options = listOf("both", "username"),
+                                    optionLabels = mapOf(
+                                        "both" to "اسم مستخدم وكلمة مرور",
+                                        "username" to "رقم كرت فقط"
+                                    ),
                                     onValueChange = { hotspotCardPage = it }
+                                )
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedTextField(
+                                        value = hotspotDns1,
+                                        onValueChange = { hotspotDns1 = it },
+                                        label = { Text("DNS Server 1", color = Color.Gray) },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    OutlinedTextField(
+                                        value = hotspotDns2,
+                                        onValueChange = { hotspotDns2 = it },
+                                        label = { Text("DNS Server 2", color = Color.Gray) },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                OutlinedTextField(
+                                    value = hotspotBridgeAgeingTime,
+                                    onValueChange = { hotspotBridgeAgeingTime = it },
+                                    label = { Text("Bridge ageing time", color = Color.Gray) },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                                 OutlinedTextField(
                                     value = hotspotRateLimit,
@@ -646,6 +945,97 @@ fun DeviceFormScreen(
                                     Text("دعم MAC Cookie", color = Color.LightGray, fontSize = 15.sp)
                                     Checkbox(checked = hotspotMacCookie, onCheckedChange = { hotspotMacCookie = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
                                 }
+
+                                Divider(color = GoldPrimary.copy(alpha = 0.5f), thickness = 1.dp)
+
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("تفعيل جدولة الصيانة", color = Color.LightGray, fontSize = 15.sp)
+                                    Checkbox(checked = maintenanceEnabled, onCheckedChange = { maintenanceEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
+                                }
+                                if (maintenanceEnabled) {
+                                    PremiumDropdownField(
+                                        label = "سلوك الصيانة",
+                                        selectedValue = maintenancePolicy,
+                                        options = listOf("free", "block"),
+                                        onValueChange = { maintenancePolicy = it }
+                                    )
+                                    OutlinedTextField(
+                                        value = maintenanceStartTime,
+                                        onValueChange = { maintenanceStartTime = it },
+                                        label = { Text("وقت بدء الصيانة (HH:MM)", color = Color.Gray) },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = maintenanceEndTime,
+                                        onValueChange = { maintenanceEndTime = it },
+                                        label = { Text("وقت انتهاء الصيانة (HH:MM)", color = Color.Gray) },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+
+                                Divider(color = GoldPrimary.copy(alpha = 0.5f), thickness = 1.dp)
+
+                                OutlinedTextField(
+                                    value = portalSupportPhone,
+                                    onValueChange = { portalSupportPhone = it },
+                                    label = { Text("رقم الدعم الفني", color = Color.Gray) },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                OutlinedTextField(
+                                    value = portalNotification,
+                                    onValueChange = { portalNotification = it },
+                                    label = { Text("تنبيه للمشتركين", color = Color.Gray) },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("إظهار بث مباشر", color = Color.LightGray, fontSize = 15.sp)
+                                    Checkbox(checked = portalLiveEnabled, onCheckedChange = { portalLiveEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
+                                }
+                                OutlinedTextField(
+                                    value = portalLiveUrl,
+                                    onValueChange = { portalLiveUrl = it },
+                                    label = { Text("رابط البث المباشر", color = Color.Gray) },
+                                    enabled = portalLiveEnabled,
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("إظهار الاستراحة", color = Color.LightGray, fontSize = 15.sp)
+                                    Checkbox(checked = portalBreakEnabled, onCheckedChange = { portalBreakEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
+                                }
+                                OutlinedTextField(
+                                    value = portalBreakUrl,
+                                    onValueChange = { portalBreakUrl = it },
+                                    label = { Text("رابط الاستراحة", color = Color.Gray) },
+                                    enabled = portalBreakEnabled,
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("تفعيل فحص السرعة", color = Color.LightGray, fontSize = 15.sp)
+                                    Checkbox(checked = portalSpeedtestEnabled, onCheckedChange = { portalSpeedtestEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
+                                }
+
+                                PremiumDropdownField(
+                                    label = "Policy/Profile للشبكة الأولى",
+                                    selectedValue = hotspotPrimaryPolicy,
+                                    options = listOf("standard", "premium", "guest", "staff", "trial"),
+                                    optionLabels = hotspotPolicyLabels(),
+                                    onValueChange = { hotspotPrimaryPolicy = it }
+                                )
+
+                                OutlinedTextField(
+                                    value = hotspotAvailableSpeeds,
+                                    onValueChange = { hotspotAvailableSpeeds = it },
+                                    label = { Text("قائمة السرعات المتاحة", color = Color.Gray) },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    minLines = 2
+                                )
 
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                                     Text("تفعيل كوكيز المتصفح (Browser Cookie)", color = Color.LightGray, fontSize = 15.sp)
@@ -700,14 +1090,21 @@ fun DeviceFormScreen(
 
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                                     Text("تفعيل شبكة ثانوية (Secondary Network)", color = Color.LightGray, fontSize = 15.sp)
-                                    Checkbox(checked = hotspotSecondaryEnabled, onCheckedChange = { hotspotSecondaryEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
+                                    Checkbox(checked = hotspotSecondaryEnabled, onCheckedChange = { enabled ->
+                                        hotspotSecondaryEnabled = enabled
+                                        if (enabled && hotspotSecondarySsid.isBlank()) {
+                                            hotspotSecondarySsid = wifiSsid.takeIf { it.isNotBlank() }?.plus("_5G") ?: "Hotspot-2_5G"
+                                        }
+                                    }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
                                 }
 
                                 if (hotspotSecondaryEnabled) {
+                                    val defaultSecSsid = if (wifiSsid.isNotBlank()) "${wifiSsid}_5G" else "Hotspot-2_5G"
                                     OutlinedTextField(
                                         value = hotspotSecondarySsid,
                                         onValueChange = { hotspotSecondarySsid = it },
                                         label = { Text("اسم الشبكة الثانية SSID", color = Color.Gray) },
+                                        placeholder = { Text(defaultSecSsid, color = Color.Gray) },
                                         colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                         modifier = Modifier.fillMaxWidth()
                                     )
@@ -735,7 +1132,8 @@ fun DeviceFormScreen(
                                     PremiumDropdownField(
                                         label = "سياسة الشبكة الثانية (Policy)",
                                         selectedValue = hotspotSecondaryPolicy,
-                                        options = listOf("standard", "premium", "bypass"),
+                                        options = listOf("standard", "premium", "guest", "staff", "trial"),
+                                        optionLabels = hotspotPolicyLabels(),
                                         onValueChange = { hotspotSecondaryPolicy = it }
                                     )
                                 }
@@ -747,22 +1145,22 @@ fun DeviceFormScreen(
                                     Checkbox(checked = hotspotTrialEnabled, onCheckedChange = { hotspotTrialEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
                                 }
 
-                                if (hotspotTrialEnabled) {
-                                    OutlinedTextField(
-                                        value = hotspotTrialDuration,
-                                        onValueChange = { hotspotTrialDuration = it },
-                                        label = { Text("مدة الخدمة بالدقائق", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutlinedTextField(
-                                        value = hotspotTrialUptimeLimit,
-                                        onValueChange = { hotspotTrialUptimeLimit = it },
-                                        label = { Text("حد الاستخدام اليومي بالدقائق", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
+                                OutlinedTextField(
+                                    value = hotspotTrialDuration,
+                                    onValueChange = { hotspotTrialDuration = it.filter { char -> char.isDigit() } },
+                                    label = { Text("Trial Duration / مدة الخدمة بالدقائق", color = Color.Gray) },
+                                    enabled = hotspotTrialEnabled,
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                OutlinedTextField(
+                                    value = hotspotTrialUptimeLimit,
+                                    onValueChange = { hotspotTrialUptimeLimit = it.filter { char -> char.isDigit() } },
+                                    label = { Text("Trial Uptime Limit / حد الاستخدام اليومي بالدقائق", color = Color.Gray) },
+                                    enabled = hotspotTrialEnabled,
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
 
@@ -878,113 +1276,9 @@ fun DeviceFormScreen(
                             }
                         }
 
-                        // Section 3: Portal support / Ads
-                        CollapsibleSection(
-                            title = "📢 بوابة الإعلانات والدعم الفني",
-                            isExpanded = isHotspotPortalExpanded,
-                            onToggle = { isHotspotPortalExpanded = !isHotspotPortalExpanded }
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                OutlinedTextField(
-                                    value = portalSupportPhone,
-                                    onValueChange = { portalSupportPhone = it },
-                                    label = { Text("رقم الدعم الفني", color = Color.Gray) },
-                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                OutlinedTextField(
-                                    value = portalNotification,
-                                    onValueChange = { portalNotification = it },
-                                    label = { Text("تنبيه للمشتركين", color = Color.Gray) },
-                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                    Text("إظهار بث مباشر", color = Color.LightGray, fontSize = 15.sp)
-                                    Checkbox(checked = portalLiveEnabled, onCheckedChange = { portalLiveEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
-                                }
-                                if (portalLiveEnabled) {
-                                    OutlinedTextField(
-                                        value = portalLiveUrl,
-                                        onValueChange = { portalLiveUrl = it },
-                                        label = { Text("رابط البث المباشر", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                    Text("إظهار الاستراحة", color = Color.LightGray, fontSize = 15.sp)
-                                    Checkbox(checked = portalBreakEnabled, onCheckedChange = { portalBreakEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
-                                }
-                                if (portalBreakEnabled) {
-                                    OutlinedTextField(
-                                        value = portalBreakUrl,
-                                        onValueChange = { portalBreakUrl = it },
-                                        label = { Text("رابط الاستراحة", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                    Text("تفعيل فحص السرعة", color = Color.LightGray, fontSize = 15.sp)
-                                    Checkbox(checked = portalSpeedtestEnabled, onCheckedChange = { portalSpeedtestEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
-                                }
-                            }
-                        }
-
-                        // Section 4: Scheduled Maintenance
-                        CollapsibleSection(
-                            title = "🕒 جدولة الصيانة والتحديث التلقائي",
-                            isExpanded = isHotspotScheduleExpanded,
-                            onToggle = { isHotspotScheduleExpanded = !isHotspotScheduleExpanded }
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                    Text("تفعيل جدولة الصيانة", color = Color.LightGray, fontSize = 15.sp)
-                                    Checkbox(checked = maintenanceEnabled, onCheckedChange = { maintenanceEnabled = it }, colors = CheckboxDefaults.colors(checkedColor = GoldPrimary))
-                                }
-                                if (maintenanceEnabled) {
-                                    OutlinedTextField(
-                                        value = maintenancePolicy,
-                                        onValueChange = { maintenancePolicy = it },
-                                        label = { Text("سلوك الصيانة (e.g. bypass)", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutlinedTextField(
-                                        value = maintenanceStartTime,
-                                        onValueChange = { maintenanceStartTime = it },
-                                        label = { Text("وقت بدء الصيانة (HH:MM)", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutlinedTextField(
-                                        value = maintenanceEndTime,
-                                        onValueChange = { maintenanceEndTime = it },
-                                        label = { Text("وقت انتهاء الصيانة (HH:MM)", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                                Divider(color = Color.DarkGray, thickness = 1.dp)
-                                Text("وقت التحديث التلقائي للنظام", color = GoldPrimary, fontWeight = FontWeight.Bold)
-                                OutlinedTextField(
-                                    value = autoupdateStartTime,
-                                    onValueChange = { autoupdateStartTime = it },
-                                    label = { Text("بداية نافذة التحديث (HH:MM)", color = Color.Gray) },
-                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                OutlinedTextField(
-                                    value = autoupdateEndTime,
-                                    onValueChange = { autoupdateEndTime = it },
-                                    label = { Text("نهاية نافذة التحديث (HH:MM)", color = Color.Gray) },
-                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
                     }
+
+
 
                     // Section 5: Hardware buttons & maintenance (Common, Always Visible)
                     CollapsibleSection(
@@ -1020,11 +1314,12 @@ fun DeviceFormScreen(
 
                             if (autoRebootEnabled) {
                                 Spacer(modifier = Modifier.height(8.dp))
-                                PremiumDropdownField(
-                                    label = "إعادة التشغيل كل كم ساعة (Reboot Hours)",
-                                    selectedValue = rebootHours,
-                                    options = listOf("1", "2", "4", "6", "12", "24", "48", "72"),
-                                    onValueChange = { rebootHours = it }
+                                OutlinedTextField(
+                                    value = rebootHours,
+                                    onValueChange = { rebootHours = it.filter { char -> char.isDigit() } },
+                                    label = { Text("إعادة التشغيل كل كم ساعة", color = Color.Gray) },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
 
@@ -1042,10 +1337,11 @@ fun DeviceFormScreen(
                                     value = confirmRootPassword,
                                     onValueChange = { confirmRootPassword = it },
                                     label = { Text("إعادة كتابة كلمة المرور لتأكيدها (Confirm Password)", color = Color.Gray) },
+                                    isError = rootPasswordMismatch,
                                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                if (confirmRootPassword.isNotEmpty() && rootPassword != confirmRootPassword) {
+                                if (rootPasswordMismatch) {
                                     Text(
                                         text = "كلمتا المرور غير متطابقتين",
                                         color = Color.Red,
@@ -1059,33 +1355,27 @@ fun DeviceFormScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Switches for advanced features
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("إخفاء الشبكة (Hidden SSID)", color = Color.LightGray, fontSize = 15.sp)
-                        Switch(
-                            checked = hideSsid,
-                            onCheckedChange = { hideSsid = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = GoldPrimary,
-                                checkedTrackColor = GoldPrimary.copy(alpha = 0.5f),
-                                uncheckedThumbColor = Color.Gray,
-                                uncheckedTrackColor = Color.DarkGray
-                            )
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
                     // LAN IP Address Input
                     OutlinedTextField(
                         value = lanIp,
                         onValueChange = { lanIp = it },
                         label = { Text("عنوان LAN IP للراوتر", color = Color.Gray) },
                         isError = !isIpValid,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = GoldPrimary,
+                            unfocusedBorderColor = Color.DarkGray,
+                            focusedLabelColor = GoldPrimary,
+                            unfocusedLabelColor = Color.Gray
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = lanNetmask,
+                        onValueChange = { lanNetmask = it },
+                        label = { Text("قناع شبكة LAN", color = Color.Gray) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
@@ -1112,22 +1402,35 @@ fun DeviceFormScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Device List Button
+            OutlinedButton(
+                onClick = onShowDeviceList,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
+                shape = RoundedCornerShape(15.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary)
+            ) {
+                Text("📋 الأجهزة المبرمجة سابقاً", color = GoldPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Save / Apply Button
             Button(
                 onClick = {
-                    if (isIpValid && deviceName.isNotEmpty() && macAddress.isNotEmpty()) {
+                    if (canSave) {
                         onSaveDevice(
                             Device(
                                 macAddress = macAddress,
                                 deviceName = deviceName,
                                 deviceType = selectedMode,
                                 lanIp = lanIp,
+                                lanNetmask = lanNetmask,
                                 wifiSsid = if (wifiSsid.isNotEmpty()) wifiSsid else null,
                                 wifiKey = if (wifiKey.isNotEmpty()) wifiKey else null,
                                 wifiChannel = if (wifiChannel.isNotEmpty()) wifiChannel else null,
-                                isolateClients = isolateClients,
-                                hideSsid = hideSsid,
-                                disableDhcp = disableDhcp,
+                                otaWindowStart = otaWindowStart,
+                                otaWindowEnd = otaWindowEnd,
                                 wifi2gChannel = wifi2gChannel,
                                 wifi2gMode = wifi2gMode,
                                 wifi2gWidth = wifi2gWidth,
@@ -1137,7 +1440,6 @@ fun DeviceFormScreen(
                                 wifi5gNameType = wifi5gNameType,
                                 wifi5gCustomSsid = if (wifi5gCustomSsid.isNotEmpty()) wifi5gCustomSsid else null,
                                 appendIpToSsid = appendIpToSsid,
-                                noPassword = noPassword,
                                 vlanEnabled = vlanEnabled,
                                 vlanId = if (vlanId.isNotEmpty()) vlanId else null,
                                 appendIpToVlanSsid = vlanSsidIpSuffix,
@@ -1150,12 +1452,22 @@ fun DeviceFormScreen(
                                 autoRebootEnabled = autoRebootEnabled,
                                 rebootHours = rebootHours,
                                 rootPassword = if (rootPassword.isNotEmpty()) rootPassword else null,
+                                hotspotWanInterface = hotspotWanInterface,
+                                hotspotSubscriberInterface = hotspotSubscriberInterface,
+                                hotspotPrimaryIp = hotspotPrimaryIp,
+                                hotspotPrimaryPoolStart = if (hotspotPrimaryPoolStart.isNotEmpty()) hotspotPrimaryPoolStart else null,
+                                hotspotPrimaryPoolEnd = if (hotspotPrimaryPoolEnd.isNotEmpty()) hotspotPrimaryPoolEnd else null,
+                                hotspotPrimaryPolicy = hotspotPrimaryPolicy,
                                 hotspotDnsName = hotspotDnsName,
+                                hotspotDns1 = hotspotDns1,
+                                hotspotDns2 = hotspotDns2,
+                                hotspotBridgeAgeingTime = hotspotBridgeAgeingTime,
                                 hotspotCardPage = hotspotCardPage,
                                 hotspotRateLimit = hotspotRateLimit,
                                 hotspotMacCookie = hotspotMacCookie,
+                                hotspotAvailableSpeeds = hotspotAvailableSpeeds,
                                 hotspotSecondaryEnabled = hotspotSecondaryEnabled,
-                                hotspotSecondarySsid = if (hotspotSecondarySsid.isNotEmpty()) hotspotSecondarySsid else null,
+                                hotspotSecondarySsid = if (hotspotSecondarySsid.isNotEmpty()) hotspotSecondarySsid else "${wifiSsid}_5G",
                                 hotspotSecondaryIp = if (hotspotSecondaryIp.isNotEmpty()) hotspotSecondaryIp else null,
                                 hotspotSecondaryPoolStart = if (hotspotSecondaryPoolStart.isNotEmpty()) hotspotSecondaryPoolStart else null,
                                 hotspotSecondaryPoolEnd = if (hotspotSecondaryPoolEnd.isNotEmpty()) hotspotSecondaryPoolEnd else null,
@@ -1206,7 +1518,7 @@ fun DeviceFormScreen(
                         )
                     }
                 },
-                enabled = isIpValid && deviceName.isNotEmpty() && macAddress.isNotEmpty() && (rootPassword.isEmpty() || rootPassword == confirmRootPassword),
+                enabled = canSave,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = GoldPrimary,
                     disabledContainerColor = Color.DarkGray
@@ -1244,11 +1556,17 @@ fun CollapsibleSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onToggle() },
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(title, color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text(if (isExpanded) "🔼" else "🔽", color = GoldPrimary)
+                Text(if (isExpanded) "▲" else "▼", color = GoldPrimary, fontSize = 14.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    color = GoldPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    modifier = Modifier.weight(1f)
+                )
             }
             if (isExpanded) {
                 Spacer(modifier = Modifier.height(12.dp))
@@ -1264,6 +1582,7 @@ fun PremiumDropdownField(
     label: String,
     selectedValue: String,
     options: List<String>,
+    optionLabels: Map<String, String> = emptyMap(),
     onValueChange: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -1273,7 +1592,7 @@ fun PremiumDropdownField(
         onExpandedChange = { expanded = !expanded }
     ) {
         OutlinedTextField(
-            value = selectedValue,
+            value = optionLabels[selectedValue] ?: selectedValue,
             onValueChange = {},
             readOnly = true,
             label = { Text(label, color = Color.Gray) },
@@ -1295,7 +1614,7 @@ fun PremiumDropdownField(
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option, color = Color.White) },
+                    text = { Text(optionLabels[option] ?: option, color = Color.White) },
                     onClick = {
                         onValueChange(option)
                         expanded = false
@@ -1305,3 +1624,11 @@ fun PremiumDropdownField(
         }
     }
 }
+
+private fun hotspotPolicyLabels(): Map<String, String> = mapOf(
+    "standard" to "Standard",
+    "premium" to "Premium",
+    "guest" to "Guest",
+    "staff" to "Staff",
+    "trial" to "Trial"
+)

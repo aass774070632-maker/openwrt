@@ -10,6 +10,7 @@ data class Device(
     val deviceName: String,
     val deviceType: String, // AP, Hotspot, WDS, Mesh, Client
     val lanIp: String,
+    val lanNetmask: String = "255.255.255.0",
     
     // Wi-Fi basic
     val wifiSsid: String? = null,
@@ -25,10 +26,11 @@ data class Device(
     val wifi5gWidth: String = "80",
     
     // SSID advanced
-    val wifi5gNameType: String = "same", // "same" or "custom"
+    val wifi5gNameType: String = "derived", // "derived" or "custom"
     val wifi5gCustomSsid: String? = null,
     val appendIpToSsid: Boolean = false,
-    val noPassword: Boolean = false,
+    val otaWindowStart: String = "2",
+    val otaWindowEnd: String = "6",
     
     // VLAN
     val vlanEnabled: Boolean = false,
@@ -41,20 +43,25 @@ data class Device(
     val disableWpsButton: Boolean = false,
     val autoRebootEnabled: Boolean = false,
     val rootPassword: String? = null,
-    
-    // Switches
-    val isolateClients: Boolean = false,
-    val hideSsid: Boolean = false,
-    val disableDhcp: Boolean = false,
 
     // Hotspot Network settings
+    val hotspotWanInterface: String = "lan",
+    val hotspotSubscriberInterface: String = "hotspot",
+    val hotspotPrimaryIp: String = "192.168.10.1",
+    val hotspotPrimaryPoolStart: String? = null,
+    val hotspotPrimaryPoolEnd: String? = null,
+    val hotspotPrimaryPolicy: String = "standard",
     val hotspotDnsName: String = "hotspot.local",
-    val hotspotCardPage: String = "username_password",
+    val hotspotDns1: String = "8.8.8.8",
+    val hotspotDns2: String = "82.114.163.31",
+    val hotspotBridgeAgeingTime: String = "10",
+    val hotspotCardPage: String = "both",
     val hotspotRateLimit: String = "2M/5M",
     val hotspotMacCookie: Boolean = true,
-    val hotspotSecondaryEnabled: Boolean = false,
-    val hotspotSecondarySsid: String? = null,
-    val hotspotSecondaryIp: String? = null,
+    val hotspotAvailableSpeeds: String = "1M/2M Standard\n2M/4M Fast",
+    val hotspotSecondaryEnabled: Boolean = true,
+    val hotspotSecondarySsid: String? = "Hotspot-2",
+    val hotspotSecondaryIp: String? = "192.168.20.1",
     val hotspotTrialEnabled: Boolean = false,
     val hotspotTrialDuration: String = "30",
     val hotspotTrialUptimeLimit: String = "30",
@@ -88,7 +95,7 @@ data class Device(
 
     // Scheduled Maintenance & Autoupdate
     val maintenanceEnabled: Boolean = false,
-    val maintenancePolicy: String = "bypass",
+    val maintenancePolicy: String = "free",
     val maintenanceStartTime: String = "02:00",
     val maintenanceEndTime: String = "03:00",
     val autoupdateStartTime: String = "02:00",
@@ -107,8 +114,8 @@ data class Device(
     val vlanSsid2g: String? = null,
     val vlanSsid5g: String? = null,
     val vlanSsidIpSuffix: Boolean = false,
-    val hotspotSecondaryPoolStart: String? = null,
-    val hotspotSecondaryPoolEnd: String? = null,
+    val hotspotSecondaryPoolStart: String? = "192.168.20.10",
+    val hotspotSecondaryPoolEnd: String? = "192.168.20.199",
     val hotspotSecondaryPolicy: String = "premium",
     val hotspotMacAuthEnabled: Boolean = false,
     val hotspotMacAuthSuffix: String? = null,
@@ -117,5 +124,6 @@ data class Device(
     val hotspotBrowserCookieEnabled: Boolean = true,
     val hotspotBrowserCookieDays: String = "7",
     
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isTemplate: Boolean = false
 )
