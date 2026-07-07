@@ -82,7 +82,7 @@ if [ "$has_setup_default" = 1 ]; then
 	uci -q get setup.default.reset_hold_seconds >/dev/null || uci -q set setup.default.reset_hold_seconds='5'
 	uci -q get setup.default.wps_button_disabled >/dev/null || uci -q set setup.default.wps_button_disabled='0'
 	case "$existing_initial_setup_complete" in
-		''|0) uci -q set setup.default.initial_setup_complete='1' ;;
+		'') uci -q set setup.default.initial_setup_complete='0' ;;
 	esac
 	uci -q get setup.default.hotspot_quick_enabled >/dev/null || uci -q set setup.default.hotspot_quick_enabled='0'
 	uci -q get setup.default.hotspot_quick_wan_interface >/dev/null || uci -q set setup.default.hotspot_quick_wan_interface='wan'

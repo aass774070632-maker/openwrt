@@ -19,9 +19,27 @@ define Package/$(LUCI_NAME)/conffiles
 endef
 
 define Package/$(LUCI_NAME)/postinst
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] && exit 0
+
+if [ -f /etc/init.d/netspeedtest ]; then
+	chmod 0755 /etc/init.d/netspeedtest
+	/etc/init.d/netspeedtest enable >/dev/null 2>&1 || true
+fi
+
+exit 0
 endef
 
 define Package/$(LUCI_NAME)/prerm
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] && exit 0
+
+if [ -x /etc/init.d/netspeedtest ]; then
+	/etc/init.d/netspeedtest stop >/dev/null 2>&1 || true
+	/etc/init.d/netspeedtest disable >/dev/null 2>&1 || true
+fi
+
+exit 0
 endef
 
 include $(TOPDIR)/feeds/luci/luci.mk

@@ -35,8 +35,8 @@ return view.extend({
 
 	getInitStatus() {
 		return this.callInitStatus(this.appName).then(res => {
-			if(res) {
-				return res[this.appName].enabled;
+			if(res && res[this.appName] && res[this.appName].enabled !== undefined) {
+				return !!res[this.appName].enabled;
 			} else {
 				throw _('Command failed');
 			}
@@ -400,7 +400,7 @@ return view.extend({
 		};
 
 		this.initStatus      = data[0];
-		let cpuPerfDataArray = data[1];
+		let cpuPerfDataArray = data[1] || {};
 		let freqPolicyArray  = cpuPerfDataArray.freqPolicies || {};
 		let pcieAspmPolicies;
 		if(cpuPerfDataArray.pcieAspm) {
@@ -451,7 +451,8 @@ return view.extend({
 				let sectionName = section['.name'];
 				let policyNum   = Number(sectionName.replace('policy', ''));
 				let cpuString   = '';
-				let cpus        = freqPolicyArray[policyNum].cpu;
+				let policyData  = freqPolicyArray[policyNum];
+				let cpus        = (policyData && Array.isArray(policyData.cpu)) ? policyData.cpu : [];
 				if(cpus && cpus.length > 0) {
 					let cpuArr = [];
 					cpus.forEach(e => {
@@ -468,9 +469,9 @@ return view.extend({
 				ss       = o.subsection;
 				ss.title = _('Policy') + ' ' + policyNum + ' ( ' + cpuString + ' )';
 
-				if(freqPolicyArray[policyNum]) {
-					if(freqPolicyArray[policyNum].sAvailGovernors &&
-					   freqPolicyArray[policyNum].sAvailGovernors.length > 0) {
+				if(policyData) {
+					if(policyData.sAvailGovernors &&
+					   policyData.sAvailGovernors.length > 0) {
 
 						// scaling_governor
 						o = ss.option(form.ListValue,
@@ -479,17 +480,17 @@ return view.extend({
 						);
 						o.rmempty  = true;
 						o.optional = true;
-						freqPolicyArray[policyNum].sAvailGovernors.forEach(e => o.value(e));
+						policyData.sAvailGovernors.forEach(e => o.value(e));
 					};
 
-					if(freqPolicyArray[policyNum].sMinFreq && freqPolicyArray[policyNum].sMaxFreq &&
-						freqPolicyArray[policyNum].minFreq && freqPolicyArray[policyNum].maxFreq) {
+					if(policyData.sMinFreq && policyData.sMaxFreq &&
+						policyData.minFreq && policyData.maxFreq) {
 
 						let minFreq, maxFreq;
 
-						if(freqPolicyArray[policyNum].sAvailFreqs &&
-						   freqPolicyArray[policyNum].sAvailFreqs.length > 0) {
-							let availFreqs = freqPolicyArray[policyNum].sAvailFreqs.map(e =>
+						if(policyData.sAvailFreqs &&
+						   policyData.sAvailFreqs.length > 0) {
+							let availFreqs = policyData.sAvailFreqs.map(e =>
 								[ e, this.freqFormat(e) ]
 							);
 
@@ -498,7 +499,7 @@ return view.extend({
 								'scaling_min_freq', _('Minimum scaling frequency'),
 								_('Minimum frequency the CPU is allowed to be running.') +
 									' ('  + _('default value:') + ' <code>' +
-									this.freqFormat(freqPolicyArray[policyNum].minFreq) + '</code>).'
+									this.freqFormat(policyData.minFreq) + '</code>).'
 							);
 							minFreq.rmempty  = true;
 							minFreq.optional = true;
@@ -508,7 +509,7 @@ return view.extend({
 								'scaling_max_freq', _('Maximum scaling frequency'),
 								_('Maximum frequency the CPU is allowed to be running.') +
 									' ('  + _('default value:') + ' <code>' +
-									this.freqFormat(freqPolicyArray[policyNum].maxFreq) + '</code>).'
+									this.freqFormat(policyData.maxFreq) + '</code>).'
 							);
 							maxFreq.rmempty  = true;
 							maxFreq.optional = true;
@@ -525,24 +526,24 @@ return view.extend({
 								'scaling_min_freq', `${_('Minimum scaling frequency')} (${_('KHz')})`,
 								_('Minimum frequency the CPU is allowed to be running.') +
 									' ('  + _('default value:') + ' <code>' +
-									freqPolicyArray[policyNum].minFreq + '</code>).'
+									policyData.minFreq + '</code>).'
 							);
 							minFreq.rmempty     = true;
 							minFreq.optional    = true;
-							minFreq.datatype    = `and(integer,range(${freqPolicyArray[policyNum].minFreq},${freqPolicyArray[policyNum].maxFreq}))`;
-							minFreq.placeholder = `${freqPolicyArray[policyNum].minFreq}-${freqPolicyArray[policyNum].maxFreq} ${_('KHz')}`;
+							minFreq.datatype    = `and(integer,range(${policyData.minFreq},${policyData.maxFreq}))`;
+							minFreq.placeholder = `${policyData.minFreq}-${policyData.maxFreq} ${_('KHz')}`;
 
 							// scaling_max_freq
 							maxFreq = ss.option(form.Value,
 								'scaling_max_freq', `${_('Maximum scaling frequency')} (${_('KHz')})`,
 								_('Maximum frequency the CPU is allowed to be running.') +
 									' ('  + _('default value:') + ' <code>' +
-									freqPolicyArray[policyNum].maxFreq + '</code>).'
+									policyData.maxFreq + '</code>).'
 							);
 							maxFreq.rmempty     = true;
 							maxFreq.optional    = true;
-							maxFreq.datatype    = `and(integer,range(${freqPolicyArray[policyNum].minFreq},${freqPolicyArray[policyNum].maxFreq}))`;
-							maxFreq.placeholder = `${freqPolicyArray[policyNum].minFreq}-${freqPolicyArray[policyNum].maxFreq} ${_('KHz')}`;
+							maxFreq.datatype    = `and(integer,range(${policyData.minFreq},${policyData.maxFreq}))`;
+							maxFreq.placeholder = `${policyData.minFreq}-${policyData.maxFreq} ${_('KHz')}`;
 						};
 
 						minFreq.validate = L.bind(

@@ -1,5 +1,6 @@
 {
     "git.alwaysSignOff": true,
     "remote.autoForwardPortsFallback": 0,
-    "chat.agent.maxRequests": 400
+    "chat.agent.maxRequests": 400,
+    "java.configuration.updateBuildConfiguration": "interactive"
 }

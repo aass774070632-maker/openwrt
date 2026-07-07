@@ -1,0 +1,8 @@
+ff17dddfe3e3a9a994431a52e297e1e421ea83ce883a619fed3e4f20c753c455  ota-server/public/firmware/kt14/openwrt-ramips-mt7621-kt_km14-102h-squashfs-factory.bin
+de6730c601734ef6d2c7451e1888314d530920b27d74247e035948e87102b6c0  ota-server/public/firmware/kt14/openwrt-ramips-mt7621-kt_km14-102h-squashfs-sysupgrade.bin
+8e8d5f1e87d800496c64113fab51f7acd00110af359873a98932089ba8cb2c90  ota-server/public/firmware/kt14/openwrt-ramips-mt7621-kt_km14-102h.manifest
+35529103adde3b3ee07c98f97309bd303a02197240b87d39b233ff2f6541aab0  ota-server/public/firmware/kt14/packages/alemprator-firstboot_1.0-r12_mipsel_24kc.ipk
+c84f31ee76a5c79d39cdad9bb9d1f8fadb41ea3bbde1381d8b4316be7a583cbb  ota-server/public/firmware/kt14/packages/alemprator-guard_1.0-r1_mipsel_24kc.ipk
+87e2f1f2440f6582f0214d2ed0d4bb8c830b7920cc34dee4264762fac877fbb7  ota-server/public/firmware/kt14/packages/luci-app-alemprator-ota_1.0-r47_mipsel_24kc.ipk
+705d1a520d45d1efd6a57ba9bd6c915271455e38d23923013b71e560ee9134ea  ota-server/public/firmware/kt14/packages/luci-app-hotspot-openwrt_1.0-r125_mipsel_24kc.ipk
+7033623f9978c5f20d6b6de50f065200d83270504931dd64eef5c3954534e9b2  ota-server/public/firmware/kt14/packages/luci-app-setup_1.0-r120_mipsel_24kc.ipk

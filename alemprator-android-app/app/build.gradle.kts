@@ -77,4 +77,8 @@ dependencies {
 
     // SSH Client
     implementation("com.github.mwiede:jsch:0.2.16") // Stable JSch fork supporting modern SSH keys
+
+    // Testing
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 }

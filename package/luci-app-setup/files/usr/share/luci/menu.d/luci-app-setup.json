@@ -13,7 +13,7 @@
 		"order": 1,
 		"action": {
 			"type": "view",
-			"path": "status/alemprator"
+			"path": "setup/landing"
 		},
 		"depends": {
 			"acl": [ "luci-app-setup" ],
@@ -22,11 +22,11 @@
 	},
 	"admin/status/overview-real": {
 		"action": {
-			"type": "template",
-			"path": "admin_status/index"
+			"type": "view",
+			"path": "status/alemprator"
 		},
 		"depends": {
-			"acl": [ "luci-mod-status-index" ]
+			"acl": [ "luci-app-setup" ]
 		},
 		"firstchild_ineligible": true
 	},

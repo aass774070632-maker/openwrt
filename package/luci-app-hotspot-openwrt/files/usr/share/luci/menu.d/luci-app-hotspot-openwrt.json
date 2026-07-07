@@ -1,4 +1,4 @@
-a{
+{
 	"admin/services/hotspot-openwrt": {
 		"title": "Hotspot OpenWrt",
 		"order": 50,
