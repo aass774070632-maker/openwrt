@@ -241,17 +241,31 @@ provision_setup_ap() {
 	radio="$(uci -q get ${CFG}.main.radio 2>/dev/null || echo 'radio0')"
 	ssid="$(uci -q get ${CFG}.main.ssid 2>/dev/null || echo 'ALemprator-Setup')"
 
-	# Network section
+	# Setup AP network interface: a direct L3 interface (no bridge device).
+	# Using a bridge with an underscore/long name previously hung netifd, so the
+	# wireless iface is bound as an L3 interface directly (e.g. phy0-ap0).
 	if ! uci -q get network.${network_section} >/dev/null 2>&1; then
-		uci -q batch <<EOF >/dev/null 2>&1
-			set network.${network_section}=interface
-			set network.${network_section}.proto='static'
-			set network.${network_section}.ipaddr='${setup_ip}'
-			set network.${network_section}.netmask='${setup_mask}'
-			commit network
-EOF
+		uci -q set network.${network_section}=interface
 		changed_network=1
 	fi
+	# Always ensure the interface uses a direct L3 device and has IP
+	if [ "$(uci -q get network.${network_section}.device)" != "${network_section}" ]; then
+		uci -q set network.${network_section}.device="${network_section}"
+		changed_network=1
+	fi
+	if [ "$(uci -q get network.${network_section}.proto)" != "static" ]; then
+		uci -q set network.${network_section}.proto='static'
+		changed_network=1
+	fi
+	if [ "$(uci -q get network.${network_section}.ipaddr)" != "${setup_ip}" ]; then
+		uci -q set network.${network_section}.ipaddr="${setup_ip}"
+		changed_network=1
+	fi
+	if [ "$(uci -q get network.${network_section}.netmask)" != "${setup_mask}" ]; then
+		uci -q set network.${network_section}.netmask="${setup_mask}"
+		changed_network=1
+	fi
+	[ "$changed_network" = 1 ] && uci -q commit network
 
 	# DHCP section
 	if ! uci -q get dhcp.${dhcp_section} >/dev/null 2>&1; then
@@ -281,7 +295,7 @@ EOF
 		changed_firewall=1
 	fi
 
-	# Wireless Setup AP iface
+	# Wireless Setup AP iface (direct L3 binding, no bridge)
 	if ! uci -q get wireless.${wireless_section} >/dev/null 2>&1; then
 		uci -q batch <<EOF >/dev/null 2>&1
 			set wireless.${wireless_section}=wifi-iface
@@ -296,11 +310,26 @@ EOF
 EOF
 		changed_wireless=1
 	fi
+	# Ensure the wifi iface is bound to the radio and the setup network
+	if [ "$(uci -q get wireless.${wireless_section}.device)" != "${radio}" ]; then
+		uci -q set wireless.${wireless_section}.device="${radio}"
+		changed_wireless=1
+	fi
+	uci -q set wireless.${wireless_section}.network="${network_section}"
+	uci -q commit wireless
 
-	[ "$changed_network" = 1 ] && /etc/init.d/network reload >/dev/null 2>&1 || true
-	[ "$changed_dhcp" = 1 ] && /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+	[ "$changed_network" = 1 ] && /etc/init.d/network restart >/dev/null 2>&1 || true
 	[ "$changed_firewall" = 1 ] && /etc/init.d/firewall restart >/dev/null 2>&1 || true
 	[ "$changed_wireless" = 1 ] && wifi reload >/dev/null 2>&1 || true
+	# DHCP is mandatory on the setup network so clients can obtain an IP and
+	# reach the captive portal. Always (re)start dnsmasq when provisioning.
+	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+	if ! pgrep -x dnsmasq >/dev/null 2>&1; then
+		local dnsmasq_cfg
+		dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
+		/usr/sbin/dnsmasq -C "/var/etc/dnsmasq.conf.${dnsmasq_cfg}" \
+			-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
+	fi
 
 	[ "$changed_network" = 1 ] || [ "$changed_dhcp" = 1 ] || [ "$changed_wireless" = 1 ] || [ "$changed_firewall" = 1 ]
 }
@@ -346,7 +375,7 @@ EOF
 	nft add chain inet fw4 alemprator_captive 2>/dev/null || true
 	nft flush chain inet fw4 alemprator_captive 2>/dev/null || true
 	nft add rule inet fw4 dstnat \
-		iifname "br-alemprator_setup" \
+		iifname "${network_section}" \
 		ip daddr != "${setup_ip}" \
 		tcp dport 80 \
 		dnat to "${setup_ip}:80" 2>/dev/null || true
