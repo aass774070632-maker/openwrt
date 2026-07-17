@@ -896,6 +896,8 @@ run_check_cycle() {
 	server_rollout="$(trim_text "$(printf '%s' "$response" | jsonfilter -e '@.rollout_percent')")"
 	server_changelog="$(trim_text "$(printf '%s' "$response" | jsonfilter -e '@.changelog')")"
 	server_size="$(trim_text "$(printf '%s' "$response" | jsonfilter -e '@.size_bytes')")"
+	server_kind="$(trim_text "$(printf '%s' "$response" | jsonfilter -e '@.kind')")"
+	server_restart_services="$(printf '%s' "$response" | jsonfilter -e '@.restart_services[*]' 2>/dev/null | tr '\n' ' ')"
 
 	[ -n "$server_rollout" ] || server_rollout=100
 	server_rollout="$(safe_int "$server_rollout" 100)"
@@ -987,6 +989,36 @@ run_check_cycle() {
 	start_upgrade_progress
 	clear_retry
 	write_state
+
+	if [ "$server_kind" = "package" ]; then
+		logger -t alemprator-ota "Applying package patch via opkg: $TMP_IMAGE"
+		if opkg install --force-reinstall "$TMP_IMAGE" 2>&1 | logger -t alemprator-ota; then
+			for svc in $server_restart_services; do
+				if [ -x "/etc/init.d/$svc" ]; then
+					logger -t alemprator-ota "Restarting service $svc..."
+					/etc/init.d/"$svc" restart 2>&1 | logger -t alemprator-ota || true
+				fi
+			done
+			rm -f "$TMP_IMAGE"
+			status="idle"
+			last_result="package_patch_ok"
+			last_error=""
+			current_version="$server_version"
+			write_state
+			heartbeat_device
+			logger -t alemprator-ota "Package patch $server_version installed successfully without reboot"
+			return 0
+		else
+			rm -f "$TMP_IMAGE"
+			status="error"
+			last_result="package_install_failed"
+			last_error="opkg install failed"
+			retry_schedule_failure
+			write_state
+			heartbeat_device
+			return 1
+		fi
+	fi
 
 	if [ "$server_force" = "true" ] || [ "$server_force" = "1" ]; then
 		server_force=1

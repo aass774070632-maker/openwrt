@@ -147,6 +147,25 @@ load_config() {
 load_state() {
 	[ -f "$STATE_FILE" ] || return 0
 	. "$STATE_FILE"
+	recover_stuck_state
+}
+
+# Reset transient states (downloading/upgrading/checking) that cannot survive a
+# reboot or process crash. Prevents the device from being stuck in a "pending
+# update" state after power loss or network failure mid-upgrade.
+recover_stuck_state() {
+	case "$status" in
+		downloading|upgrading|checking)
+			if pgrep -f 'agent.sh' >/dev/null 2>&1 || pgrep -x uclient-fetch >/dev/null 2>&1; then
+				return 0
+			fi
+			status="error"
+			last_result="stuck_state_recovered"
+			last_error="update interrupted (no active process); state reset"
+			reset_progress_state
+			write_state
+			;;
+	esac
 }
 
 write_state() {
@@ -535,10 +554,58 @@ random_jitter() {
 	[ "$delay" -gt 0 ] && sleep "$delay"
 }
 
+# ensure_dns(): Guarantee internet access for OTA.
+# Mirrors agent.sh so every script sourcing common.sh has identical behaviour.
+#   1. No default route (packets cannot reach external IP)
+#   2. Broken DNS (dnsmasq off or has no upstream servers)
+# Auto-detects gateway by pinging .1 .2 .254 on the local subnet.
+ensure_dns() {
+	local resolv='/etc/resolv.conf'
+
+	# Always write public DNS directly — fastest fix
+	printf 'nameserver 8.8.8.8\nnameserver 1.1.1.1\n' > "$resolv"
+
+	# If a default route already exists, DNS fix above is enough
+	if ip route show 2>/dev/null | grep -q '^default'; then
+		return 0
+	fi
+
+	# No default route — scan LAN subnet for a working gateway
+	local prefix gw found=''
+	for prefix in $(ip addr show 2>/dev/null | awk '/inet /{split($2,a,"."); printf "%s.%s.%s\n",a[1],a[2],a[3]}' | sort -u); do
+		for last in 1 2 254; do
+			gw="${prefix}.${last}"
+			ip addr show 2>/dev/null | grep -q "inet ${gw}/" && continue
+			if ping -c 1 -W 1 "$gw" >/dev/null 2>&1; then
+				found="$gw"
+				break 2
+			fi
+		done
+	done
+
+	if [ -n "$found" ]; then
+		ip route add default via "$found" 2>/dev/null
+		log "ensure_dns: added default route via $found"
+		if command -v uci >/dev/null 2>&1; then
+			local iface
+			iface=$(ip route get "$found" 2>/dev/null | awk '/dev/{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}')
+			if [ -n "$iface" ]; then
+				uci -q set "network.${iface}.gateway=$found" 2>/dev/null || true
+				uci -q set "network.${iface}.dns=8.8.8.8 1.1.1.1" 2>/dev/null || true
+				uci commit network 2>/dev/null || true
+				log "ensure_dns: persisted gateway=$found on iface=$iface"
+			fi
+		fi
+	else
+		log "ensure_dns: WARNING - no reachable gateway found"
+	fi
+}
+
 post_json() {
 	local url payload
 	url="$1"
 	payload="$2"
+	ensure_dns
 	uclient-fetch -q --no-check-certificate -T "$CONNECT_TIMEOUT" --header 'Content-Type: application/json' --post-data "$payload" -O - "$url"
 }
 
