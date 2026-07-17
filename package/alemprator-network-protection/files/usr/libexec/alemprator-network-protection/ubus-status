@@ -1,0 +1,127 @@
+#!/bin/sh
+
+. /usr/share/libubox/jshn.sh
+
+case "$1" in
+	list)
+		json_init
+		json_add_object "getStatus"
+		json_close_object
+		json_add_object "getStats"
+		json_close_object
+		json_add_object "getLogs"
+		json_add_string "lines"
+		json_add_string "level"
+		json_close_object
+		json_add_object "getModuleState"
+		json_add_string "module"
+		json_close_object
+		json_add_object "getRstpInfo"
+		json_close_object
+		json_add_object "recover"
+		json_close_object
+		json_add_object "getActionState"
+		json_close_object
+		json_add_object "getIsolationState"
+		json_close_object
+		json_dump
+		;;
+	call)
+		method="$2"
+		read -r input 2>/dev/null || true
+
+		case "$method" in
+			getStatus)
+				json_init
+				local enabled=0 running=0 ebpf=0
+				[ "$(uci -q get alemprator-network-protection.main.enabled)" = "1" ] && enabled=1
+				[ -f /var/run/alemprator-network-protection/monitor.pid ] && running=1
+				[ -f /sys/fs/bpf -a -x /usr/sbin/bpftool ] && ebpf=1
+				json_add_int "enabled" "$enabled"
+				json_add_int "running" "$running"
+				json_add_int "ebpf" "$ebpf"
+				json_add_object "modules"
+				for m in loop broadcast arp dhcp_rogue mac_flapping port_isolation rstp; do
+					local val=0
+					[ "$(uci -q get alemprator-network-protection.${m}.enabled)" = "1" ] && val=1
+					json_add_int "$m" "$val"
+				done
+				json_close_object
+				json_dump
+				;;
+			getStats)
+				local total=0 uptime=0 size=0
+				[ -f /var/log/alemprator-network-protection/events.json ] && total=$(wc -l < /var/log/alemprator-network-protection/events.json 2>/dev/null)
+				[ -f /proc/uptime ] && uptime=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)
+				[ -f /var/log/alemprator-network-protection/events.json ] && size=$(stat -c%s /var/log/alemprator-network-protection/events.json 2>/dev/null)
+				json_init
+				json_add_int "total_events" "${total:-0}"
+				json_add_int "uptime" "${uptime:-0}"
+				json_add_string "log_file" "/var/log/alemprator-network-protection/events.json"
+				json_add_int "log_size" "${size:-0}"
+				json_dump
+				;;
+			getModuleState)
+				local mod
+				json_load "$input" 2>/dev/null && json_get_var mod module
+				json_init
+				json_add_string "module" "$mod"
+				json_add_string "state" "$(/usr/libexec/alemprator-network-protection/detector "$mod" state 2>/dev/null)"
+				json_dump
+				;;
+			getLogs)
+				local lines=50 level="all"
+				json_load "$input" 2>/dev/null && {
+					json_get_var lines lines
+					json_get_var level level
+				}
+				json_init
+				json_add_array "entries"
+				if [ -f /var/log/alemprator-network-protection/events.json ]; then
+					tail -n "${lines:-50}" /var/log/alemprator-network-protection/events.json 2>/dev/null | while read -r line; do
+						json_add_string "" "$line"
+					done
+				fi
+				json_close_array
+				json_dump
+				;;
+			getRstpInfo)
+				json_init
+				json_add_array "bridges"
+				local info
+				info="$(/usr/libexec/alemprator-network-protection/rstp-manager info br-lan 2>/dev/null)"
+				json_add_object ""
+				json_add_string "name" "br-lan"
+				json_add_string "info" "$info"
+				json_close_object
+				json_close_array
+				json_dump
+				;;
+			recover)
+				/etc/init.d/alemprator-network-protection recover 2>/dev/null
+				json_init
+				json_add_string "result" "ok"
+				json_dump
+				;;
+			getActionState)
+				json_init
+				json_add_string "state" "$(/usr/libexec/alemprator-network-protection/action-manager state 2>/dev/null)"
+				json_dump
+				;;
+			getIsolationState)
+				json_init
+				json_add_string "state" "$(/usr/libexec/alemprator-network-protection/port-isolation state 2>/dev/null)"
+				json_dump
+				;;
+			*)
+				json_init
+				json_add_string "error" "unknown method"
+				json_dump
+				;;
+		esac
+		;;
+	*)
+		echo "Usage: $0 {list|call}"
+		exit 1
+		;;
+esac

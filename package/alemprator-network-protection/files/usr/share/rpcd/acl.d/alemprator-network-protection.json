@@ -1,0 +1,15 @@
+{
+	"alemprator-network-protection": {
+		"description": "ACL for Alemprator Network Protection ubus access",
+		"read": {
+			"ubus": {
+				"alemprator-network-protection": [ "*" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"alemprator-network-protection": [ "*" ]
+			}
+		}
+	}
+}

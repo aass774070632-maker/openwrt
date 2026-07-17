@@ -1,0 +1,126 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+np_load_config
+
+DHCP_STATE_DIR="$NP_STATE_DIR/dhcp"
+mkdir -p "$DHCP_STATE_DIR"
+
+normalize_mac_list() {
+	local input="$1"
+	local result=""
+	local item
+	for item in $input; do
+		item=$(echo "$item" | tr ',' ' ')
+		for sub in $item; do
+			[ -n "$sub" ] && result="$result $sub"
+		done
+	done
+	echo "$result"
+}
+
+check_dhcp_offer() {
+	local log_line="$1"
+
+	local enabled
+	config_get enabled dhcp_rogue enabled 0
+	[ "$enabled" != "1" ] && return 0
+
+	local server_mac server_ip
+	server_mac=$(echo "$log_line" | grep -oE 'SRC=[0-9a-fA-F:]{17}' | head -1 | cut -d= -f2)
+	server_ip=$(echo "$log_line" | grep -oE 'SRC=[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1 | cut -d= -f2)
+
+	[ -z "$server_mac" ] && return 0
+
+	local is_trusted=0
+	local trusted_servers=""
+	config_get trusted_servers dhcp_rogue trusted_servers ""
+	trusted_servers="$(normalize_mac_list "$trusted_servers")"
+	config_foreach check_trusted trusted_dhcp
+
+	if [ "$is_trusted" = "0" ] && [ -n "$trusted_servers" ]; then
+		local ts
+		for ts in $trusted_servers; do
+			ts=$(echo "$ts" | tr -d ',')
+			[ "$ts" = "$server_mac" ] && is_trusted=1 && break
+		done
+	fi
+
+	if [ "$is_trusted" = "0" ]; then
+		local seen_file="$DHCP_STATE_DIR/seen_${server_mac}"
+		if [ ! -f "$seen_file" ]; then
+			touch "$seen_file"
+			local action
+			config_get action dhcp_rogue action "warn"
+			local auto_block
+			config_get auto_block dhcp_rogue auto_block 0
+
+			local effective_action="$action"
+			[ "$auto_block" = "1" ] && effective_action="block"
+
+			/usr/libexec/alemprator-network-protection/action-manager execute \
+				"dhcp-rogue" "" "$server_mac" \
+				"Rogue DHCP server detected: MAC=$server_mac IP=$server_ip" \
+				"$effective_action"
+
+			local notify
+			config_get notify dhcp_rogue notify 1
+			if [ "$notify" = "1" ]; then
+				/usr/libexec/alemprator-network-protection/logger log "critical" "dhcp-rogue" "" "$server_mac" \
+					"Rogue DHCP server: $server_mac ($server_ip)" "$effective_action"
+			fi
+		fi
+	fi
+}
+
+check_trusted() {
+	local mac
+	config_get mac "$1" mac ""
+	[ "$mac" = "$server_mac" ] && is_trusted=1
+}
+
+show_trusted() {
+	echo "Trusted DHCP Servers:"
+	echo "====================="
+	local mac comment
+	config_foreach show_trusted_entry trusted_dhcp
+}
+
+show_trusted_entry() {
+	config_get mac "$1" mac ""
+	config_get comment "$1" comment ""
+	[ -n "$mac" ] && echo "  $mac - $comment"
+}
+
+show_state() {
+	echo "DHCP Rogue State:"
+	echo "================="
+	local seen=0
+	for f in "$DHCP_STATE_DIR"/seen_*; do
+		[ -f "$f" ] || continue
+		seen=$((seen + 1))
+		local mac
+		mac="$(basename "$f" | sed 's/^seen_//')"
+		echo "  Rogue server detected: $mac"
+	done
+	[ "$seen" = "0" ] && echo "  No rogue servers detected"
+}
+
+case "${1:-}" in
+	check)
+		shift
+		check_dhcp_offer "$@"
+		;;
+	trusted)
+		show_trusted
+		;;
+	state)
+		show_state
+		;;
+	*)
+		echo "Usage: $0 {check|trusted|state} [args]"
+		exit 1
+		;;
+esac

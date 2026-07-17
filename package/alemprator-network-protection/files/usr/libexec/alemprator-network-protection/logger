@@ -1,0 +1,104 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+
+np_log_event() {
+	local level="$1"
+	local module="$2"
+	local port="$3"
+	local mac="$4"
+	local reason="$5"
+	local action_taken="$6"
+	local timestamp
+	timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+	local entry
+
+	entry="{\"timestamp\":\"$timestamp\",\"level\":\"$level\",\"module\":\"$module\",\"port\":\"$port\",\"mac\":\"$mac\",\"reason\":\"$reason\",\"action\":\"$action_taken\"}"
+
+	echo "$entry" >> "$NP_LOG_DIR/events.json"
+
+	np_log "$level" "[$module] $reason (port=$port mac=$mac action=$action_taken)"
+
+	echo "$entry"
+}
+
+np_get_logs() {
+	local lines="${1:-50}"
+	local level="${2:-all}"
+	if [ ! -f "$NP_LOG_DIR/events.json" ]; then
+		echo "[]"
+		return
+	fi
+	if [ "$level" = "all" ]; then
+		tail -n "$lines" "$NP_LOG_DIR/events.json"
+	else
+		tail -n 1000 "$NP_LOG_DIR/events.json" | while read -r line; do
+			echo "$line" | jsonfilter -e "@.level" 2>/dev/null | grep -q "$level" && echo "$line"
+		done | tail -n "$lines"
+	fi
+}
+
+np_get_stats() {
+	local module="${1:-all}"
+	if [ ! -f "$NP_LOG_DIR/events.json" ]; then
+		echo "{\"total_events\":0}"
+		return
+	fi
+	local total events
+	total="$(wc -l < "$NP_LOG_DIR/events.json" 2>/dev/null || echo 0)"
+	events="$total"
+	echo "{\"total_events\":$total,\"log_file\":\"$NP_LOG_DIR/events.json\"}"
+}
+
+np_rotate_logs() {
+	local max_size="${1:-1048576}"
+	local logfile="$NP_LOG_DIR/events.log"
+	[ -f "$logfile" ] || return 0
+	local size
+	size="$(stat -c%s "$logfile" 2>/dev/null || echo 0)"
+	if [ "$size" -gt "$max_size" ]; then
+		mv "$logfile" "$logfile.1" 2>/dev/null || true
+		touch "$logfile"
+	fi
+	local jsonfile="$NP_LOG_DIR/events.json"
+	[ -f "$jsonfile" ] || return 0
+	size="$(stat -c%s "$jsonfile" 2>/dev/null || echo 0)"
+	if [ "$size" -gt "$max_size" ]; then
+		mv "$jsonfile" "$jsonfile.1" 2>/dev/null || true
+		touch "$jsonfile"
+	fi
+}
+
+np_clear_logs() {
+	: > "$NP_LOG_DIR/events.log"
+	: > "$NP_LOG_DIR/events.json"
+	echo "Logs cleared"
+}
+
+case "${1:-}" in
+	log)
+		shift
+		np_log_event "$@"
+		;;
+	get)
+		shift
+		np_get_logs "$@"
+		;;
+	stats)
+		shift
+		np_get_stats "$@"
+		;;
+	rotate)
+		shift
+		np_rotate_logs "$@"
+		;;
+	clear)
+		np_clear_logs
+		;;
+	*)
+		echo "Usage: $0 {log|get|stats|rotate|clear}"
+		exit 1
+		;;
+esac

@@ -1,0 +1,183 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+np_load_config
+
+ISOLATION_STATE_DIR="$NP_STATE_DIR/isolation"
+mkdir -p "$ISOLATION_STATE_DIR"
+
+isolate_port_ebtables() {
+	local port="$1"
+	local bridge="$2"
+
+	np_bridge_exists "$bridge" || {
+		np_log "error" "Bridge $bridge does not exist for isolation"
+		return 1
+	}
+
+	np_log "info" "Isolating port $port on bridge $bridge using ebtables"
+
+	local port_macs mac_file
+	mac_file="$ISOLATION_STATE_DIR/${port}_macs"
+	: > "$mac_file"
+	port_macs="$(bridge fdb show br "$bridge" brport "$port" 2>/dev/null | awk '{print $1}' | sort -u)"
+	for mac in $port_macs; do
+		[ -n "$mac" ] || continue
+		ebtables -L FORWARD 2>/dev/null | grep -q "\-s $mac \-j DROP" || \
+			ebtables -A FORWARD -s "$mac" -j DROP 2>/dev/null || true
+		echo "$mac" >> "$mac_file"
+	done
+
+	echo "ebtables" > "$ISOLATION_STATE_DIR/${port}_method"
+	echo "$bridge" > "$ISOLATION_STATE_DIR/${port}_bridge"
+	np_log "info" "Port $port isolated on $bridge"
+}
+
+isolate_port_bridge() {
+	local port="$1"
+	local bridge="$2"
+
+	np_bridge_exists "$bridge" || return 1
+
+	np_log "info" "Isolating port $port on bridge $bridge (removing from bridge)"
+
+	brctl delif "$bridge" "$port" 2>/dev/null || \
+		ip link set dev "$port" nomaster 2>/dev/null || true
+
+	echo "bridge" > "$ISOLATION_STATE_DIR/${port}_method"
+	echo "$bridge" > "$ISOLATION_STATE_DIR/${port}_bridge"
+	echo "$port" > "$ISOLATION_STATE_DIR/${port}_saved_bridge"
+	np_log "info" "Port $port removed from bridge $bridge"
+}
+
+deisolate_port() {
+	local port="$1"
+
+	local method_file="$ISOLATION_STATE_DIR/${port}_method"
+	local bridge_file="$ISOLATION_STATE_DIR/${port}_bridge"
+	local mac_file="$ISOLATION_STATE_DIR/${port}_macs"
+
+	[ -f "$method_file" ] || {
+		np_log "info" "Port $port is not isolated"
+		return 0
+	}
+
+	local method bridge
+	method="$(cat "$method_file")"
+	bridge="$(cat "$bridge_file")"
+
+	case "$method" in
+		ebtables)
+			np_log "info" "De-isolating port $port from ebtables rules"
+			if [ -f "$mac_file" ]; then
+				while read -r mac; do
+					[ -z "$mac" ] && continue
+					local rule_num
+					rule_num=$(ebtables -L FORWARD --Lmac2 2>/dev/null | grep -n "\-s $mac " | head -1 | cut -d: -f1)
+					[ -n "$rule_num" ] && ebtables -D FORWARD "$rule_num" 2>/dev/null || true
+				done < "$mac_file"
+				rm -f "$mac_file"
+			fi
+			;;
+		bridge)
+			np_log "info" "Re-adding port $port to bridge $bridge"
+			brctl addif "$bridge" "$port" 2>/dev/null || \
+				ip link set dev "$port" master "$bridge" 2>/dev/null || true
+			;;
+	esac
+
+	rm -f "$method_file" "$bridge_file"
+	np_log "info" "Port $port de-isolated"
+}
+
+isolate_guest_network() {
+	local bridge="$1"
+	local vlan_id="$2"
+
+	np_bridge_exists "$bridge" || return 1
+
+	np_log "info" "Isolating guest network on $bridge VLAN $vlan_id"
+
+	ip link set dev "$bridge" type bridge vlan_filtering 1 2>/dev/null || true
+
+	local ports
+	ports="$(np_get_bridge_ports "$bridge")"
+	for port in $ports; do
+		bridge vlan add dev "$port" vid "$vlan_id" pvid untagged 2>/dev/null || true
+		bridge vlan add dev "$bridge" vid "$vlan_id" self 2>/dev/null || true
+	done
+
+	bridge vlan add dev "$bridge" vid "$vlan_id" self 2>/dev/null || true
+
+	echo "$vlan_id" > "$ISOLATION_STATE_DIR/guest_vlan"
+	np_log "info" "Guest network VLAN $vlan_id configured on $bridge"
+}
+
+remove_guest_isolation() {
+	local bridge="$1"
+	local vlan_id=100
+
+	[ -f "$ISOLATION_STATE_DIR/guest_vlan" ] && vlan_id="$(cat "$ISOLATION_STATE_DIR/guest_vlan")"
+
+	np_log "info" "Removing guest VLAN $vlan_id isolation on $bridge"
+
+	local ports
+	ports="$(np_get_bridge_ports "$bridge")"
+	for port in $ports; do
+		bridge vlan del dev "$port" vid "$vlan_id" 2>/dev/null || true
+	done
+
+	rm -f "$ISOLATION_STATE_DIR/guest_vlan"
+	np_log "info" "Guest network isolation removed"
+}
+
+show_state() {
+	echo "Port Isolation State:"
+	echo "====================="
+	local found=0
+	for f in "$ISOLATION_STATE_DIR"/*_method; do
+		[ -f "$f" ] || continue
+		found=1
+		local port bridge method
+		port="$(basename "$f" | sed 's/_method$//')"
+		method="$(cat "$f" 2>/dev/null)"
+		bridge="$(cat "$ISOLATION_STATE_DIR/${port}_bridge" 2>/dev/null || echo 'unknown')"
+		echo "  Port $port: isolated via $method on $bridge"
+	done
+	[ "$found" = "0" ] && echo "  No ports isolated"
+	local guest_vlan
+	[ -f "$ISOLATION_STATE_DIR/guest_vlan" ] && guest_vlan="$(cat "$ISOLATION_STATE_DIR/guest_vlan")"
+	[ -n "$guest_vlan" ] && echo "  Guest VLAN: $guest_vlan"
+}
+
+case "${1:-}" in
+	isolate)
+		shift
+		isolate_port_ebtables "$@"
+		;;
+	isolate_bridge)
+		shift
+		isolate_port_bridge "$@"
+		;;
+	deisolate)
+		shift
+		deisolate_port "$@"
+		;;
+	guest)
+		shift
+		isolate_guest_network "$@"
+		;;
+	remove_guest)
+		shift
+		remove_guest_isolation "$@"
+		;;
+	state)
+		show_state
+		;;
+	*)
+		echo "Usage: $0 {isolate|isolate_bridge|deisolate|guest|remove_guest|state}"
+		exit 1
+		;;
+esac

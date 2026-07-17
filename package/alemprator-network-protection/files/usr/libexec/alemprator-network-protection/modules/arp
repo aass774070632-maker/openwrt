@@ -1,0 +1,142 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+np_load_config
+
+ARP_STATE_DIR="$NP_STATE_DIR/arp"
+mkdir -p "$ARP_STATE_DIR"
+
+detect_arp_storm() {
+	local port="$1"
+	local pkt_diff="$2"
+
+	local enabled
+	config_get enabled arp enabled 0
+	[ "$enabled" != "1" ] && return 0
+
+	local max_pps window storm_dur
+	config_get max_pps arp max_arp_pps 100
+	config_get window arp window_seconds 5
+	config_get storm_dur arp storm_duration_seconds 3
+
+	local storm_state_file="$ARP_STATE_DIR/${port}_storm"
+	local storm_start_file="$ARP_STATE_DIR/${port}_start"
+	local in_storm=0
+
+	[ -f "$storm_state_file" ] && in_storm="$(cat "$storm_state_file")"
+
+	if [ "$pkt_diff" -gt "$max_pps" ]; then
+		if [ "$in_storm" = "0" ]; then
+			echo "$(date +%s)" > "$storm_start_file"
+		fi
+		echo "1" > "$storm_state_file"
+
+		local now storm_start elapsed
+		now="$(date +%s)"
+		storm_start="$(cat "$storm_start_file" 2>/dev/null || echo "$now")"
+		elapsed=$((now - storm_start))
+
+		if [ "$elapsed" -ge "$storm_dur" ]; then
+			local action
+			config_get action arp action "warn"
+
+			/usr/libexec/alemprator-network-protection/action-manager execute \
+				"arp" "$port" "" \
+				"ARP storm detected on $port: ${pkt_diff} ARP/s (${elapsed}s sustained)" \
+				"$action"
+
+			local notify
+			config_get notify arp notify 1
+			if [ "$notify" = "1" ]; then
+				/usr/libexec/alemprator-network-protection/logger log "warning" "arp" "$port" "" \
+					"ARP storm: ${pkt_diff}pps sustained ${elapsed}s" "$action"
+			fi
+		fi
+	else
+		if [ "$in_storm" = "1" ]; then
+			echo "0" > "$storm_state_file"
+			local auto_recover
+			config_get auto_recover arp auto_recover 1
+			if [ "$auto_recover" = "1" ]; then
+				/usr/libexec/alemprator-network-protection/action-manager recover "arp" "$port"
+			fi
+		fi
+	fi
+}
+
+check_arp_entry() {
+	local mac="$1"
+	local entry_file="$ARP_STATE_DIR/${mac}_entry"
+	local now
+	now="$(date +%s)"
+
+	if [ -f "$entry_file" ]; then
+		local last_seen count
+		last_seen="$(cat "$entry_file" | cut -d: -f1)"
+		count="$(cat "$entry_file" | cut -d: -f2)"
+		local diff=$((now - last_seen))
+		local max_window
+		config_get max_window arp window_seconds 5
+
+		if [ "$diff" -le "$max_window" ]; then
+			count=$((count + 1))
+			echo "${now}:${count}" > "$entry_file"
+			local exclude_gw
+			config_get exclude_gw arp exclude_gateway 1
+
+			if [ "$exclude_gw" = "1" ]; then
+				local gw_mac
+				gw_mac="$(ip route show default 2>/dev/null | awk '{print $3}' | head -1 | xargs -I{} ip neigh get {} 2>/dev/null | awk '{print $5}' 2>/dev/null || echo '')"
+				[ -n "$gw_mac" ] && [ "$mac" = "$gw_mac" ] && return 0
+			fi
+
+			if [ "$count" -gt 10 ]; then
+				/usr/libexec/alemprator-network-protection/logger log "warning" "arp" "" "$mac" \
+					"Rapid ARP changes for MAC $mac (${count} changes)" "warn"
+			fi
+		else
+			echo "${now}:1" > "$entry_file"
+		fi
+	else
+		echo "${now}:1" > "$entry_file"
+	fi
+}
+
+show_state() {
+	echo "ARP Protection State:"
+	echo "====================="
+	for f in "$ARP_STATE_DIR"/*_storm; do
+		[ -f "$f" ] || continue
+		local port
+		port="$(basename "$f" | sed 's/_storm$//')"
+		local active start_time elapsed
+		active="$(cat "$f" 2>/dev/null || echo 0)"
+		start_time="$(cat "$ARP_STATE_DIR/${port}_start" 2>/dev/null || echo 'N/A')"
+		if [ "$active" = "1" ] && [ "$start_time" != "N/A" ]; then
+			elapsed=$(($(date +%s) - start_time))
+			echo "  Port $port: STORM ACTIVE (${elapsed}s)"
+		else
+			echo "  Port $port: Normal"
+		fi
+	done
+}
+
+case "${1:-}" in
+	check)
+		shift
+		check_arp_entry "$@"
+		;;
+	check_rate)
+		shift
+		detect_arp_storm "$@"
+		;;
+	state)
+		show_state
+		;;
+	*)
+		echo "Usage: $0 {check|check_rate|state} [args]"
+		exit 1
+		;;
+esac

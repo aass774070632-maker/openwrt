@@ -1,0 +1,138 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+np_load_config
+
+MONITOR_PID_DIR="$NP_RUN_DIR"
+NP_MONITOR_BIN="/usr/libexec/alemprator-network-protection/np-monitor"
+
+cleanup() {
+	np_log "info" "Monitor shutting down"
+	rm -f "$MONITOR_PID_DIR/monitor.pid"
+	kill 0 2>/dev/null
+	exit 0
+}
+
+trap cleanup TERM INT QUIT
+echo $$ > "$MONITOR_PID_DIR/monitor.pid"
+np_log "info" "Network Protection Monitor started"
+
+setup_arp_monitor > /dev/null 2>&1
+
+{
+	# ---- C netlink monitor (handles link + FDB + neigh) ----
+	if [ -x "$NP_MONITOR_BIN" ]; then
+		"$NP_MONITOR_BIN" 2>/dev/null | while read -r line; do
+			[ -n "$line" ] && echo "np_event:$line"
+		done &
+	else
+		ip monitor link 2>/dev/null | while read -r line; do
+			[ -n "$line" ] && echo "link:$line"
+		done &
+		ip monitor neigh 2>/dev/null | while read -r line; do
+			[ -n "$line" ] && echo "neigh:$line"
+		done &
+		bridge monitor fdb 2>/dev/null | while read -r line; do
+			[ -n "$line" ] && echo "fdb:$line"
+		done &
+	fi
+
+	# ---- DHCP monitor (logread) ----
+	logread -f 2>/dev/null | while read -r line; do
+		case "$line" in *NP_DHCP*) echo "dhcp:$line" ;; esac
+	done &
+
+	# ---- Periodic polling loop (broadcast + ARP + FDB + kernel loops) ----
+	load_checks() {
+		local e; config_get e broadcast enabled 0; BROADCAST_ENABLED=$e
+		config_get e arp enabled 0; ARP_ENABLED=$e
+		config_get e mac_flapping enabled 0; MAC_ENABLED=$e
+		config_get e loop enabled 0; LOOP_ENABLED=$e
+	}
+	load_checks
+
+	[ "$LOOP_ENABLED" = "1" ] && KERNEL_LOOP_LAST=$(dmesg 2>/dev/null | wc -c)
+
+	while true; do
+		# Broadcast storm
+		if [ "$BROADCAST_ENABLED" = "1" ]; then
+			bridges="$(np_get_bridges)"
+			for br in $bridges; do
+				np_bridge_exists "$br" || continue
+				ports="$(np_get_bridge_ports "$br")"
+				for port in $ports; do
+					rx_b1="" rx_p1="" rx_b2="" rx_p2=""
+					read -r rx_b1 < "/sys/class/net/$port/statistics/rx_bytes" 2>/dev/null || continue
+					read -r rx_p1 < "/sys/class/net/$port/statistics/rx_packets" 2>/dev/null || continue
+					sleep 1
+					read -r rx_b2 < "/sys/class/net/$port/statistics/rx_bytes" 2>/dev/null || continue
+					read -r rx_p2 < "/sys/class/net/$port/statistics/rx_packets" 2>/dev/null || continue
+					bd=$((rx_b2 - rx_b1)) pd=$((rx_p2 - rx_p1)) avg=0
+					[ "$pd" -gt 0 ] && avg=$((bd / pd))
+					[ "$avg" -lt 80 ] && [ "$pd" -gt 100 ] && echo "storm_check:broadcast:$port:$pd:$bd"
+				done
+			done
+		fi
+
+		# ARP storm
+		if [ "$ARP_ENABLED" = "1" ]; then
+			bridges="$(np_get_bridges)"
+			for br in $bridges; do
+				np_bridge_exists "$br" || continue
+				ports="$(np_get_bridge_ports "$br")"
+				for port in $ports; do
+					a1=$(read_arp_counter "$port")
+					sleep 1
+					a2=$(read_arp_counter "$port")
+					ad=$((a2 - a1))
+					[ "$ad" -gt 100 ] && echo "storm_check:arp:$port:$ad"
+				done
+			done
+		fi
+
+		# FDB stability (MAC flapping)
+		if [ "$MAC_ENABLED" = "1" ]; then
+			bridges="$(np_get_bridges)"
+			cc=0
+			for br in $bridges; do
+				np_bridge_exists "$br" || continue
+				c="$(np_get_bridge_fdb_count "$br")"
+				cc=$((cc + c))
+			done
+			[ -n "$FDB_PREV" ] && [ "$cc" -lt "$FDB_PREV" ] && \
+				echo "fdb_stability:change:${cc}:${FDB_PREV}"
+			FDB_PREV=$cc
+		fi
+
+		# Kernel loop detection (dmesg polling)
+		if [ "$LOOP_ENABLED" = "1" ]; then
+			cs=$(dmesg 2>/dev/null | wc -c)
+			if [ "$cs" -gt "$KERNEL_LOOP_LAST" ]; then
+				nl=$(dmesg 2>/dev/null | tail -c $((cs - KERNEL_LOOP_LAST)))
+				echo "$nl" | while read -r line; do
+					line=$(echo "$line" | sed 's/^\[[^]]*\] *//')
+					case "$line" in
+						*"received packet on"*"with own address as source address"*)
+							br=$(echo "$line" | sed -n 's/^\([^:]*\):.*received packet on.*/\1/p' 2>/dev/null)
+							port=$(echo "$line" | sed -n 's/.*received packet on \([^ ]*\) .*/\1/p' 2>/dev/null)
+							mac=$(echo "$line" | sed -n 's/.*addr:\([^)]*\).*/\1/p' 2>/dev/null)
+							[ -n "$br" ] && [ -n "$port" ] && {
+								logger -t network-protection "Kernel loop event: bridge=$br port=$port mac=$mac"
+								echo "kernel_loop:$br:$port:$mac"
+							}
+							;;
+					esac
+				done
+			fi
+			KERNEL_LOOP_LAST=$cs
+		fi
+
+		load_checks
+		sleep 2
+	done
+} | while read -r event; do
+	[ -z "$event" ] && continue
+	/usr/libexec/alemprator-network-protection/event-dispatcher "$event"
+done

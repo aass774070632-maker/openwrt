@@ -1,0 +1,139 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+np_load_config
+
+FLAP_STATE_DIR="$NP_STATE_DIR/mac-flapping"
+mkdir -p "$FLAP_STATE_DIR"
+
+check_flap() {
+	local bridge="$1"
+	local port="$2"
+	local mac="$3"
+
+	local enabled
+	config_get enabled mac_flapping enabled 0
+	[ "$enabled" != "1" ] && return 0
+
+	np_is_local_mac "$mac" && return 0
+
+	local now
+	now="$(date +%s)"
+	local key="${bridge}_${mac}"
+	local last_port_file="$FLAP_STATE_DIR/${key}_port"
+	local count_file="$FLAP_STATE_DIR/${key}_count"
+	local time_file="$FLAP_STATE_DIR/${key}_time"
+
+	local last_port=""
+	local count=0
+	local last_time=0
+
+	[ -f "$last_port_file" ] && last_port="$(cat "$last_port_file")"
+	[ -f "$count_file" ] && count="$(cat "$count_file")"
+	[ -f "$time_file" ] && last_time="$(cat "$time_file")"
+
+	if [ "$last_port" = "$port" ]; then
+		echo "$now" > "$time_file"
+		return 0
+	fi
+
+	if [ -n "$last_port" ] && [ -n "$last_time" ]; then
+		local diff=$((now - last_time))
+		local max_window
+		config_get max_window mac_flapping window_seconds 30
+
+		if [ "$diff" -le "$max_window" ] && [ "$diff" -ge 0 ]; then
+			count=$((count + 1))
+			echo "$count" > "$count_file"
+			echo "$port" > "$last_port_file"
+			echo "$now" > "$time_file"
+
+			local max_flaps
+			config_get max_flaps mac_flapping max_flaps 10
+
+			if [ "$count" -ge "$max_flaps" ]; then
+				local action
+				config_get action mac_flapping action "warn"
+				local clean_mac
+				clean_mac="$(echo "$mac" | tr -d '[:space:]')"
+
+				/usr/libexec/alemprator-network-protection/action-manager execute \
+					"mac-flapping" "$port" "$clean_mac" \
+					"MAC flapping detected: $mac on $bridge flapped $count times (ports: $last_port -> $port)" \
+					"$action"
+
+				local notify
+				config_get notify mac_flapping notify 1
+				if [ "$notify" = "1" ]; then
+					/usr/libexec/alemprator-network-protection/logger log "warning" "mac-flapping" "$port" "$clean_mac" \
+						"MAC flapping: $mac ($last_port -> $port) count=$count" "$action"
+				fi
+
+				echo "0" > "$count_file"
+			fi
+		else
+			echo "$port" > "$last_port_file"
+			echo "1" > "$count_file"
+			echo "$now" > "$time_file"
+		fi
+	else
+		echo "$port" > "$last_port_file"
+		echo "1" > "$count_file"
+		echo "$now" > "$time_file"
+	fi
+}
+
+check_fdb_stability() {
+	local current="$1"
+	local previous="$2"
+
+	local enabled
+	config_get enabled mac_flapping enabled 0
+	[ "$enabled" != "1" ] && return 0
+
+	local diff=$((previous - current))
+	if [ "$diff" -gt 20 ]; then
+		/usr/libexec/alemprator-network-protection/logger log "warning" "mac-flapping" "" "" \
+			"FDB table unstable: ${diff} entries lost" "warn"
+	fi
+}
+
+show_state() {
+	echo "MAC Flapping State:"
+	echo "==================="
+	local found=0
+	for f in "$FLAP_STATE_DIR"/*_count; do
+		[ -f "$f" ] || continue
+		found=1
+		local key
+		key="$(basename "$f" | sed 's/_count$//')"
+		local bridge="${key%%_*}"
+		local mac="${key#*_}"
+		local count port time_val
+		count="$(cat "$f" 2>/dev/null || echo 0)"
+		port="$(cat "$FLAP_STATE_DIR/${key}_port" 2>/dev/null || echo 'unknown')"
+		time_val="$(cat "$FLAP_STATE_DIR/${key}_time" 2>/dev/null || echo 'unknown')"
+		echo "  $mac (bridge=$bridge): port=$port flaps=$count last=$time_val"
+	done
+	[ "$found" = "0" ] && echo "  No flaps detected"
+}
+
+case "${1:-}" in
+	check)
+		shift
+		check_flap "$@"
+		;;
+	check_fdb)
+		shift
+		check_fdb_stability "$@"
+		;;
+	state)
+		show_state
+		;;
+	*)
+		echo "Usage: $0 {check|check_fdb|state} [args]"
+		exit 1
+		;;
+esac

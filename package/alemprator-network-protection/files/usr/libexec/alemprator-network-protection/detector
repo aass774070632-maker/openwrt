@@ -1,0 +1,43 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+np_load_config
+
+run_detector() {
+	local module="$1"
+	shift
+	local args="$@"
+
+	case "$module" in
+		loop)
+			/usr/libexec/alemprator-network-protection/modules/loop "$@"
+			;;
+		broadcast)
+			/usr/libexec/alemprator-network-protection/modules/broadcast "$@"
+			;;
+		arp)
+			/usr/libexec/alemprator-network-protection/modules/arp "$@"
+			;;
+		dhcp-rogue)
+			/usr/libexec/alemprator-network-protection/modules/dhcp-rogue "$@"
+			;;
+		mac-flapping)
+			/usr/libexec/alemprator-network-protection/modules/mac-flapping "$@"
+			;;
+		status)
+			for mod in loop broadcast arp dhcp-rogue mac-flapping; do
+				local enabled
+				config_get enabled "$mod" enabled 0
+				echo "$mod: $( [ "$enabled" = "1" ] && echo 'active' || echo 'inactive')"
+			done
+			;;
+		*)
+			echo "Usage: $0 {loop|broadcast|arp|dhcp-rogue|mac-flapping|status}"
+			exit 1
+			;;
+	esac
+}
+
+run_detector "$@"

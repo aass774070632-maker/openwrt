@@ -1,0 +1,19 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+[ "$ACTION" = "ifup" ] || exit 0
+[ -n "$INTERFACE" ] || exit 0
+
+np_load_config
+local enabled
+config_get enabled main enabled 0
+[ "$enabled" != "1" ] && exit 0
+
+np_log "info" "Interface $INTERFACE ($DEVICE) came up - reapplying protection"
+
+np_bridge_exists "$DEVICE" && {
+	/usr/libexec/alemprator-network-protection/rstp-manager apply "$DEVICE" 2>/dev/null || true
+}
+
+exit 0

@@ -1,0 +1,127 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+np_load_config
+
+LOOP_STATE_DIR="$NP_STATE_DIR/loop"
+mkdir -p "$LOOP_STATE_DIR"
+
+record_mac_move() {
+	local bridge="$1"
+	local port="$2"
+	local mac="$3"
+	local now
+	now="$(date +%s)"
+	local key="${bridge}_${mac}"
+	local last_port_file="$LOOP_STATE_DIR/${key}_port"
+	local last_time_file="$LOOP_STATE_DIR/${key}_time"
+	local count_file="$LOOP_STATE_DIR/${key}_count"
+
+	local last_port=""
+	local last_time=""
+
+	[ -f "$last_port_file" ] && last_port="$(cat "$last_port_file")"
+	[ -f "$last_time_file" ] && last_time="$(cat "$last_time_file")"
+
+	if [ "$last_port" = "$port" ]; then
+		echo "$now" > "$last_time_file"
+		return 0
+	fi
+
+	if [ -n "$last_port" ] && [ -n "$last_time" ]; then
+		local diff=$((now - last_time))
+		local max_window
+		config_get max_window loop window_seconds 10
+
+		if [ "$diff" -le "$max_window" ] && [ "$diff" -ge 0 ]; then
+			local count=1
+			[ -f "$count_file" ] && count="$(cat "$count_file")"
+			count=$((count + 1))
+			echo "$count" > "$count_file"
+			echo "$port" > "$last_port_file"
+			echo "$now" > "$last_time_file"
+			LAST_MOVE_COUNT="$count"
+			return 0
+		fi
+	fi
+
+	echo "$port" > "$last_port_file"
+	echo "$now" > "$last_time_file"
+	echo "1" > "$count_file"
+	LAST_MOVE_COUNT=0
+	return 0
+}
+
+check_loop() {
+	local bridge="$1"
+	local port="$2"
+	local mac="$3"
+
+	np_is_local_mac "$mac" && return 0
+
+	local enabled
+	config_get enabled loop enabled 0
+	[ "$enabled" != "1" ] && return 0
+
+	LAST_MOVE_COUNT=0
+	record_mac_move "$bridge" "$port" "$mac"
+	local move_count="$LAST_MOVE_COUNT"
+	local max_moves
+	config_get max_moves loop max_mac_moves 5
+
+	if [ "$move_count" -ge "$max_moves" ]; then
+		local action
+		config_get action loop action "warn"
+
+		local clean_mac
+		clean_mac="$(echo "$mac" | tr -d '[:space:]')"
+
+		/usr/libexec/alemprator-network-protection/action-manager execute \
+			"loop" "$port" "$clean_mac" \
+			"Loop detected: MAC $mac moved $move_count times between ports" \
+			"$action"
+
+		local key="${bridge}_${mac}"
+		rm -f "$LOOP_STATE_DIR/${key}_count" 2>/dev/null || true
+
+		local notify
+		config_get notify loop notify 1
+		if [ "$notify" = "1" ]; then
+			/usr/libexec/alemprator-network-protection/logger log "warning" "loop" "$port" "$clean_mac" \
+				"Loop detected: MAC $mac moved $move_count times" "$action"
+		fi
+	fi
+}
+
+show_state() {
+	echo "Loop Protection State:"
+	echo "======================"
+	for f in "$LOOP_STATE_DIR"/*_count; do
+		[ -f "$f" ] || continue
+		local key
+		key="$(basename "$f" | sed 's/_count$//')"
+		local bridge="${key%%_*}"
+		local mac="${key#*_}"
+		local count port time_val
+		count="$(cat "$f" 2>/dev/null || echo 0)"
+		port="$(cat "$LOOP_STATE_DIR/${key}_port" 2>/dev/null || echo 'unknown')"
+		time_val="$(cat "$LOOP_STATE_DIR/${key}_time" 2>/dev/null || echo 'unknown')"
+		echo "  MAC=$mac bridge=$bridge port=$port moves=$count last_seen=$time_val"
+	done
+}
+
+case "${1:-}" in
+	check)
+		shift
+		check_loop "$@"
+		;;
+	state)
+		show_state
+		;;
+	*)
+		echo "Usage: $0 {check|state} [args]"
+		exit 1
+		;;
+esac

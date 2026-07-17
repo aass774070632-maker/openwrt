@@ -1,0 +1,108 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+np_load_config
+
+dispatch_event() {
+	local event="$1"
+	local event_type="${event%%:*}"
+	local event_data="${event#*:}"
+
+	np_debug "Dispatching event type=$event_type data=$event_data"
+
+	case "$event_type" in
+		link)
+			local iface action
+			iface=$(echo "$event_data" | awk '{print $2}' 2>/dev/null)
+			action=$(echo "$event_data" | awk '{print $1}' 2>/dev/null)
+			np_debug "Link event: $iface $action"
+			;;
+		fdb)
+			local bridge="${event_data%%:*}"
+			local fdb_data="${event_data#*:}"
+			np_debug "FDB event on $bridge: $fdb_data"
+
+			local mac port
+			mac=$(echo "$fdb_data" | awk '{print $1}' 2>/dev/null)
+			port=$(echo "$fdb_data" | grep -o 'dev [^ ]*' | awk '{print $2}' 2>/dev/null)
+
+			if [ -n "$mac" ] && [ -n "$port" ]; then
+				np_is_local_mac "$mac" && return 0
+				/usr/libexec/alemprator-network-protection/detector mac-flapping check "$bridge" "$port" "$mac"
+				/usr/libexec/alemprator-network-protection/detector loop check "$bridge" "$port" "$mac"
+			fi
+			;;
+		neigh)
+			local mac ip
+			mac=$(echo "$event_data" | grep -o 'lladdr [^ ]*' | awk '{print $2}' 2>/dev/null)
+			ip=$(echo "$event_data" | grep -o 'PERMANENT\|REACHABLE\|STALE\|DELAY\|PROBE\|FAILED\|INCOMPLETE' | head -1 2>/dev/null)
+
+			if [ -n "$mac" ]; then
+				/usr/libexec/alemprator-network-protection/detector arp check "$mac"
+			fi
+			;;
+		ubus)
+			local interface
+			interface=$(echo "$event_data" | jsonfilter -e '@.interface' 2>/dev/null)
+			np_debug "ubus event: interface=$interface"
+			;;
+		storm_check)
+			local check_type="${event_data%%:*}"
+			local rest="${event_data#*:}"
+			case "$check_type" in
+				broadcast)
+					local port pkt_count byte_diff
+					rest="${rest#*:}"
+					port="${rest%%:*}"
+					rest="${rest#*:}"
+					pkt_count="${rest%%:*}"
+					byte_diff="${rest#*:}"
+					np_debug "Broadcast check: port=$port pps=$pkt_count"
+					/usr/libexec/alemprator-network-protection/detector broadcast check "$port" "$pkt_count" "$byte_diff"
+					;;
+				arp)
+					local port pkt_diff
+					port="${rest%%:*}"
+					pkt_diff="${rest#*:}"
+					np_debug "ARP check: port=$port diff=$pkt_diff"
+					/usr/libexec/alemprator-network-protection/detector arp check_rate "$port" "$pkt_diff"
+					;;
+			esac
+			;;
+		fdb_stability)
+			local current prev
+			current=$(echo "$event_data" | cut -d: -f2)
+			prev=$(echo "$event_data" | cut -d: -f3)
+			np_debug "FDB stability: current=$current prev=$prev"
+			/usr/libexec/alemprator-network-protection/detector mac-flapping check_fdb "$current" "$prev"
+			;;
+		dhcp)
+			local log_line="$event_data"
+			np_debug "DHCP event: $log_line"
+			/usr/libexec/alemprator-network-protection/detector dhcp-rogue check "$log_line"
+			;;
+		kernel_loop)
+			local bridge="${event_data%%:*}"
+			local rest="${event_data#*:}"
+			local port="${rest%%:*}"
+			local mac="${rest#*:}"
+			np_debug "Kernel loop event: bridge=$bridge port=$port mac=$mac"
+			local loop_action
+			config_get loop_action loop action "warn"
+			/usr/libexec/alemprator-network-protection/detector loop check "$bridge" "$port" "$mac"
+			/usr/libexec/alemprator-network-protection/action-manager execute \
+				"loop" "$port" "$mac" \
+				"Kernel loop detected on $bridge port $port (MAC: $mac)" \
+				"$loop_action"
+			/usr/libexec/alemprator-network-protection/logger log "critical" "loop" "$port" "$mac" \
+				"Kernel loop detected: bridge=$bridge port=$port mac=$mac"
+			;;
+		*)
+			np_debug "Unknown event type: $event_type"
+			;;
+	esac
+}
+
+dispatch_event "$@"

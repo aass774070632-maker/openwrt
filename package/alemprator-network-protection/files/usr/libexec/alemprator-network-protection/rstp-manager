@@ -1,0 +1,249 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+np_load_config
+
+rstp_enable() {
+	local bridge="$1"
+	np_bridge_exists "$bridge" || {
+		np_log "error" "Bridge $bridge does not exist"
+		return 1
+	}
+
+	np_log "info" "Enabling STP on bridge $bridge"
+	ip link set dev "$bridge" type bridge stp_state 1 2>/dev/null || true
+}
+
+rstp_disable() {
+	local bridge="$1"
+	np_bridge_exists "$bridge" || return 1
+
+	np_log "info" "Disabling STP on bridge $bridge"
+	ip link set dev "$bridge" type bridge stp_state 0 2>/dev/null || true
+}
+
+rstp_enable_rstp() {
+	local bridge="$1"
+	np_bridge_exists "$bridge" || return 1
+
+	np_log "info" "Enabling RSTP on bridge $bridge"
+	ip link set dev "$bridge" type bridge stp_state 1 2>/dev/null || true
+}
+
+rstp_set_priority() {
+	local bridge="$1"
+	local priority="$2"
+	np_bridge_exists "$bridge" || return 1
+
+	case "$priority" in
+		0|4096|8192|12288|16384|20480|24576|28672|32768|36864|40960|45056|49152|53248|57344|61440|65535)
+			np_log "info" "Setting bridge $bridge priority to $priority"
+			echo "$priority" > "/sys/class/net/$bridge/bridge/priority" 2>/dev/null || \
+				ip link set dev "$bridge" type bridge priority "$priority" 2>/dev/null || true
+			;;
+		*)
+			np_log "error" "Invalid bridge priority: $priority (must be multiple of 4096)"
+			return 1
+			;;
+	esac
+}
+
+rstp_set_forward_delay() {
+	local bridge="$1"
+	local delay="$2"
+	np_bridge_exists "$bridge" || return 1
+
+	local delay_cs=$((delay * 100))
+	np_log "info" "Setting bridge $bridge forward delay to ${delay}s (${delay_cs}cs)"
+	echo "$delay_cs" > "/sys/class/net/$bridge/bridge/forward_delay" 2>/dev/null || \
+		ip link set dev "$bridge" type bridge forward_delay "$delay" 2>/dev/null || true
+}
+
+rstp_set_hello_time() {
+	local bridge="$1"
+	local hello="$2"
+	np_bridge_exists "$bridge" || return 1
+
+	local hello_cs=$((hello * 100))
+	np_log "info" "Setting bridge $bridge hello time to ${hello}s (${hello_cs}cs)"
+	echo "$hello_cs" > "/sys/class/net/$bridge/bridge/hello_time" 2>/dev/null || \
+		ip link set dev "$bridge" type bridge hello_time "$hello" 2>/dev/null || true
+}
+
+rstp_set_max_age() {
+	local bridge="$1"
+	local max_age="$2"
+	np_bridge_exists "$bridge" || return 1
+
+	local max_age_cs=$((max_age * 100))
+	np_log "info" "Setting bridge $bridge max age to ${max_age}s (${max_age_cs}cs)"
+	echo "$max_age_cs" > "/sys/class/net/$bridge/bridge/max_age" 2>/dev/null || \
+		ip link set dev "$bridge" type bridge max_age "$max_age" 2>/dev/null || true
+}
+
+rstp_get_info() {
+	local bridge="$1"
+	np_bridge_exists "$bridge" || {
+		echo "Bridge $bridge does not exist"
+		return 1
+	}
+
+	local stp_state priority forward_delay hello_time max_age
+	local root_bridge root_port root_path_cost
+
+	stp_state="$(cat "/sys/class/net/$bridge/bridge/stp_state" 2>/dev/null || echo 'N/A')"
+	case "$stp_state" in
+		0) stp_state="disabled" ;;
+		1) stp_state="enabled (STP/RSTP)" ;;
+		*) stp_state="unknown" ;;
+	esac
+
+	priority="$(cat "/sys/class/net/$bridge/bridge/priority" 2>/dev/null || echo 'N/A')"
+	forward_delay="$(cat "/sys/class/net/$bridge/bridge/forward_delay" 2>/dev/null || echo 'N/A')"
+	hello_time="$(cat "/sys/class/net/$bridge/bridge/hello_time" 2>/dev/null || echo 'N/A')"
+	max_age="$(cat "/sys/class/net/$bridge/bridge/max_age" 2>/dev/null || echo 'N/A')"
+	root_bridge="$(cat "/sys/class/net/$bridge/bridge/root_id" 2>/dev/null || echo 'N/A')"
+	root_path_cost="$(cat "/sys/class/net/$bridge/bridge/root_path_cost" 2>/dev/null || echo 'N/A')"
+
+	local bridge_id
+	bridge_id="$(cat "/sys/class/net/$bridge/bridge/bridge_id" 2>/dev/null || echo 'N/A')"
+
+	local fd_sec=$((forward_delay / 100))
+	local ht_sec=$((hello_time / 100))
+	local ma_sec=$((max_age / 100))
+	local priority_raw=$priority
+	local priority_step=$((priority_raw / 4096))
+	echo "Bridge: $bridge"
+	echo "  STP State: $stp_state"
+	echo "  Bridge ID: $bridge_id"
+	echo "  Priority: $priority_raw (step $priority_step)"
+	echo "  Forward Delay: ${fd_sec}s"
+	echo "  Hello Time: ${ht_sec}s"
+	echo "  Max Age: ${ma_sec}s"
+	if [ "$root_bridge" = "$bridge_id" ]; then
+		echo "  Root Bridge: Yes (this bridge)"
+	else
+		echo "  Root Bridge: $root_bridge"
+	fi
+	echo "  Root Path Cost: $root_path_cost"
+
+	if [ "$stp_state" != "disabled" ]; then
+		echo "  Port Roles:" > /tmp/np_rstp_$$.txt
+		local ports
+		ports="$(np_get_bridge_ports "$bridge")"
+		for port in $ports; do
+			local role state_val
+			role="$(cat "/sys/class/net/$bridge/brif/$port/port_id" 2>/dev/null || echo '')"
+			state_val="$(cat "/sys/class/net/$bridge/brif/$port/state" 2>/dev/null || echo '')"
+			case "$state_val" in
+				0) state_str="disabled" ;;
+				1) state_str="listening" ;;
+				2) state_str="learning" ;;
+				3) state_str="forwarding" ;;
+				4) state_str="blocking" ;;
+				*) state_str="unknown" ;;
+			esac
+			echo "  - $port: state=$state_str port_id=$role"
+		done
+	fi
+	rm -f /tmp/np_rstp_$$.txt
+
+	local topology_changes
+	topology_changes="$(cat "/sys/class/net/$bridge/bridge/topology_change" 2>/dev/null || echo '0')"
+	local topology_changes_detected
+	topology_changes_detected="$(cat "/sys/class/net/$bridge/bridge/topology_change_detected" 2>/dev/null || echo '0')"
+	echo "  Topology Change: $topology_changes"
+	echo "  Topology Change Detected: $topology_changes_detected"
+}
+
+rstp_apply_config() {
+	local bridge="$1"
+	np_load_config
+
+	local enabled priority forward_delay hello_time max_age
+	config_get enabled rstp enabled 0
+	[ "$enabled" != "1" ] && return 0
+
+	config_get priority rstp bridge_priority 32768
+	config_get forward_delay rstp forward_delay 15
+	config_get hello_time rstp hello_time 2
+	config_get max_age rstp max_age 20
+
+	rstp_enable "$bridge"
+	rstp_set_priority "$bridge" "$priority"
+	rstp_set_forward_delay "$bridge" "$forward_delay"
+	rstp_set_hello_time "$bridge" "$hello_time"
+	rstp_set_max_age "$bridge" "$max_age"
+
+	np_log "info" "RSTP configured on $bridge (priority=$priority fd=$forward_delay ht=$hello_time ma=$max_age)"
+}
+
+monitor_topology_changes() {
+	local bridge="$1"
+	local last_tc=""
+	while true; do
+		[ -d "/sys/class/net/$bridge/bridge" ] || return 0
+		local current_tc
+		current_tc="$(cat "/sys/class/net/$bridge/bridge/topology_change_detected" 2>/dev/null || echo '0')"
+		if [ -n "$last_tc" ] && [ "$current_tc" = "1" ] && [ "$last_tc" = "0" ]; then
+			np_log "info" "Topology change detected on bridge $bridge"
+			local notify
+			config_get notify rstp notify 1
+			if [ "$notify" = "1" ]; then
+				/usr/libexec/alemprator-network-protection/logger log "info" "rstp" "" "" \
+					"Topology change detected on $bridge" "log"
+			fi
+		fi
+		last_tc="$current_tc"
+		sleep 1
+	done
+}
+
+case "${1:-}" in
+	enable)
+		shift
+		rstp_enable "$@"
+		;;
+	disable)
+		shift
+		rstp_disable "$@"
+		;;
+	enable_rstp)
+		shift
+		rstp_enable_rstp "$@"
+		;;
+	priority)
+		shift
+		rstp_set_priority "$@"
+		;;
+	forward_delay)
+		shift
+		rstp_set_forward_delay "$@"
+		;;
+	hello_time)
+		shift
+		rstp_set_hello_time "$@"
+		;;
+	max_age)
+		shift
+		rstp_set_max_age "$@"
+		;;
+	info)
+		shift
+		rstp_get_info "$@"
+		;;
+	apply)
+		shift
+		rstp_apply_config "$@"
+		;;
+	monitor)
+		shift
+		monitor_topology_changes "$@"
+		;;
+	*)
+		echo "Usage: $0 {enable|disable|enable_rstp|priority|forward_delay|hello_time|max_age|info|apply|monitor}"
+		exit 1
+		;;
+esac

@@ -1,0 +1,196 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+np_load_config
+
+ACTION_STATE_DIR="$NP_STATE_DIR/actions"
+mkdir -p "$ACTION_STATE_DIR"
+
+RATE_LIMIT_FILE="$ACTION_STATE_DIR/rate_limit"
+
+check_rate_limit() {
+	local module="$1"
+	local port="$2"
+	local now
+	now="$(date +%s)"
+	local max_per_min
+	config_get max_per_min main max_actions_per_minute 10
+	local key="${module}_${port}"
+	local action_count=0
+	local action_time=0
+
+	local state_file="$RATE_LIMIT_FILE"
+	local entry
+	entry="$(grep "^${key}:" "$state_file" 2>/dev/null || true)"
+	if [ -n "$entry" ]; then
+		action_count=$(echo "$entry" | cut -d: -f2)
+		action_time=$(echo "$entry" | cut -d: -f3)
+		local elapsed=$((now - action_time))
+		if [ "$elapsed" -gt 60 ]; then
+			action_count=0
+		fi
+	fi
+
+	if [ "$action_count" -ge "$max_per_min" ]; then
+		return 1
+	fi
+
+	action_count=$((action_count + 1))
+	sed -i "/^${key}:/d" "$state_file" 2>/dev/null || true
+	echo "${key}:${action_count}:${now}" >> "$state_file"
+
+	return 0
+}
+
+execute_action() {
+	local module="$1"
+	local port="$2"
+	local mac="$3"
+	local reason="$4"
+	local action_type="$5"
+
+	np_log "info" "Action: module=$module port=$port mac=$mac action=$action_type reason=$reason"
+
+	check_rate_limit "$module" "$port" || {
+		np_log "warning" "Action rate limit exceeded for $module/$port"
+		return 0
+	}
+
+	case "$action_type" in
+		warn)
+			np_log "warning" "[$module] $reason"
+			return 0
+			;;
+		log)
+			/usr/libexec/alemprator-network-protection/logger log "warning" "$module" "$port" "$mac" "$reason" "$action_type"
+			return 0
+			;;
+		rate_limit)
+			np_log "info" "Applying rate limit to port $port"
+			local kbps
+			config_get kbps "${module}" rate_limit_kbps 1000
+			[ "$kbps" -le 0 ] && kbps=1000
+			np_rate_limit_port "$port" "$kbps"
+
+			local auto_recover
+			config_get auto_recover "${module}" auto_recover 1
+			if [ "$auto_recover" = "1" ]; then
+				local delay
+				config_get delay "${module}" recovery_delay 30
+				(
+					sleep "$delay"
+					np_remove_rate_limit "$port" 2>/dev/null || true
+				) &
+			fi
+			;;
+		disable)
+			np_log "warning" "Disabling port $port due to $module detection"
+			np_set_port_state "$port" "down"
+			local pid_file="$ACTION_STATE_DIR/disabled_${port}"
+			echo "$(date +%s)" > "$pid_file"
+
+			local auto_recover
+			config_get auto_recover "${module}" auto_recover 1
+			if [ "$auto_recover" = "1" ]; then
+				local delay
+				config_get delay "${module}" recovery_delay 60
+				(
+					sleep "$delay"
+					/usr/libexec/alemprator-network-protection/action-manager recover "$module" "$port" 2>/dev/null || true
+				) &
+			fi
+			;;
+		block)
+			np_log "critical" "Blocking source MAC $mac due to $module detection"
+			local bridges
+			bridges="$(np_get_bridges)"
+			for br in $bridges; do
+				ebtables -L FORWARD 2>/dev/null | grep -q "\-s $mac \-j DROP" || \
+					ebtables -A FORWARD -s "$mac" -j DROP 2>/dev/null || true
+				ebtables -L INPUT 2>/dev/null | grep -q "\-s $mac \-j DROP" || \
+					ebtables -A INPUT -s "$mac" -j DROP 2>/dev/null || true
+			done
+			local block_file="$ACTION_STATE_DIR/blocked_${mac}"
+			echo "$(date +%s)" > "$block_file"
+			;;
+		isolate)
+			np_log "warning" "Isolating port $port due to $module detection"
+			/usr/libexec/alemprator-network-protection/port-isolation isolate "$port"
+			;;
+		*)
+			np_log "warning" "Unknown action type: $action_type - falling back to warn"
+			np_log "warning" "[$module] $reason"
+			;;
+	esac
+}
+
+recover_action() {
+	local module="$1"
+	local port="$2"
+
+	np_log "info" "Attempting recovery for module=$module port=$port"
+
+	case "$module" in
+		broadcast|arp)
+			np_remove_rate_limit "$port" 2>/dev/null || true
+			np_log "info" "Recovered port $port from rate limiting (module=$module)"
+			;;
+		loop|mac_flapping)
+			local pid_file="$ACTION_STATE_DIR/disabled_${port}"
+			if [ -f "$pid_file" ]; then
+				np_set_port_state "$port" "up"
+				rm -f "$pid_file"
+				np_log "info" "Recovered port $port (enabled after $module)"
+			fi
+			;;
+		dhcp-rogue)
+			np_log "info" "No automatic recovery for DHCP rogue blocks"
+			;;
+		*)
+			np_set_port_state "$port" "up"
+			np_remove_rate_limit "$port" 2>/dev/null || true
+			;;
+	esac
+}
+
+show_state() {
+	echo "Action Manager State:"
+	echo "====================="
+	echo "Disabled ports:"
+	for f in "$ACTION_STATE_DIR"/disabled_*; do
+		[ -f "$f" ] || continue
+		local port
+		port="$(basename "$f" | sed 's/^disabled_//')"
+		local since
+		since="$(cat "$f" 2>/dev/null)"
+		local elapsed=$(($(date +%s) - since))
+		echo "  Port $port (disabled ${elapsed}s ago)"
+	done
+	echo "Blocked MACs:"
+	for f in "$ACTION_STATE_DIR"/blocked_*; do
+		[ -f "$f" ] || continue
+		local mac
+		mac="$(basename "$f" | sed 's/^blocked_//')"
+		echo "  $mac"
+	done
+}
+
+case "${1:-}" in
+	execute)
+		shift
+		execute_action "$@"
+		;;
+	recover)
+		shift
+		recover_action "$@"
+		;;
+	state)
+		show_state
+		;;
+	*)
+		echo "Usage: $0 {execute|recover|state}"
+		exit 1
+		;;
+esac

@@ -1,0 +1,221 @@
+'use strict';
+
+import { readfile, stat, popen } from 'fs';
+
+const LOG_DIR = '/var/log/alemprator-network-protection';
+const STATE_DIR = '/tmp/alemprator-network-protection';
+const LIBEXEC = '/usr/libexec/alemprator-network-protection';
+const CFG_FILE = '/etc/config/alemprator-network-protection';
+
+function cfgEnabled(section) {
+	let cfg = readfile(CFG_FILE);
+	if (!cfg) return 0;
+	let inSection = 0;
+	let lines = split(cfg, /\n/);
+	for (let line in lines) {
+		line = trim(line);
+		if (match(line, /^config /)) {
+			inSection = index(line, "'" + section + "'") >= 0 ? 1 : 0;
+		}
+		if (inSection && match(line, /option enabled/)) {
+			return match(line, /'1'/) ? 1 : 0;
+		}
+	}
+	return 0;
+}
+
+function shellEscape(s) {
+	s = replace(s, "'", "'\\''");
+	return "'" + s + "'";
+}
+
+function runScript(args) {
+	let cmd = '';
+	for (let i = 0; i < length(args); i++) {
+		if (i > 0) cmd += ' ';
+		cmd += shellEscape(args[i]);
+	}
+	let r = popen(cmd, 'r');
+	if (!r) return { error: 'failed to execute' };
+	let out = '';
+	let line;
+	while ((line = r.read('line')) !== null) out += line;
+	return { output: out };
+}
+
+function readLog(lines, level) {
+	let f = readfile(LOG_DIR + '/events.json');
+	if (!f) return { entries: [] };
+	let all = split(trim(f), /\n/);
+	let result = [];
+	let count = int(lines) || 50;
+	let startIdx = length(all) - count;
+	if (startIdx < 0) startIdx = 0;
+	for (let i = startIdx; i < length(all); i++) {
+		let entry = all[i];
+		if (level && level != 'all') {
+			try {
+				let parsed = json(entry);
+				if (parsed.level != level) continue;
+			} catch(e) { }
+		}
+		push(result, entry);
+	}
+	return { entries: result };
+}
+
+const methods = {
+	getStatus: {
+		call: function() {
+			let pidFile = '/var/run/alemprator-network-protection/monitor.pid';
+			let isRunning = (stat(pidFile) !== null) ? 1 : 0;
+			let hasEbpf = (stat('/sys/fs/bpf') !== null && stat('/usr/sbin/bpftool') !== null) ? 1 : 0;
+			return {
+				enabled: cfgEnabled('main'),
+				running: isRunning,
+				ebpf: hasEbpf,
+				modules: {
+					loop: cfgEnabled('loop'),
+					broadcast: cfgEnabled('broadcast'),
+					arp: cfgEnabled('arp'),
+					dhcp_rogue: cfgEnabled('dhcp_rogue'),
+					mac_flapping: cfgEnabled('mac_flapping'),
+					port_isolation: cfgEnabled('port_isolation'),
+					rstp: cfgEnabled('rstp'),
+				}
+			};
+		},
+	},
+
+	getBridgeStatus: {
+		call: function() {
+			let ports = [];
+			let blockedMacs = [];
+			let cmd = 'board=$(ubus call system board 2>/dev/null | jsonfilter -e "@.board_name" 2>/dev/null); ' +
+				'show_all=0; known=""; ' +
+				'case "$board" in ' +
+				'kt,km14-102h|kt,km15-103h) known="lan1 wan" ;; ' +
+				'kt,km12-007h) known="lan wan" ;; ' +
+				'*) known=""; show_all=1 ;; ' +
+				'esac; ' +
+				'for p in /sys/class/net/br-lan/brif/*; do ' +
+				'[ -e "$p" ] || continue; ' +
+				'name=$(basename "$p"); ' +
+				'case "$name" in phy*|wlan*|ra*) continue ;; esac; ' +
+				'[ -e "/sys/class/net/$name/device" ] || continue; ' +
+				'if [ "$show_all" = "0" ]; then ' +
+				'found=0; ' +
+				'for k in $known; do [ "$k" = "$name" ] && found=1 && break; done; ' +
+				'[ "$found" = "0" ] && continue; ' +
+				'fi; ' +
+				'operstate=$(cat /sys/class/net/$name/operstate 2>/dev/null || echo "unknown"); ' +
+				'speed=$(cat /sys/class/net/$name/speed 2>/dev/null || echo "0"); ' +
+				'disabled=0; ' +
+				'[ -f "/tmp/alemprator-network-protection/actions/disabled_$name" ] && disabled=1; ' +
+				'echo "PORT:$name:$operstate:$speed:$disabled"; ' +
+				'done; ' +
+				'for f in /tmp/alemprator-network-protection/actions/blocked_*; do ' +
+				'[ -f "$f" ] || continue; ' +
+				'mac=$(basename "$f" | sed "s/^blocked_//"); ' +
+				'since=$(cat "$f" 2>/dev/null); ' +
+				'echo "MAC:$mac:$since"; ' +
+				'done';
+			let r = popen(cmd, 'r');
+			if (r) {
+				let line;
+				while ((line = r.read('line')) !== null) {
+					line = trim(line);
+					if (!line) continue;
+					let parts = split(line, ':');
+					if (parts[0] == 'PORT') {
+						let pname = parts[1];
+						push(ports, {
+							name: pname,
+							state: parts[2],
+							speed: parts[3],
+							disabled: parts[4] == '1'
+						});
+					} else if (parts[0] == 'MAC') {
+						let mac = parts[1] + ':' + parts[2] + ':' + parts[3] + ':' + parts[4] + ':' + parts[5] + ':' + parts[6];
+						let since = parts[7] || '';
+						push(blockedMacs, {
+							mac: mac,
+							since: since
+						});
+					}
+				}
+			}
+			return { ports: ports, blockedMacs: blockedMacs };
+		}
+	},
+
+	getModuleState: {
+		args: { module: '' },
+		call: function(request) {
+			let mod = request.args.module;
+			let r = runScript([LIBEXEC + '/detector', mod, 'state']);
+			return { module: mod, state: r.output };
+		},
+	},
+
+	getLogs: {
+		args: { lines: 50, level: 'all' },
+		call: function(request) {
+			return readLog(request.args.lines, request.args.level);
+		},
+	},
+
+	getRstpInfo: {
+		call: function() {
+			let bridges = [];
+			let r = popen('/usr/libexec/alemprator-network-protection/rstp-manager info br-lan 2>/dev/null', 'r');
+			if (r) {
+				let out = '';
+				let line;
+				while ((line = r.read('line')) !== null) out += line;
+				push(bridges, { name: 'br-lan', info: out });
+			}
+			return { bridges: bridges };
+		},
+	},
+
+	getStats: {
+		call: function() {
+			let totalEvents = 0;
+			let f = readfile(LOG_DIR + '/events.json');
+			if (f) totalEvents = length(split(trim(f), /\n/));
+			let uptime = readfile('/proc/uptime');
+			let uptimeSec = 0;
+			if (uptime) uptimeSec = int(split(uptime, ' ')[0]);
+			return {
+				total_events: totalEvents,
+				uptime: uptimeSec,
+				log_file: LOG_DIR + '/events.json',
+				log_size: stat(LOG_DIR + '/events.json')?.size || 0,
+			};
+		},
+	},
+
+	recover: {
+		call: function() {
+			let r = runScript(['/etc/init.d/alemprator-network-protection', 'recover']);
+			return { result: 'ok', output: r.output };
+		},
+	},
+
+	getActionState: {
+		call: function() {
+			let r = runScript([LIBEXEC + '/action-manager', 'state']);
+			return { state: r.output };
+		},
+	},
+
+	getIsolationState: {
+		call: function() {
+			let r = runScript([LIBEXEC + '/port-isolation', 'state']);
+			return { state: r.output };
+		},
+	},
+};
+
+return { 'alemprator-network-protection': methods };

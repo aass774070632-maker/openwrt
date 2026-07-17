@@ -1,0 +1,113 @@
+#!/bin/sh
+
+. /usr/libexec/alemprator-network-protection/common.sh
+
+np_init_state
+np_load_config
+
+STORM_STATE_DIR="$NP_STATE_DIR/broadcast"
+mkdir -p "$STORM_STATE_DIR"
+
+detect_storm() {
+	local port="$1"
+	local pkt_count="$2"
+	local byte_diff="$3"
+
+	local enabled
+	config_get enabled broadcast enabled 0
+	[ "$enabled" != "1" ] && return 0
+
+	local max_pps max_ratio window storm_dur
+	config_get max_pps broadcast max_pps 500
+	config_get max_ratio broadcast max_ratio 30
+	config_get window broadcast window_seconds 5
+	config_get storm_dur broadcast storm_duration_seconds 3
+
+	local storm_state_file="$STORM_STATE_DIR/${port}_storm"
+	local storm_start_file="$STORM_STATE_DIR/${port}_start"
+	local in_storm=0
+
+	[ -f "$storm_state_file" ] && in_storm="$(cat "$storm_state_file")"
+
+	local is_storm=0
+	if [ "$pkt_count" -gt "$max_pps" ]; then
+		is_storm=1
+	else
+		local ratio=0
+		[ "$byte_diff" -gt 0 ] && ratio=$(( (pkt_count * 1500 * 100) / byte_diff ))
+		[ "$ratio" -gt "$max_ratio" ] && is_storm=1
+	fi
+
+	if [ "$is_storm" = "1" ]; then
+		if [ "$in_storm" = "0" ]; then
+			echo "$(date +%s)" > "$storm_start_file"
+		fi
+		echo "1" > "$storm_state_file"
+
+		local now storm_start elapsed
+		now="$(date +%s)"
+		storm_start="$(cat "$storm_start_file" 2>/dev/null || echo "$now")"
+		elapsed=$((now - storm_start))
+
+		if [ "$elapsed" -ge "$storm_dur" ]; then
+			local action
+			config_get action broadcast action "rate_limit"
+
+			/usr/libexec/alemprator-network-protection/action-manager execute \
+				"broadcast" "$port" "" \
+				"Broadcast storm detected on $port: $pkt_count pkt/s (${elapsed}s sustained)" \
+				"$action"
+
+			local notify
+			config_get notify broadcast notify 1
+			if [ "$notify" = "1" ]; then
+				/usr/libexec/alemprator-network-protection/logger log "warning" "broadcast" "$port" "" \
+					"Broadcast storm: ${pkt_count}pps sustained ${elapsed}s" "$action"
+			fi
+		fi
+	else
+		if [ "$in_storm" = "1" ]; then
+			echo "0" > "$storm_state_file"
+			local auto_recover
+			config_get auto_recover broadcast auto_recover 1
+			if [ "$auto_recover" = "1" ]; then
+				/usr/libexec/alemprator-network-protection/action-manager recover "broadcast" "$port"
+			fi
+			/usr/libexec/alemprator-network-protection/logger log "info" "broadcast" "$port" "" \
+				"Broadcast storm cleared on $port" "recover"
+		fi
+	fi
+}
+
+show_state() {
+	echo "Broadcast Storm State:"
+	echo "======================"
+	for f in "$STORM_STATE_DIR"/*_storm; do
+		[ -f "$f" ] || continue
+		local port
+		port="$(basename "$f" | sed 's/_storm$//')"
+		local active start_time elapsed
+		active="$(cat "$f" 2>/dev/null || echo 0)"
+		start_time="$(cat "$STORM_STATE_DIR/${port}_start" 2>/dev/null || echo 'N/A')"
+		if [ "$active" = "1" ] && [ "$start_time" != "N/A" ]; then
+			elapsed=$(($(date +%s) - start_time))
+			echo "  Port $port: STORM ACTIVE (${elapsed}s)"
+		else
+			echo "  Port $port: Normal"
+		fi
+	done
+}
+
+case "${1:-}" in
+	check)
+		shift
+		detect_storm "$@"
+		;;
+	state)
+		show_state
+		;;
+	*)
+		echo "Usage: $0 {check|state} [args]"
+		exit 1
+		;;
+esac
