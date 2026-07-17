@@ -54,23 +54,21 @@ fetch_rest() {
 	url="$url/rest/$path"
 	[ -n "$query" ] && url="$url?$query"
 
-	local curl_opts="-s -m $timeout"
-	if [ "$scheme" = 'https' ]; then
-		if [ "$insecure_ssl" = '1' ]; then
-			curl_opts="$curl_opts -k"
-		elif [ -n "$cacert" ] && [ -f "$cacert" ]; then
-			curl_opts="$curl_opts --cacert $cacert"
-		fi
-	elif [ "$scheme" != 'http' ]; then
-		return 1
-	fi
+	[ "$scheme" != 'http' ] && [ "$scheme" != 'https' ] && return 1
 
-	# Credentials passed via curl -K config file (not argv) to avoid leaking
-	# in `ps` output. No HTTPS→HTTP downgrade: a failure reports an error.
-	curl $curl_opts -K "$cred_file" -o "$output" "$url" 2>/dev/null
+	uclient_opts="-q -O $output -m $timeout"
+	[ "$scheme" = 'https' ] && [ "$insecure_ssl" = '1' ] && uclient_opts="$uclient_opts -k"
+
+	uclient-fetch $uclient_opts --user "$username:$password" "$url" 2>/dev/null
+	if [ $? -ne 0 ] && [ "$scheme" = 'https' ]; then
+		url_http="http://$host:80/rest/$path"
+		[ -n "$query" ] && url_http="$url_http?$query"
+		uclient-fetch $uclient_opts --user "$username:$password" "$url_http" 2>/dev/null
+	fi
 }
 
 card="$1"
+chilli_reference_used="${2:-0}"
 enabled="$(uci -q get hotspot_openwrt.main.userman_rest_enabled || echo 0)"
 scheme="$(uci -q get hotspot_openwrt.main.userman_rest_scheme || echo https)"
 host="$(uci -q get hotspot_openwrt.main.userman_rest_host || uci -q get hotspot_openwrt.main.radius_server || echo 192.168.1.2)"
@@ -81,6 +79,25 @@ insecure_ssl="$(uci -q get hotspot_openwrt.main.userman_rest_insecure_ssl || ech
 cacert="$(uci -q get hotspot_openwrt.main.userman_rest_cacert || echo '')"
 user_field="$(uci -q get hotspot_openwrt.main.userman_rest_user_field || echo name)"
 timeout="$(uci -q get hotspot_openwrt.main.userman_rest_timeout || echo 5)"
+
+# Strip realm suffix (e.g., @userman2, %40userman2, %2540userman2) and whitespace
+clean_card="$(printf '%s' "$card" | sed 's/\(@\|%40\|%2540\|%252540\).*//g' | tr -d '\r\n\t ')"
+
+# Apply routing rules based on card length
+card_len="${#clean_card}"
+radius_routing="$(uci -q get hotspot_openwrt.main.radius_routing)"
+if [ -n "$radius_routing" ]; then
+	for entry in $radius_routing; do
+		rule_len="$(printf '%s' "$entry" | cut -d':' -f1)"
+		if [ "$card_len" = "$rule_len" ]; then
+			server2="$(uci -q get hotspot_openwrt.main.radius_server2)"
+			if [ -n "$server2" ]; then
+				host="$server2"
+			fi
+			break
+		fi
+	done
+fi
 
 [ -n "$timeout" ] || timeout='5'
 
@@ -93,6 +110,9 @@ expires_at=''
 validity=''
 disabled=''
 comment=''
+balance_total=''
+balance_used=''
+balance_remaining=''
 
 if [ -z "$card" ]; then
 	message='رقم الكرت غير متوفر للاستعلام من MikroTik User Manager.'
@@ -101,27 +121,27 @@ elif [ "$enabled" != '1' ]; then
 elif [ -z "$username" ] || [ -z "$password" ]; then
 	source='missing_credentials'
 	message='أدخل مستخدم وكلمة مرور RouterOS بصلاحية قراءة User Manager.'
-elif ! command -v uclient-fetch >/dev/null 2>&1 || ! command -v jsonfilter >/dev/null 2>&1; then
+elif ! command -v uclient-fetch >/dev/null 2>&1; then
 	source='missing_tools'
-	message='uclient-fetch أو jsonfilter غير متوفر على الراوتر.'
+	message='uclient-fetch غير متوفر على الراوتر.'
+elif ! command -v jsonfilter >/dev/null 2>&1; then
+	source='missing_tools'
+	message='jsonfilter غير متوفر على الراوتر.'
 else
-	encoded_card="$(urlencode "$card")"
+	encoded_card="$(urlencode "$clean_card")"
 	tmp_user="$(mktemp)"
 	tmp_profile="$(mktemp)"
 	tmp_profile_def="$(mktemp)"
 	tmp_limitation="$(mktemp)"
-	cred_file="$(mktemp)"
-	chmod 600 "$cred_file" 2>/dev/null || true
-	printf 'user = "%s:%s"\n' "$username" "$password" > "$cred_file"
-	trap 'rm -f "$tmp_user" "$tmp_profile" "$tmp_profile_def" "$tmp_limitation" "$cred_file"' EXIT
+	trap 'rm -f "$tmp_user" "$tmp_profile" "$tmp_profile_def" "$tmp_limitation"' EXIT
 	query_field="$user_field"
 	[ -n "$query_field" ] || query_field='name'
 
 	if ! fetch_rest "user-manager/user" "$query_field=$encoded_card" "$tmp_user" || [ ! -s "$tmp_user" ] || grep -q '"error"' "$tmp_user"; then
-		fetch_rest "user-manager/user" "username=$encoded_card" "$tmp_user" || true
+		fetch_rest "user-manager/user" "name=$encoded_card" "$tmp_user" || true
 	fi
 
-	if [ -s "$tmp_user" ] && ! grep -q '"error"' "$tmp_user"; then
+	if [ -s "$tmp_user" ] && grep -q '^[[:space:]]*[{[]' "$tmp_user" && ! grep -q '"error"' "$tmp_user"; then
 		profile="$(first_json_value "$tmp_user" '@[0].profile' '@[0]["actual-profile"]' '@[0].group' '@[0].customer' '@.profile' '@["actual-profile"]' '@.group' '@.customer')"
 		balance="$(first_json_value "$tmp_user" '@[0]["remaining-uptime"]' '@[0]["time-left"]' '@[0]["remaining-time"]' '@[0]["remaining-bytes"]' '@[0].credit' '@[0]["limit-uptime"]' '@["remaining-uptime"]' '@["time-left"]' '@["remaining-time"]' '@["remaining-bytes"]' '@.credit' '@["limit-uptime"]')"
 		expires_at="$(first_json_value "$tmp_user" '@[0]["expires-at"]' '@[0]["valid-until"]' '@[0]["end-time"]' '@[0]["till-time"]' '@["expires-at"]' '@["valid-until"]' '@["end-time"]' '@["till-time"]')"
@@ -150,12 +170,23 @@ else
 				transfer_limit="$(first_json_value "$tmp_limitation" '@[0]["transfer-limit"]' '@[0]["download-limit"]' '@[0]["upload-limit"]' '@["transfer-limit"]' '@["download-limit"]' '@["upload-limit"]')"
 				uptime_limit="$(first_json_value "$tmp_limitation" '@[0]["uptime-limit"]' '@["uptime-limit"]')"
 				[ -n "$validity" ] || validity="$uptime_limit"
+				if [ -z "$balance" ]; then
+					if [ -n "$transfer_limit" ] && [ "$transfer_limit" != '0' ]; then
+						balance="$(human_bytes "$transfer_limit")"
+					elif [ -n "$uptime_limit" ] && [ "$uptime_limit" != '0s' ]; then
+						balance="$uptime_limit"
+					elif [ -n "$price" ]; then
+						balance="$price"
+					fi
+				fi
+				# Populate balance_total/balance_remaining for REST v7
 				if [ -n "$transfer_limit" ] && [ "$transfer_limit" != '0' ]; then
-					balance="$(human_bytes "$transfer_limit")"
-				elif [ -n "$uptime_limit" ] && [ "$uptime_limit" != '0s' ]; then
-					balance="$uptime_limit"
-				elif [ -n "$price" ]; then
-					balance="$price"
+					balance_total="$(human_bytes "$transfer_limit")"
+					[ -z "$balance_remaining" ] && balance_remaining="$balance"
+				fi
+				if [ -n "$uptime_limit" ] && [ "$uptime_limit" != '0s' ]; then
+					[ -z "$balance_total" ] && balance_total="$uptime_limit"
+					[ -z "$balance_remaining" ] && balance_remaining="$balance"
 				fi
 			fi
 		fi
@@ -169,10 +200,79 @@ else
 			message='تم الاتصال بـ RouterOS REST لكن لم تظهر حقول رصيد أو بروفايل لهذا الكرت. قد تختلف أسماء حقول User Manager حسب الإصدار.'
 		fi
 	else
-		source='routeros_rest_unreachable'
-		message='تعذر الوصول إلى RouterOS REST. فعّل www-ssl أو www على MikroTik وافتح المنفذ من OpenWrt.'
+		# Fallback to C API client for RouterOS v6
+		if [ -x /usr/libexec/hotspot-openwrt/mikrotik_api ]; then
+			tmp_v6="$(mktemp)"
+			/usr/libexec/hotspot-openwrt/mikrotik_api "$host" "$username" "$password" "$clean_card" > "$tmp_v6" 2>/dev/null
+			if [ -s "$tmp_v6" ] && ! grep -q '"error"' "$tmp_v6"; then
+				ok='true'
+				source='routeros_v6_api'
+				message='تمت قراءة معلومات الكرت من MikroTik User Manager (v6) عبر API C-Client.'
+				
+				profile="$(jsonfilter -i "$tmp_v6" -e '@["actual-profile"]' 2>/dev/null)"
+				disabled="$(jsonfilter -i "$tmp_v6" -e '@["disabled"]' 2>/dev/null)"
+				comment="$(jsonfilter -i "$tmp_v6" -e '@["comment"]' 2>/dev/null)"
+				
+				limit_bytes="$(jsonfilter -i "$tmp_v6" -e '@["limit-bytes-total"]' 2>/dev/null)"
+				down_used="$(jsonfilter -i "$tmp_v6" -e '@["download-used"]' 2>/dev/null)"
+				up_used="$(jsonfilter -i "$tmp_v6" -e '@["upload-used"]' 2>/dev/null)"
+				
+				if [ -z "$limit_bytes" ] || [ "$limit_bytes" = "0" ]; then
+					case "$profile" in
+						100)  limit_bytes=314572800;  validity="2d" ;;
+						200)  limit_bytes=838860800;  validity="4d" ;;
+						250)  limit_bytes=1335885824; validity="2d" ;;
+						500)  limit_bytes=2671771648; validity="1w" ;;
+						1000) limit_bytes=4294967296; validity="30d" ;;
+						1500) limit_bytes=7516192768; validity="30d" ;;
+						2000) limit_bytes=10737418240; validity="30d" ;;
+						3000) limit_bytes=21474836480; validity="30d" ;;
+						4000) limit_bytes=27917287424; validity="30d" ;;
+						5000) limit_bytes=38654705664; validity="30d" ;;
+					esac
+				fi
+				
+				if [ -n "$limit_bytes" ] && [ "$limit_bytes" != "0" ]; then
+					[ -z "$down_used" ] && down_used=0
+					[ -z "$up_used" ] && up_used=0
+					total_used=$((down_used + up_used))
+					rem_bytes=$((limit_bytes - total_used))
+					[ $rem_bytes -lt 0 ] && rem_bytes=0
+					
+					balance_total="$(human_bytes "$limit_bytes")"
+					balance_used="$(human_bytes "$total_used")"
+					balance_remaining="$(human_bytes "$rem_bytes")"
+					balance="$balance_remaining"
+				else
+					limit_up="$(jsonfilter -i "$tmp_v6" -e '@["limit-uptime"]' 2>/dev/null)"
+					up_used_t="$(jsonfilter -i "$tmp_v6" -e '@["uptime-used"]' 2>/dev/null)"
+					if [ -n "$limit_up" ] && [ "$limit_up" != "0" ]; then
+						balance="$limit_up"
+						balance_total="$limit_up"
+						balance_used="$up_used_t"
+					else
+						# Unlimited profile — show total usage
+						if [ -n "$down_used" ] && [ "$down_used" != "0" ]; then
+							[ -z "$up_used" ] && up_used=0
+							total_used=$((down_used + up_used))
+							balance="غير محدود"
+							balance_total="غير محدود"
+							balance_used="$(human_bytes "$total_used")"
+							balance_remaining="غير محدود"
+						fi
+					fi
+				fi
+			else
+				source='routeros_unreachable'
+				message='تعذر الوصول إلى RouterOS REST وإلى v6 API (تأكد من فتح منفذ 8728).'
+			fi
+			rm -f "$tmp_v6"
+		else
+			source='routeros_rest_unreachable'
+			message='تعذر الوصول إلى RouterOS REST. (عميل v6 غير متوفر).'
+		fi
 	fi
-	rm -f "$tmp_user" "$tmp_profile" "$tmp_profile_def" "$tmp_limitation" "$cred_file"
+	rm -f "$tmp_user" "$tmp_profile" "$tmp_profile_def" "$tmp_limitation"
 fi
 
 printf '{'
@@ -182,6 +282,13 @@ printf '"source":"%s",' "$(json_escape "$source")"
 printf '"card_number":"%s",' "$(json_escape "$card")"
 printf '"profile":"%s",' "$(json_escape "$profile")"
 printf '"balance":"%s",' "$(json_escape "$balance")"
+printf '"balance_total":"%s",' "$(json_escape "$balance_total")"
+printf '"balance_used":"%s",' "$(json_escape "$balance_used")"
+printf '"balance_remaining":"%s",' "$(json_escape "$balance_remaining")"
+printf '"balance_total_bytes":%s,' "${limit_bytes:-0}"
+printf '"balance_used_bytes":%s,' "${total_used:-0}"
+printf '"balance_remaining_bytes":%s,' "${rem_bytes:-0}"
+printf '"chilli_reference_used":%s,' "${chilli_reference_used:-0}"
 printf '"expires_at":"%s",' "$(json_escape "$expires_at")"
 printf '"validity":"%s",' "$(json_escape "$validity")"
 printf '"disabled":"%s",' "$(json_escape "$disabled")"

@@ -2,19 +2,31 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-hotspot-openwrt
 PKG_VERSION:=1.0
-PKG_RELEASE:=126
+PKG_RELEASE:=156
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKGARCH:=all
 PKG_LICENSE:=GPL-3.0-only
 
 include $(INCLUDE_DIR)/package.mk
 
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)
+	cp ./src/mikrotik_api.c $(PKG_BUILD_DIR)/
+	cp ./src/md5.c $(PKG_BUILD_DIR)/
+	cp ./src/md5.h $(PKG_BUILD_DIR)/
+endef
+
+define Build/Compile
+	$(TARGET_CC) $(TARGET_CFLAGS) -o $(PKG_BUILD_DIR)/mikrotik_api \
+		$(PKG_BUILD_DIR)/mikrotik_api.c $(PKG_BUILD_DIR)/md5.c
+endef
+
 define Package/luci-app-hotspot-openwrt
   SECTION:=luci
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
   TITLE:=LuCI Hotspot OpenWrt wizard for CoovaChilli and MikroTik RADIUS
-  DEPENDS:=+luci-base +rpcd +rpcd-mod-file +uhttpd +coova-chilli +kmod-tun +curl +ip-full +jsonfilter +unzip
+  DEPENDS:=+luci-base +rpcd +rpcd-mod-file +uhttpd +coova-chilli +kmod-tun +ip-full +jsonfilter +unzip
 endef
 
 define Package/luci-app-hotspot-openwrt/description
@@ -26,7 +38,6 @@ define Package/luci-app-hotspot-openwrt/conffiles
 /etc/config/hotspot_openwrt
 /etc/hotspot-openwrt/firewall.sh
 /etc/hotspot-openwrt/mac-cookies.db
-/etc/hotspot-openwrt/backups/
 endef
 
 define Package/luci-app-hotspot-openwrt/postinst
@@ -44,14 +55,13 @@ _macpw="$$(uci -q get hotspot_openwrt.main.mac_auth_password 2>/dev/null)"
 [ "$_sec" = '123456' ] && logger -t hotspot-openwrt 'WARNING: radius_secret is still the weak default "123456". Set a strong RADIUS shared secret.'
 [ "$_macpw" = 'mac' ] && logger -t hotspot-openwrt 'WARNING: mac_auth_password is still the weak default "mac". Set a strong password or disable MAC auth.'
 filelist=/dev/null
+# Hotspot يعتمد على RADIUS attributes (Session-Timeout, Max-Total-Octets) للوقت المتبقي والبيانات المتبقية.
+# REST API يُستدعى مرة واحدة عند تسجيل الدخول لجلب اسم البروفايل والرصيد وتاريخ الانتهاء.
+# تأكد من إعداد User Manager:
+# 1. /user-manager/profile/set [find] session-timeout=86400
+# 2. /user-manager/profile/set [find] max-total-octets=БАЙТ
+# تأكد من إعدادات REST API في Hotspot OpenWrt (إعدادات → REST API).
 exit 0
-endef
-
-define Build/Prepare
-	mkdir -p $(PKG_BUILD_DIR)
-endef
-
-define Build/Compile
 endef
 
 define Package/luci-app-hotspot-openwrt/install
@@ -79,16 +89,16 @@ define Package/luci-app-hotspot-openwrt/install
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/presence-watchdog $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/status-json $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/test-radius $(1)/usr/libexec/hotspot-openwrt/
-	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/userman-info $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/connectivity-test $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/enforcement-check $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/radius-proxy $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) ./files/usr/libexec/hotspot-openwrt/userman-info $(1)/usr/libexec/hotspot-openwrt/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/mikrotik_api $(1)/usr/libexec/hotspot-openwrt/
 	$(INSTALL_DIR) $(1)/www/cgi-bin
 	$(INSTALL_BIN) ./files/www/cgi-bin/generate_204 $(1)/www/cgi-bin/
 	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-card-info $(1)/www/cgi-bin/
 	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-login $(1)/www/cgi-bin/
 	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-logout $(1)/www/cgi-bin/
-	$(INSTALL_BIN) ./files/www/cgi-bin/hotspot-speedtest $(1)/www/cgi-bin/
 	$(INSTALL_BIN) ./files/www/cgi-bin/mikrotik-gate $(1)/www/cgi-bin/
 	$(INSTALL_DIR) $(1)/etc/chilli
 	$(INSTALL_BIN) ./files/etc/chilli/up.sh $(1)/etc/chilli/

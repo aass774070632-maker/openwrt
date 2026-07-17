@@ -78,18 +78,15 @@ nft "flush chain inet fw4 hotspot_openwrt_tun_input" 2>/dev/null || true
 nft "add rule inet fw4 hotspot_openwrt_tun_input iifname \"tun0\" counter accept" 2>/dev/null || true
 nft "add rule inet fw4 hotspot_openwrt_tun_input iifname \"tun1\" counter accept" 2>/dev/null || true
 nft -a list chain inet fw4 input 2>/dev/null | grep -q 'jump hotspot_openwrt_tun_input' || \
-        nft "insert rule inet fw4 input jump hotspot_openwrt_tun_input comment \"hotspot-openwrt tun input\"" 2>/dev/null || true
+	nft "insert rule inet fw4 input jump hotspot_openwrt_tun_input comment \"hotspot-openwrt tun input\"" 2>/dev/null || true
 
-# ── Blocked-MAC enforcement chain ───────────────────────────────────────────
-nft "add chain inet fw4 hotspot_mac_acl" 2>/dev/null || true
+# ── Blocked-MAC enforcement (forward + input) ──────────────────────────────
+# Block in forward path (client → internet)
+nft "add chain inet fw4 hotspot_mac_acl { type filter hook forward priority -200; policy accept; }" 2>/dev/null || true
 nft "flush chain inet fw4 hotspot_mac_acl" 2>/dev/null || true
-# Drop packets from blocked MACs before they even reach Chilli
 nft "add rule inet fw4 hotspot_mac_acl ether saddr @hotspot_blocked_mac counter drop" 2>/dev/null || true
-
-# Hook the MAC ACL chain into the forward hook (priority -200 so it runs first)
-nft "add chain inet fw4 hotspot_mac_acl_hook { type filter hook forward priority -200; policy accept; }" 2>/dev/null || true
-nft "flush chain inet fw4 hotspot_mac_acl_hook" 2>/dev/null || true
-nft "add rule inet fw4 hotspot_mac_acl_hook ether saddr @hotspot_blocked_mac counter drop" 2>/dev/null || true
+# Block in input path (client → router itself)
+nft "add rule inet fw4 hotspot_mac_acl ether saddr @hotspot_blocked_mac counter reject" 2>/dev/null || true
 
 # ── CoA / Disconnect-Message (RFC 3576) ─────────────────────────────────────
 # Allow CoA UDP from the RADIUS server so CoA-Disconnect messages reach Chilli.
@@ -110,5 +107,33 @@ fi
 nft "add chain inet fw4 hotspot_postrouting { type filter hook postrouting priority 300; policy accept; }" 2>/dev/null || true
 nft "flush chain inet fw4 hotspot_postrouting" 2>/dev/null || true
 nft "add rule inet fw4 hotspot_postrouting oifname \"tun*\" tcp flags syn tcp option maxseg size set rt mtu" 2>/dev/null || true
+
+# ── Authorized client set (bypass NAT redirect) ──────────────────────────┤
+# When a client is authorized via the login page, their IP is added to     │
+# this set. The NAT redirect rules below skip IPs in this set so that     │
+# authorized HTTP traffic flows through chilli's tun (not to UAM port).   │
+nft "add set inet fw4 hotspot_authorized { type ipv4_addr; flags timeout; }" 2>/dev/null || true
+nft "flush set inet fw4 hotspot_authorized" 2>/dev/null || true
+
+# ── Traffic Intercept: NAT redirect HTTP → UAM ─────────────────────────┤
+# Redirects HTTP (port 80) from each hotspot bridge to its chilli UAM     │
+# server ONLY for clients NOT in the authorized set.                       │
+#                                                                         │
+# br-hotspot  (2.4 GHz,  net 192.168.10.0/24)  →  :3990 (primary)        │
+# br-hotspot2 (5   GHz,  net 192.168.20.0/24)  →  :3991 (secondary)      │
+nft "add chain inet fw4 hotspot_nat_redirect" 2>/dev/null || true
+nft "flush chain inet fw4 hotspot_nat_redirect" 2>/dev/null || true
+# Allow traffic to the hotspot IPs themselves (UAM server) to bypass redirect,
+# preventing redirect loops when chilli_redir sends the client to login.html.
+nft "add rule inet fw4 hotspot_nat_redirect iifname \"br-hotspot\"  tcp dport 80 ip daddr $HOTSPOT_IP counter accept" 2>/dev/null || true
+nft "add rule inet fw4 hotspot_nat_redirect iifname \"br-hotspot2\" tcp dport 80 ip daddr $SECONDARY_HOTSPOT_IP counter accept" 2>/dev/null || true
+nft "add rule inet fw4 hotspot_nat_redirect iifname \"br-hotspot\"  tcp dport 80 ip saddr != @hotspot_authorized counter redirect to :3990" 2>/dev/null || true
+nft "add rule inet fw4 hotspot_nat_redirect iifname \"br-hotspot2\" tcp dport 80 ip saddr != @hotspot_authorized counter redirect to :3991" 2>/dev/null || true
+nft -a list chain inet fw4 dstnat 2>/dev/null | grep -q 'jump hotspot_nat_redirect' || \
+	nft "insert rule inet fw4 dstnat jump hotspot_nat_redirect comment \"hotspot-openwrt nat redirect\"" 2>/dev/null || true
+
+# The forward_hotspot chain (fw4-generated) drops unauthorized forwarded
+# traffic from the bridge interfaces. Authorized traffic goes through
+# chilli's tun0/tun1 (accepted by hotspot_openwrt_tun_forward).
 
 exit 0

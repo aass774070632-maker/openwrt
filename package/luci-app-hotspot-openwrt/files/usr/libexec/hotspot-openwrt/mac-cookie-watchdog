@@ -69,8 +69,8 @@ duration_to_seconds() {
 }
 
 post_login_url() {
- 	local hotspot_ip portal_path open_status_page
- 	hotspot_ip="$1"
+	local hotspot_ip portal_path open_status_page
+	hotspot_ip="$1"
 	[ -n "$hotspot_ip" ] || hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip || echo 10.10.10.1)"
 	portal_path="$(uci -q get hotspot_openwrt.main.portal_path || echo /hotspot)"
 	open_status_page="$(uci -q get hotspot_openwrt.main.open_status_page || echo always)"
@@ -96,8 +96,6 @@ scan_chilli_socket() {
 		valid_client_ip "$ip" || continue
 		normalized_mac="$(normalize_mac "$mac")"
 		cookie_line="$($helper find "$normalized_mac" 2>/dev/null || true)"
-		chilli_card="$(strip_realm "$(printf '%s' "$rest" | awk '{ print $3 }')")"
-		[ -n "$cookie_line" ] || [ -z "$chilli_card" ] || [ "$chilli_card" = '-' ] || cookie_line="$($helper find-card "$chilli_card" 2>/dev/null || true)"
 		[ -n "$cookie_line" ] || continue
 		if ! grep -qx "$normalized_mac" "$associated_file" 2>/dev/null && ! client_responds "$ip"; then
 			logger -t hotspot-openwrt-mac-cookie "skipped absent mac-cookie client instance=$instance mac=$normalized_mac ip=$ip"

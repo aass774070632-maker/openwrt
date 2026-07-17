@@ -470,8 +470,8 @@ function getValue(option) {
 }
 
 function fieldId(option) {
-    if (!option) return 'hotspot-field-unknown';
-    return 'hotspot-openwrt-' + option.replace(/_/g, '-');
+	if (!option) return 'hotspot-field-unknown';
+	return 'hotspot-openwrt-' + option.replace(/_/g, '-');
 }
 
 function collectValue(option) {
@@ -1144,7 +1144,26 @@ function clientTable(title, count, clients, hostMode) {
 							});
 						}
 					}
-				}, 'حذف') ])
+				}, 'حذف'),
+				E('button', {
+					'class': 'btn cbi-button cbi-button-negative',
+					'style': 'margin-left: 5px;',
+					'click': function(ev) {
+						ev.preventDefault();
+						if (confirm('هل أنت متأكد من حظر الجهاز نهائياً؟\nMAC: ' + client.mac)) {
+							fs.exec_direct('/usr/libexec/hotspot-openwrt/kick-client', [client.mac || '', client.ip || '', client.state || '', 'block'], 'json').then(function(res) {
+								if (res && res.ok) {
+									notify('تم حظر الجهاز وطرده.');
+									window.setTimeout(function() { window.location.reload(); }, 1500);
+								} else {
+									notify((res && res.message) || 'فشل حظر الجهاز.');
+								}
+							}).catch(function(err) {
+								notify(err.message || String(err));
+							});
+						}
+					}
+				}, 'حظر') ])
 			]);
 		}))) : E('div', { 'class': 'hotspot-empty' }, hostMode ? 'لا توجد أجهزة في Hosts الآن.' : 'لا توجد جلسات Active الآن.')
 	]);
