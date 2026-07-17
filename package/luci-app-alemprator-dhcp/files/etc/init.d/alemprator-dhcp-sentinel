@@ -1,19 +1,24 @@
 #!/bin/sh /etc/rc.common
 
-START=98
+START=99
 STOP=10
 
 USE_PROCD=1
 PROG=/usr/libexec/alemprator-dhcp/dhcp-sentinel
 
 start_service() {
-    procd_open_instance
-    procd_set_param command "$PROG"
-    procd_set_param respawn
-    procd_close_instance
+	procd_open_instance
+	procd_set_param command "$PROG"
+	procd_set_param respawn 3600 5 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
 }
 
 stop_service() {
-    killall dhcp-sentinel 2>/dev/null
-    rm -f /var/run/alemprator.heartbeat
+	killall dhcp-sentinel 2>/dev/null
+	rm -f /var/run/alemprator.heartbeat
+	# Clean up any leftover lockdown rules so stopping the service
+	# never leaves the network permanently severed.
+	nft delete table inet alemprator_lockdown 2>/dev/null || true
 }

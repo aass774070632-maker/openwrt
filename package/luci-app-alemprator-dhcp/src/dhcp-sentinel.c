@@ -85,17 +85,20 @@ int main(int argc, char **argv) {
     srand(time(NULL));
     char current_hash[65];
     char stored_hash[65];
+    int in_lockdown = 0;
 
     // Main Watchdog Loop
     while (1) {
         if (access(GUARD_BIN, F_OK) != 0) {
             // Guard binary deleted! Execute kill switch.
+            in_lockdown = 1;
             execute_kill_switch();
             sleep(SLEEP_INTERVAL);
             continue;
         }
 
         if (compute_sha256(GUARD_BIN, current_hash) != 0) {
+            in_lockdown = 1;
             execute_kill_switch();
             sleep(SLEEP_INTERVAL);
             continue;
@@ -110,23 +113,33 @@ int main(int argc, char **argv) {
                 fclose(store);
             }
         } else {
-            if (fscanf(store, "%64s", stored_hash) == 1) {
-                if (strcmp(current_hash, stored_hash) != 0) {
-                    // Hash mismatch! Tampering detected!
-                    fclose(store);
-                    execute_kill_switch();
-                    sleep(SLEEP_INTERVAL);
-                    continue; // Stay in lockdown
-                }
-            }
+            int read_ok = (fscanf(store, "%64s", stored_hash) == 1);
             fclose(store);
+            if (!read_ok) {
+                // Stored hash unreadable: re-establish TOFU baseline
+                // rather than silently trusting an unknown state.
+                FILE *w = fopen(HASH_STORE, "w");
+                if (w) {
+                    fprintf(w, "%s\n", current_hash);
+                    fclose(w);
+                }
+            } else if (strcmp(current_hash, stored_hash) != 0) {
+                // Hash mismatch! Tampering detected!
+                in_lockdown = 1;
+                execute_kill_switch();
+                sleep(SLEEP_INTERVAL);
+                continue; // Stay in lockdown
+            }
         }
 
         // If we reach here, system is secure. Generate heartbeat for Hotspot.
         generate_heartbeat();
 
-        // Restore network if it was temporarily locked and now secure (re-auth)
-        system("nft delete table inet alemprator_lockdown 2>/dev/null");
+        // Restore network only when we were previously in lockdown.
+        if (in_lockdown) {
+            system("nft delete table inet alemprator_lockdown 2>/dev/null");
+            in_lockdown = 0;
+        }
 
         sleep(SLEEP_INTERVAL);
     }
