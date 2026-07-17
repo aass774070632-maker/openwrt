@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=alemprator-network-protection
 PKG_VERSION:=1.0
-PKG_RELEASE:=11
+PKG_RELEASE:=12
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKGARCH:=all
 PKG_LICENSE:=GPL-3.0-only
@@ -69,6 +69,14 @@ define Package/alemprator-network-protection/install
 	$(INSTALL_DIR) $(1)/etc/rc.d
 	$(LN) ../init.d/alemprator-network-protection $(1)/etc/rc.d/S98alemprator-network-protection
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/np-monitor $(1)/usr/libexec/alemprator-network-protection/ 2>/dev/null || true
+endef
+
+define Package/alemprator-network-protection/postinst
+#!/bin/sh
+[ "$${IPKG_NO_SCRIPT}" = "1" ] && exit 0
+# Reload rpcd in the background so package install is never blocked on it.
+(/etc/init.d/rpcd reload >/dev/null 2>&1 || /etc/init.d/rpcd restart >/dev/null 2>&1) &
+exit 0
 endef
 
 $(eval $(call BuildPackage,alemprator-network-protection))
