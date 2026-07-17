@@ -117,7 +117,11 @@ EOF
 if [ "$is_configured" = 1 ]; then
 	rm -f "$PENDING_FLAG"
 	rm -f "$BASELINE_FILE"
-	# Even on sysupgrade/reconfigured devices, ensure DNS fallback servers are set
+	# Even on sysupgrade/reconfigured devices, ensure DNS fallback servers are set.
+	# Guard against a missing @dnsmasq[0] section so the script never aborts.
+	if ! uci -q get dhcp.@dnsmasq[0] >/dev/null 2>&1; then
+		uci -q add dhcp dnsmasq >/dev/null 2>&1 || true
+	fi
 	if ! uci -q get dhcp.@dnsmasq[0].server 2>/dev/null | grep -q '8.8.8.8'; then
 		uci -q delete dhcp.@dnsmasq[0].server 2>/dev/null || true
 		uci -q add_list dhcp.@dnsmasq[0].server='8.8.8.8'
@@ -141,8 +145,15 @@ fi
 
 touch "$PENDING_FLAG"
 
-uci -q batch <<EOF >/dev/null
+# Ensure the main @dnsmasq[0] section exists before we reference it, otherwise
+# the uci batch aborts and none of the setup config gets committed.
+if ! uci -q get dhcp.@dnsmasq[0] >/dev/null 2>&1; then
+	uci -q add dhcp dnsmasq >/dev/null 2>&1 || true
+fi
+
+	uci -q batch <<EOF >/dev/null
 	set network.${SETUP_NETWORK}=interface
+	set network.${SETUP_NETWORK}.device='${SETUP_NETWORK}'
 	set network.${SETUP_NETWORK}.proto='static'
 	set network.${SETUP_NETWORK}.ipaddr='${DEFAULT_SETUP_IPADDR}'
 	set network.${SETUP_NETWORK}.netmask='${DEFAULT_SETUP_NETMASK}'
