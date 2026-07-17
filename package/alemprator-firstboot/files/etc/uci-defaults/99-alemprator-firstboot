@@ -153,7 +153,6 @@ fi
 
 	uci -q batch <<EOF >/dev/null
 	set network.${SETUP_NETWORK}=interface
-	set network.${SETUP_NETWORK}.device='${SETUP_NETWORK}'
 	set network.${SETUP_NETWORK}.proto='static'
 	set network.${SETUP_NETWORK}.ipaddr='${DEFAULT_SETUP_IPADDR}'
 	set network.${SETUP_NETWORK}.netmask='${DEFAULT_SETUP_NETMASK}'

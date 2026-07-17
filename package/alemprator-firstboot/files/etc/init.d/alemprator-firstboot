@@ -241,16 +241,16 @@ provision_setup_ap() {
 	radio="$(uci -q get ${CFG}.main.radio 2>/dev/null || echo 'radio0')"
 	ssid="$(uci -q get ${CFG}.main.ssid 2>/dev/null || echo 'ALemprator-Setup')"
 
-	# Setup AP network interface: a direct L3 interface (no bridge device).
-	# Using a bridge with an underscore/long name previously hung netifd, so the
-	# wireless iface is bound as an L3 interface directly (e.g. phy0-ap0).
+	# Setup AP network interface: a direct L3 interface bound to the wifi-iface
+	# (no bridge device, no explicit 'device' — the wireless binding with
+	# network='${network_section}' creates the L3 link on phy0-ap0). Setting an
+	# explicit device name forced netifd to look for a non-existent netdev.
 	if ! uci -q get network.${network_section} >/dev/null 2>&1; then
 		uci -q set network.${network_section}=interface
 		changed_network=1
 	fi
-	# Always ensure the interface uses a direct L3 device and has IP
-	if [ "$(uci -q get network.${network_section}.device)" != "${network_section}" ]; then
-		uci -q set network.${network_section}.device="${network_section}"
+	if [ -n "$(uci -q get network.${network_section}.device)" ]; then
+		uci -q delete network.${network_section}.device
 		changed_network=1
 	fi
 	if [ "$(uci -q get network.${network_section}.proto)" != "static" ]; then
