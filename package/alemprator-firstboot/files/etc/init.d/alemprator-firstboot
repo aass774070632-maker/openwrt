@@ -224,6 +224,87 @@ sync_firstboot_flags() {
 	fi
 }
 
+provision_setup_ap() {
+	# Create the temporary Setup AP wireless iface + network + dhcp + firewall
+	# if they are missing while firstboot is still pending.  This makes the
+	# Setup AP resilient: it is re-created on every boot (not only on the very
+	# first uci-defaults run) so a user who reboots before finishing the wizard
+	# can always reconnect to the setup network.
+	local setup_ip setup_mask radio ssid
+	local changed_network=0 changed_dhcp=0 changed_wireless=0 changed_firewall=0
+
+	[ "$enabled" = "1" ] || return 0
+	[ -f "$pending_flag" ] || return 0
+
+	setup_ip="$(uci -q get ${CFG}.main.setup_ipaddr 2>/dev/null || echo '192.168.8.1')"
+	setup_mask="$(uci -q get ${CFG}.main.setup_netmask 2>/dev/null || echo '255.255.255.0')"
+	radio="$(uci -q get ${CFG}.main.radio 2>/dev/null || echo 'radio0')"
+	ssid="$(uci -q get ${CFG}.main.ssid 2>/dev/null || echo 'ALemprator-Setup')"
+
+	# Network section
+	if ! uci -q get network.${network_section} >/dev/null 2>&1; then
+		uci -q batch <<EOF >/dev/null 2>&1
+			set network.${network_section}=interface
+			set network.${network_section}.proto='static'
+			set network.${network_section}.ipaddr='${setup_ip}'
+			set network.${network_section}.netmask='${setup_mask}'
+			commit network
+EOF
+		changed_network=1
+	fi
+
+	# DHCP section
+	if ! uci -q get dhcp.${dhcp_section} >/dev/null 2>&1; then
+		uci -q batch <<EOF >/dev/null 2>&1
+			set dhcp.${dhcp_section}=dhcp
+			set dhcp.${dhcp_section}.interface='${network_section}'
+			set dhcp.${dhcp_section}.start='100'
+			set dhcp.${dhcp_section}.limit='50'
+			set dhcp.${dhcp_section}.leasetime='1h'
+			delete dhcp.${dhcp_section}.ignore
+			commit dhcp
+EOF
+		changed_dhcp=1
+	fi
+
+	# Firewall section
+	if ! uci -q get firewall.${firewall_section} >/dev/null 2>&1; then
+		uci -q batch <<EOF >/dev/null 2>&1
+			set firewall.${firewall_section}=zone
+			set firewall.${firewall_section}.name='${firewall_section}'
+			set firewall.${firewall_section}.network='${network_section}'
+			set firewall.${firewall_section}.input='ACCEPT'
+			set firewall.${firewall_section}.output='ACCEPT'
+			set firewall.${firewall_section}.forward='REJECT'
+			commit firewall
+EOF
+		changed_firewall=1
+	fi
+
+	# Wireless Setup AP iface
+	if ! uci -q get wireless.${wireless_section} >/dev/null 2>&1; then
+		uci -q batch <<EOF >/dev/null 2>&1
+			set wireless.${wireless_section}=wifi-iface
+			set wireless.${wireless_section}.device='${radio}'
+			set wireless.${wireless_section}.mode='ap'
+			set wireless.${wireless_section}.ssid='${ssid}'
+			set wireless.${wireless_section}.encryption='none'
+			set wireless.${wireless_section}.network='${network_section}'
+			set wireless.${wireless_section}.disabled='0'
+			set wireless.${wireless_section}.isolate='1'
+			commit wireless
+EOF
+		changed_wireless=1
+	fi
+
+	[ "$changed_network" = 1 ] && /etc/init.d/network reload >/dev/null 2>&1 || true
+	[ "$changed_dhcp" = 1 ] && /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+	[ "$changed_firewall" = 1 ] && /etc/init.d/firewall restart >/dev/null 2>&1 || true
+	[ "$changed_wireless" = 1 ] && wifi reload >/dev/null 2>&1 || true
+
+	[ "$changed_network" = 1 ] || [ "$changed_dhcp" = 1 ] || [ "$changed_wireless" = 1 ] || [ "$changed_firewall" = 1 ]
+}
+
 boot() {
 	load_firstboot_config
 
@@ -232,8 +313,10 @@ boot() {
 	fi
 
 	sync_firstboot_flags
+	load_firstboot_config
 
 	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ] && [ -f "$pending_flag" ]; then
+		provision_setup_ap >/dev/null 2>&1 || true
 		ensure_baseline_file >/dev/null 2>&1 || true
 		setup_captive_portal
 	fi
@@ -297,6 +380,7 @@ start_service() {
 	load_firstboot_config
 
 	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ] && [ -f "$pending_flag" ]; then
+		provision_setup_ap >/dev/null 2>&1 || true
 		ensure_baseline_file >/dev/null 2>&1 || true
 		setup_captive_portal
 	fi
