@@ -45,9 +45,9 @@ esac
 DEFAULT_LAN_NETMASK="255.255.255.0"
 DEFAULT_SETUP_IPADDR="192.168.8.1"
 DEFAULT_SETUP_NETMASK="255.255.255.0"
-SETUP_NETWORK="alemprator_setup"
+SETUP_NETWORK="br-setup"
 SETUP_WIRELESS="alemprator_firstboot"
-SETUP_FIREWALL="alemprator_setup"
+SETUP_FIREWALL="br-setup"
 is_configured=0
 configured_once="$(uci -q get ${CFG}.main.configured_once)"
 

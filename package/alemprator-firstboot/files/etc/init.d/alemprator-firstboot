@@ -68,10 +68,10 @@ load_firstboot_config() {
 	config_get auto_cleanup_pending main auto_cleanup_pending 0
 	config_get configured_flag main configured_flag "/etc/configured"
 	config_get pending_flag main pending_flag "/etc/alemprator-firstboot-pending"
-	config_get network_section main network_section "alemprator_setup"
-	config_get dhcp_section main dhcp_section "alemprator_setup"
+	config_get network_section main network_section "br-setup"
+	config_get dhcp_section main dhcp_section "br-setup"
 	config_get wireless_section main wireless_section "alemprator_firstboot"
-	config_get firewall_section main firewall_section "alemprator_setup"
+	config_get firewall_section main firewall_section "br-setup"
 }
 
 schedule_deferred_cleanup() {
