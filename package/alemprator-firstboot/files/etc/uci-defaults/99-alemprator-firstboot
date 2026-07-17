@@ -209,6 +209,11 @@ uci -q set ${CFG}.main.auto_cleanup_armed='1'
 	
 /etc/init.d/network reload >/dev/null 2>&1 || true
 /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+# Some builds fail to start dnsmasq inside ujail; fallback to direct start
+if ! pgrep -x dnsmasq >/dev/null 2>&1; then
+	/usr/sbin/dnsmasq -C /var/etc/dnsmasq.conf."$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)" \
+		-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
+fi
 /etc/init.d/firewall restart >/dev/null 2>&1 || true
 wifi reload >/dev/null 2>&1 || true
 

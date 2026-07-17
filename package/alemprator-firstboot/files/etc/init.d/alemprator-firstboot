@@ -140,7 +140,15 @@ cleanup_firstboot_runtime() {
 	rm -f "$BASELINE_FILE"
 
 	[ "$changed_network" = 1 ] && /etc/init.d/network reload >/dev/null 2>&1 || true
-	[ "$changed_dhcp" = 1 ] && /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+	if [ "$changed_dhcp" = 1 ]; then
+		/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+		if ! pgrep -x dnsmasq >/dev/null 2>&1; then
+			local dnsmasq_cfg
+			dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
+			/usr/sbin/dnsmasq -C "/var/etc/dnsmasq.conf.${dnsmasq_cfg}" \
+				-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
+		fi
+	fi
 	[ "$changed_firewall" = 1 ] && /etc/init.d/firewall restart >/dev/null 2>&1 || true
 	[ "$changed_wireless" = 1 ] && wifi reload >/dev/null 2>&1 || true
 }
@@ -224,6 +232,11 @@ boot() {
 	fi
 
 	sync_firstboot_flags
+
+	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ] && [ -f "$pending_flag" ]; then
+		ensure_baseline_file >/dev/null 2>&1 || true
+		setup_captive_portal
+	fi
 }
 
 setup_captive_portal() {
@@ -238,6 +251,13 @@ setup_captive_portal() {
 		commit dhcp
 EOF
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+	# Fallback: start directly if jail fails
+	if ! pgrep -x dnsmasq >/dev/null 2>&1; then
+		local dnsmasq_cfg
+		dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
+		/usr/sbin/dnsmasq -C "/var/etc/dnsmasq.conf.${dnsmasq_cfg}" \
+			-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
+	fi
 
 	# nftables: أعد HTTP (80) من العملاء للراوتر
 	nft add chain inet fw4 alemprator_captive 2>/dev/null || true
@@ -256,6 +276,13 @@ remove_captive_portal() {
 	uci -q delete dhcp.@dnsmasq[0].address 2>/dev/null || true
 	uci -q commit dhcp 2>/dev/null || true
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+	# Fallback: start directly if jail fails
+	if ! pgrep -x dnsmasq >/dev/null 2>&1; then
+		local dnsmasq_cfg
+		dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
+		/usr/sbin/dnsmasq -C "/var/etc/dnsmasq.conf.${dnsmasq_cfg}" \
+			-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
+	fi
 	logger -t alemprator-firstboot "Captive portal removed"
 }
 
@@ -269,7 +296,7 @@ start_service() {
 	sync_firstboot_flags
 	load_firstboot_config
 
-	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ]; then
+	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ] && [ -f "$pending_flag" ]; then
 		ensure_baseline_file >/dev/null 2>&1 || true
 		setup_captive_portal
 	fi
