@@ -392,11 +392,15 @@ setup_captive_portal() {
 		commit dhcp
 EOF
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
-	# Fallback: start directly if jail fails
+	# The init 'restart' may fail (udhcpc hook) and leave dnsmasq dead. Ensure
+	# it is actually running by locating the real generated config file
+	# (do not trust @dnsmasq[0].'.name', it can drift from the filename).
 	if ! pidof dnsmasq >/dev/null 2>&1; then
-		local dnsmasq_cfg
-		dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
-		/usr/sbin/dnsmasq -C "/var/etc/dnsmasq.conf.${dnsmasq_cfg}" \
+		local dnsmasq_conf
+		dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
+		[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
+		mkdir -p /var/run/dnsmasq
+		/usr/sbin/dnsmasq -C "$dnsmasq_conf" \
 			-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
 	fi
 
