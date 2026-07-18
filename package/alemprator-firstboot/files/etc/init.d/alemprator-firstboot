@@ -326,9 +326,14 @@ EOF
 	# reach the captive portal. Always (re)start dnsmasq when provisioning.
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
 	if ! pgrep -x dnsmasq >/dev/null 2>&1; then
-		local dnsmasq_cfg
+		# init script restart may fail silently (e.g. udhcpc hook); fall back
+		# to starting dnsmasq directly from the generated config file.
+		local dnsmasq_cfg dnsmasq_conf
 		dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
-		/usr/sbin/dnsmasq -C "/var/etc/dnsmasq.conf.${dnsmasq_cfg}" \
+		dnsmasq_conf="/var/etc/dnsmasq.conf.${dnsmasq_cfg}"
+		[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
+		mkdir -p /var/run/dnsmasq
+		/usr/sbin/dnsmasq -C "$dnsmasq_conf" \
 			-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
 	fi
 
