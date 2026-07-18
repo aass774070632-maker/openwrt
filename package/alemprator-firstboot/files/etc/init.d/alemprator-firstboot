@@ -343,42 +343,10 @@ EOF
 }
 
 boot() {
-	load_firstboot_config
-
-	# Factory-reset safety net: if the device is not yet configured OR the
-	# setup section names are stale (e.g. uci-defaults did not run, or an old
-	# config carried over after firstboot -y wiped the overlay), bootstrap the
-	# firstboot flags and force the canonical br_setup section names so the
-	# Setup AP is always created on a clean device.
-	if [ "$enabled" != "1" ] || [ "$configured_once" != "1" ] || [ ! -f "$configured_flag" ] || \
-	   [ "$network_section" != "br_setup" ] || [ "$dhcp_section" != "br_setup" ] || [ "$firewall_section" != "br_setup" ]; then
-		uci -q set ${CFG}.main.enabled='1'
-		uci -q set ${CFG}.main.configured_once='0'
-		uci -q set ${CFG}.main.auto_cleanup_armed='1'
-		uci -q set ${CFG}.main.network_section='br_setup'
-		uci -q set ${CFG}.main.dhcp_section='br_setup'
-		uci -q set ${CFG}.main.firewall_section='br_setup'
-		uci -q commit ${CFG}
-		touch "$pending_flag"
-		load_firstboot_config
-	fi
-
-	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ] && [ "$auto_cleanup_pending" = "1" ]; then
-		cleanup_firstboot_runtime
-	fi
-
-	sync_firstboot_flags
-	load_firstboot_config
-
-	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ] && [ -f "$pending_flag" ]; then
-		logger -t alemprator-firstboot "boot: provisioning setup AP (enabled=$enabled armed=$auto_cleanup_armed pending=$( [ -f "$pending_flag" ] && echo Y || echo N ))"
-		provision_setup_ap
-		rc=$?
-		logger -t alemprator-firstboot "boot: provision_setup_ap rc=$rc dnsmasq=$( pidof dnsmasq >/dev/null && echo Y || echo N )"
-		ensure_baseline_file >/dev/null 2>&1 || true
-		setup_captive_portal
-		logger -t alemprator-firstboot "boot: captive portal done dnsmasq=$( pidof dnsmasq >/dev/null && echo Y || echo N )"
-	fi
+	# Traditional rc.common calls boot() -> start(); procd rc.common ends up
+	# in start_service() -> start(). Delegate to start() so the logic lives in
+	# exactly one place.
+	start "$@"
 }
 
 setup_captive_portal() {
@@ -456,8 +424,33 @@ remove_captive_portal() {
 	logger -t alemprator-firstboot "Captive portal removed"
 }
 
+# Traditional rc.common invokes start() on boot (and start = boot). procd-based
+# rc.common invokes start_service(). Provide both so the script works whether or
+# not procd init scripts are in use on the target device.
 start_service() {
+	start "$@"
+}
+
+start() {
 	load_firstboot_config
+
+	# Factory-reset safety net: if the device is not yet configured OR the
+	# setup section names are stale (e.g. uci-defaults did not run, or an old
+	# config carried over after firstboot -y wiped the overlay), bootstrap the
+	# firstboot flags and force the canonical br_setup section names so the
+	# Setup AP is always created on a clean device.
+	if [ "$enabled" != "1" ] || [ "$configured_once" != "1" ] || [ ! -f "$configured_flag" ] || \
+	   [ "$network_section" != "br_setup" ] || [ "$dhcp_section" != "br_setup" ] || [ "$firewall_section" != "br_setup" ]; then
+		uci -q set ${CFG}.main.enabled='1'
+		uci -q set ${CFG}.main.configured_once='0'
+		uci -q set ${CFG}.main.auto_cleanup_armed='1'
+		uci -q set ${CFG}.main.network_section='br_setup'
+		uci -q set ${CFG}.main.dhcp_section='br_setup'
+		uci -q set ${CFG}.main.firewall_section='br_setup'
+		uci -q commit ${CFG}
+		touch "$pending_flag"
+		load_firstboot_config
+	fi
 
 	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ] && [ "$auto_cleanup_pending" = "1" ]; then
 		cleanup_firstboot_runtime
@@ -472,10 +465,12 @@ start_service() {
 		setup_captive_portal
 	fi
 
+	# Background monitor loop (detached so it survives the init script exit).
 	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ]; then
-		procd_open_instance
-		procd_set_param command /bin/sh -c 'while true; do /etc/init.d/alemprator-firstboot monitor_once >/dev/null 2>&1 || true; sleep 5; done'
-		procd_close_instance
+		( while true; do
+			/etc/init.d/alemprator-firstboot monitor_once >/dev/null 2>&1 || true
+			sleep 5
+		done ) &
 	fi
 }
 
