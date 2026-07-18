@@ -218,17 +218,15 @@ uci -q set ${CFG}.main.auto_cleanup_armed='1'
 	uci -q commit ${CFG}
 	
 /etc/init.d/network reload >/dev/null 2>&1 || true
-/etc/init.d/dnsmasq enable >/dev/null 2>&1 || true
-/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
-# Some builds fail to start dnsmasq inside ujail; fallback to direct start.
-# Locate the real generated config file (don't trust @dnsmasq[0].'.name').
-if ! pidof dnsmasq >/dev/null 2>&1; then
-	_dnsconf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
-	[ -f "$_dnsconf" ] || _dnsconf="/var/etc/dnsmasq.conf"
-	mkdir -p /var/run/dnsmasq
-	/usr/sbin/dnsmasq -C "$_dnsconf" \
-		-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
-fi
+# The dnsmasq init restart/start is broken on this device; launch it directly
+# from the real generated config file (don't trust @dnsmasq[0].'.name').
+killall dnsmasq 2>/dev/null || true
+sleep 1
+_dnsconf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
+[ -f "$_dnsconf" ] || _dnsconf="/var/etc/dnsmasq.conf"
+mkdir -p /var/run/dnsmasq
+/usr/sbin/dnsmasq -C "$_dnsconf" \
+	-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
 /etc/init.d/firewall restart >/dev/null 2>&1 || true
 wifi reload >/dev/null 2>&1 || true
 

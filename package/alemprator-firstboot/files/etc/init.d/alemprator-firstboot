@@ -323,21 +323,19 @@ EOF
 	[ "$changed_firewall" = 1 ] && /etc/init.d/firewall restart >/dev/null 2>&1 || true
 	[ "$changed_wireless" = 1 ] && wifi reload >/dev/null 2>&1 || true
 	# DHCP is mandatory on the setup network so clients can obtain an IP and
-	# reach the captive portal. dnsmasq is sometimes disabled on this device,
-	# so enable it first, then (re)start it. The init 'restart' may fail
-	# silently (udhcpc hook), so fall back to launching dnsmasq directly from
-	# the real generated config file (do not trust @dnsmasq[0].'.name', it can
-	# drift from the filename).
-	/etc/init.d/dnsmasq enable >/dev/null 2>&1 || true
-	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
-	if ! pidof dnsmasq >/dev/null 2>&1; then
-		local dnsmasq_conf
-		dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
-		[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
-		mkdir -p /var/run/dnsmasq
-		/usr/sbin/dnsmasq -C "$dnsmasq_conf" \
-			-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
-	fi
+	# reach the captive portal. The dnsmasq init script's restart/start is
+	# broken on this device (it fails via the udhcpc hook and can kill a
+	# running instance), so launch dnsmasq directly from the real generated
+	# config file. Do not trust @dnsmasq[0].'.name' (it can drift from the
+	# filename). Always (re)start so a stale instance is replaced.
+	killall dnsmasq 2>/dev/null || true
+	sleep 1
+	local dnsmasq_conf
+	dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
+	[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
+	mkdir -p /var/run/dnsmasq
+	/usr/sbin/dnsmasq -C "$dnsmasq_conf" \
+		-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
 
 	[ "$changed_network" = 1 ] || [ "$changed_dhcp" = 1 ] || [ "$changed_wireless" = 1 ] || [ "$changed_firewall" = 1 ]
 }
@@ -392,19 +390,17 @@ setup_captive_portal() {
 		set dhcp.@dnsmasq[0].address='/#/${setup_ip}'
 		commit dhcp
 EOF
-	/etc/init.d/dnsmasq enable >/dev/null 2>&1 || true
-	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
-	# The init 'restart' may fail (udhcpc hook) and leave dnsmasq dead. Ensure
-	# it is actually running by locating the real generated config file
-	# (do not trust @dnsmasq[0].'.name', it can drift from the filename).
-	if ! pidof dnsmasq >/dev/null 2>&1; then
-		local dnsmasq_conf
-		dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
-		[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
-		mkdir -p /var/run/dnsmasq
-		/usr/sbin/dnsmasq -C "$dnsmasq_conf" \
-			-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
-	fi
+	# The dnsmasq init restart/start is broken on this device; relaunch it
+	# directly from the real generated config file (don't trust
+	# @dnsmasq[0].'.name', it can drift from the filename).
+	killall dnsmasq 2>/dev/null || true
+	sleep 1
+	local dnsmasq_conf
+	dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
+	[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
+	mkdir -p /var/run/dnsmasq
+	/usr/sbin/dnsmasq -C "$dnsmasq_conf" \
+		-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
 
 	# nftables: أعد HTTP (80) من العملاء للراوتر
 	nft add chain inet fw4 alemprator_captive 2>/dev/null || true
