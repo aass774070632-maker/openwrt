@@ -327,10 +327,11 @@ EOF
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
 	if ! pgrep -x dnsmasq >/dev/null 2>&1; then
 		# init script restart may fail silently (e.g. udhcpc hook); fall back
-		# to starting dnsmasq directly from the generated config file.
-		local dnsmasq_cfg dnsmasq_conf
-		dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
-		dnsmasq_conf="/var/etc/dnsmasq.conf.${dnsmasq_cfg}"
+		# to starting dnsmasq directly from the generated config file. Do not
+		# trust dhcp.@dnsmasq[0].'.name' (it can drift from the generated file
+		# name) — locate the actual generated config under /var/etc instead.
+		local dnsmasq_conf
+		dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
 		[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
 		mkdir -p /var/run/dnsmasq
 		/usr/sbin/dnsmasq -C "$dnsmasq_conf" \
