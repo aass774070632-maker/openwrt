@@ -18,6 +18,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <syslog.h>
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
 
@@ -169,26 +170,39 @@ int main(void)
     FILE *fp;
     long now = (long)time(NULL);
 
+    openlog("alemprator-guard", LOG_PID | LOG_NDELAY, LOG_DAEMON);
+
     /* 1. Check if licensing is enabled */
     char enabled[8] = {0};
     if (uci_get_simple("hotspot_licensing.main.enabled", enabled, sizeof(enabled)) > 0) {
-        if (enabled[0] == '0') return 0;   /* disabled = always allow */
+        if (enabled[0] == '0') {
+            syslog(LOG_INFO, "licensing disabled in config → authorization granted");
+            closelog();
+            return 0;   /* disabled = always allow */
+        }
     }
 
     /* 2. Read device token */
-    if (read_file(TOKEN_PATH, token, sizeof(token)) <= 0) {
+    int has_token = (read_file(TOKEN_PATH, token, sizeof(token)) > 0);
+    if (!has_token) {
         token[0] = '\0';   /* no token yet */
+        syslog(LOG_WARNING, "no device token at %s — cannot contact server", TOKEN_PATH);
     }
 
     /* 3. Read MAC */
-    if (read_mac(mac, sizeof(mac)) < 0)
+    if (read_mac(mac, sizeof(mac)) < 0) {
         strncpy(mac, "00:00:00:00:00:00", sizeof(mac) - 1);
+        syslog(LOG_WARNING, "could not read device MAC — using zero MAC");
+    }
 
     /* 4. Check local cache */
     const char *cached_status = read_cache_status();
     long expires_at = read_cache_expires();
 
     if (strcmp(cached_status, "active") == 0 && expires_at > 0 && now < expires_at) {
+        syslog(LOG_INFO, "valid cached license (active, expires in %lds) → authorized",
+               (long)(expires_at - now));
+        closelog();
         return 0;   /* Valid local cache → authorized */
     }
 
@@ -209,12 +223,18 @@ int main(void)
         sig, token, mac, url);
 
     fp = popen(cmd, "r");
-    if (!fp) goto grace;
+    if (!fp) {
+        syslog(LOG_ERR, "failed to spawn uclient-fetch → treating as server unreachable");
+        goto grace;
+    }
 
     int n = (int)fread(response, 1, sizeof(response) - 1, fp);
     pclose(fp);
 
-    if (n <= 0) goto grace;
+    if (n <= 0) {
+        syslog(LOG_ERR, "empty/timeout response from licensing server → unreachable");
+        goto grace;
+    }
     response[n] = '\0';
 
     /* 8. Parse response */
@@ -223,27 +243,51 @@ int main(void)
         /* ✅ Server approved */
         long new_exp = now + GRACE_SECONDS;
         write_cache("active", new_exp, now);
+        syslog(LOG_INFO, "server ACCEPTED license (mac=%s) → authorized until %ld",
+               mac, new_exp);
+        closelog();
         return 0;
+    }
+
+    if (strstr(response, "\"expired\":true") ||
+        strstr(response, "\"expired\": true") ||
+        strstr(response, "\"status\":\"expired\"") ||
+        strstr(response, "\"status\": \"expired\"")) {
+        /* ⏰ Server reports license expired */
+        write_cache("expired", 0, now);
+        syslog(LOG_ERR, "license EXPIRED according to server (mac=%s) → NOT authorized",
+               mac);
+        closelog();
+        return 1;
     }
 
     if (strstr(response, "\"accepted\":false") ||
         strstr(response, "\"accepted\": false")) {
         /* ❌ Server explicitly blocked */
         write_cache("blocked", 0, now);
-        fprintf(stderr, "alemprator-guard: license BLOCKED by server\n");
+        syslog(LOG_WARNING, "alemprator-guard: license BLOCKED by server");
+        closelog();
         return 1;
     }
+
+    /* Unrecognized response — treat as unreachable to avoid soft-lock */
+    syslog(LOG_ERR, "unrecognized server response '%*.s' → treating as unreachable",
+           n > 200 ? 200 : n, response);
+    goto grace;
 
 grace:
     /* Server unreachable — apply grace period */
     if (strcmp(cached_status, "active") == 0 && expires_at > 0) {
         long grace_end = expires_at + 86400;   /* +1 day extra for outage */
         if (now < grace_end) {
+            syslog(LOG_INFO, "alemprator-guard: server unreachable, within grace period");
+            closelog();
             return 0;   /* Still within grace window */
         }
         /* Grace expired */
         write_cache("grace_expired", 0, now);
-        fprintf(stderr, "alemprator-guard: license grace period expired\n");
+        syslog(LOG_ERR, "alemprator-guard: license grace period expired");
+        closelog();
         return 1;
     }
 
@@ -251,13 +295,24 @@ grace:
     long first_check = read_first_check();
     if (first_check == 0) {
         write_first_check(now);
+        syslog(LOG_WARNING,
+               "FIRST BOOT: no prior verification, granting %.0f-hour tolerance window (until %ld)",
+               (double)FIRSTBOOT_SECONDS / 3600.0, now + FIRSTBOOT_SECONDS);
+        closelog();
         return 0;   /* First ever boot */
     }
     if (now < first_check + FIRSTBOOT_SECONDS) {
+        syslog(LOG_WARNING,
+               "FIRST BOOT tolerance active (%.0f hours remaining) → authorized",
+               (double)(first_check + FIRSTBOOT_SECONDS - now) / 3600.0);
+        closelog();
         return 0;   /* Still within 24h first-boot window */
     }
 
     /* Never verified and 24h window expired */
-    fprintf(stderr, "alemprator-guard: no valid license, first-boot window expired\n");
+    syslog(LOG_ERR,
+           "no valid license and first-boot %.0f-hour window expired → NOT authorized",
+           (double)FIRSTBOOT_SECONDS / 3600.0);
+    closelog();
     return 1;
 }
