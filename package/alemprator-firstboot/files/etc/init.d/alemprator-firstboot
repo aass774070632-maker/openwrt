@@ -98,10 +98,10 @@ launch_dnsmasq() {
 	fi
 	if [ -n "$dnsmasq_conf" ] && [ -f "$dnsmasq_conf" ]; then
 		setsid /usr/sbin/dnsmasq -C "$dnsmasq_conf" \
-			-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 < /dev/null &
+			-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 </dev/null 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- 1000>&- &
 	else
 		setsid /usr/sbin/dnsmasq \
-			-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 < /dev/null &
+			-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 </dev/null 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- 1000>&- &
 	fi
 	sleep 1
 }
@@ -126,7 +126,7 @@ schedule_deferred_cleanup() {
 		[ -f "$CLEANUP_TOKEN_FILE" ] || exit 0
 		[ "$(cat "$CLEANUP_TOKEN_FILE" 2>/dev/null)" = "$token" ] || exit 0
 		/etc/init.d/alemprator-firstboot finalize_cleanup >/dev/null 2>&1 || true
-	) >/dev/null 2>&1 </dev/null &
+	) >/dev/null 2>&1 </dev/null 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- 1000>&- &
 }
 
 cleanup_firstboot_runtime() {
@@ -361,8 +361,7 @@ boot() {
 }
 
 setup_captive_portal() {
-	# IP شبكة الإعداد المؤقتة
-	local setup_ip
+	local setup_ip dev
 	setup_ip="$(uci -q get network.${network_section}.ipaddr 2>/dev/null || echo '192.168.8.1')"
 
 	# DNS: أعد جميع الاستعلامات لـ IP الراوتر (يُفعّل Captive Portal)
@@ -371,35 +370,34 @@ setup_captive_portal() {
 		set dhcp.@dnsmasq[0].address='/#/${setup_ip}'
 		commit dhcp
 EOF
-	# The dnsmasq init restart/start is broken on this device; relaunch it
-	# directly (see launch_dnsmasq).
 	launch_dnsmasq
 
-	# nftables: redirect HTTP (80) from clients to the router so the captive
-	# portal page is served. The firewall4 (nftables "inet fw4") table may not
-	# be loaded on this device, so create our own independent table/chain to
-	# avoid depending on fw4 being present.
+	# Determine the actual kernel device for the setup interface.
+	# Without a bridge, netifd binds the wifi-iface directly (e.g. phy0-ap0).
+	dev="$(ubus call network.interface.${network_section} status 2>/dev/null | \
+		jsonfilter -e '@.device' 2>/dev/null)"
+	[ -n "$dev" ] || dev="${network_section}"
+
 	nft add table inet alemprator 2>/dev/null || true
 	nft add chain inet alemprator dstnat '{ type nat hook prerouting priority dstnat; policy accept; }' 2>/dev/null || true
 	nft flush chain inet alemprator dstnat 2>/dev/null || true
 	nft add rule inet alemprator dstnat \
-		iifname "${network_section}" \
+		iifname "${dev}" \
 		ip daddr != "${setup_ip}" \
 		tcp dport 80 \
 		dnat to "${setup_ip}:80" 2>/dev/null || true
 
-	# Also try against fw4 if it exists (harmless if not).
 	if nft list table inet fw4 >/dev/null 2>&1; then
 		nft add chain inet fw4 alemprator_captive 2>/dev/null || true
 		nft flush chain inet fw4 alemprator_captive 2>/dev/null || true
 		nft add rule inet fw4 dstnat \
-			iifname "${network_section}" \
+			iifname "${dev}" \
 			ip daddr != "${setup_ip}" \
 			tcp dport 80 \
 			dnat to "${setup_ip}:80" 2>/dev/null || true
 	fi
 
-	logger -t alemprator-firstboot "Captive portal activated on ${setup_ip}"
+	logger -t alemprator-firstboot "Captive portal activated on ${dev} (${setup_ip})"
 }
 
 remove_captive_portal() {
@@ -464,7 +462,7 @@ start() {
 		( while true; do
 			/etc/init.d/alemprator-firstboot monitor_once >/dev/null 2>&1 || true
 			sleep 5
-		done ) >/dev/null 2>&1 </dev/null &
+		done ) >/dev/null 2>&1 </dev/null 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- 1000>&- &
 	fi
 }
 

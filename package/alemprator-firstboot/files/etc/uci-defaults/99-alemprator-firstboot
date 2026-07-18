@@ -151,6 +151,14 @@ if ! uci -q get dhcp.@dnsmasq[0] >/dev/null 2>&1; then
 	uci -q add dhcp dnsmasq >/dev/null 2>&1 || true
 fi
 
+# Clean any stale entries from @dnsmasq[0].interface so only lan and loopback
+# remain — otherwise a leftover name (e.g. "alemprator_setup") causes dnsmasq
+# to fail binding or serve DHCP on a non-existent interface.
+uci -q delete dhcp.@dnsmasq[0].interface 2>/dev/null || true
+uci -q add_list dhcp.@dnsmasq[0].interface='lan' 2>/dev/null || true
+uci -q add_list dhcp.@dnsmasq[0].interface='loopback' 2>/dev/null || true
+uci -q commit dhcp 2>/dev/null || true
+
 	uci -q batch <<EOF >/dev/null
 	set network.${SETUP_NETWORK}=interface
 	set network.${SETUP_NETWORK}.proto='static'
