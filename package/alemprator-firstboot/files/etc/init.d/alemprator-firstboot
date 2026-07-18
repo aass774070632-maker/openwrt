@@ -1,6 +1,10 @@
 #!/bin/sh /etc/rc.common
 
-USE_PROCD=1
+# NOTE: intentionally NOT using USE_PROCD=1. This target router runs the
+# traditional rc.common where USE_PROCD would route boot/start through
+# procd_open_service, which blocks indefinitely and never runs our logic.
+# With the traditional path, boot() (and start()) are plain shell functions
+# defined below and are invoked directly on boot.
 START=98
 EXTRA_COMMANDS="finalize_cleanup monitor_once force_cleanup"
 EXTRA_HELP="    finalize_cleanup  Finalize deferred firstboot cleanup\n    monitor_once      Check tracked configs and cleanup if firstboot changed\n    force_cleanup     Immediately cleanup temporary firstboot provisioning"
