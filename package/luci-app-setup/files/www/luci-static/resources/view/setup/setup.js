@@ -3845,6 +3845,7 @@ return view.extend({
 					state.wifiKey,
 					hotspotPolicyPrimary
 				);
+				managedSids[HOTSPOT_QUICK_IFACE_PRIMARY] = true;
 			}
 
 			if (state.hotspotQuickSecondaryEnabled && secondaryRadio) {
@@ -3857,6 +3858,7 @@ return view.extend({
 					state.wifiKey,
 					hotspotPolicySecondary
 				);
+				managedSids[HOTSPOT_QUICK_IFACE_SECONDARY] = true;
 			}
 			else {
 				uci.remove('wireless', HOTSPOT_QUICK_IFACE_SECONDARY);
