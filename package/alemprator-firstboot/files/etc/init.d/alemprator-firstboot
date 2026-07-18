@@ -75,6 +75,33 @@ load_firstboot_config() {
 	config_get firewall_section main firewall_section "br_setup"
 }
 
+# Launch dnsmasq detached so it survives the init script's process exit.
+# The init script's own start/restart is broken on this device (udhcpc hook
+# kills the instance and it never comes back), so we launch dnsmasq from the
+# real generated config file. The generated file (/var/etc/dnsmasq.conf.*) only
+# exists after the init script has run once, so generate it first if missing.
+launch_dnsmasq() {
+	killall dnsmasq 2>/dev/null || true
+	sleep 1
+	mkdir -p /var/run/dnsmasq
+	local dnsmasq_conf
+	dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
+	if [ -z "$dnsmasq_conf" ] || [ ! -f "$dnsmasq_conf" ]; then
+		/etc/init.d/dnsmasq start >/dev/null 2>&1 || true
+		sleep 1
+		killall dnsmasq 2>/dev/null || true
+		dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
+	fi
+	if [ -n "$dnsmasq_conf" ] && [ -f "$dnsmasq_conf" ]; then
+		setsid /usr/sbin/dnsmasq -C "$dnsmasq_conf" \
+			-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 < /dev/null &
+	else
+		setsid /usr/sbin/dnsmasq \
+			-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 < /dev/null &
+	fi
+	sleep 1
+}
+
 schedule_deferred_cleanup() {
 	local delay
 	local token
@@ -141,16 +168,7 @@ cleanup_firstboot_runtime() {
 	rm -f "$BASELINE_FILE"
 
 	[ "$changed_network" = 1 ] && /etc/init.d/network reload >/dev/null 2>&1 || true
-	if [ "$changed_dhcp" = 1 ]; then
-		/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
-		if ! pidof dnsmasq >/dev/null 2>&1; then
-			local dnsmasq_cfg
-			dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
-			setsid /usr/sbin/dnsmasq -C "/var/etc/dnsmasq.conf.${dnsmasq_cfg}" \
-				-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 < /dev/null &
-			sleep 1
-		fi
-	fi
+	[ "$changed_dhcp" = 1 ] && launch_dnsmasq
 	[ "$changed_firewall" = 1 ] && /etc/init.d/firewall restart >/dev/null 2>&1 || true
 	[ "$changed_wireless" = 1 ] && wifi reload >/dev/null 2>&1 || true
 }
@@ -325,19 +343,8 @@ EOF
 	[ "$changed_wireless" = 1 ] && wifi reload >/dev/null 2>&1 || true
 	# DHCP is mandatory on the setup network so clients can obtain an IP and
 	# reach the captive portal. The dnsmasq init script's restart/start is
-	# broken on this device (it fails via the udhcpc hook and can kill a
-	# running instance), so launch dnsmasq directly from the real generated
-	# config file. Do not trust @dnsmasq[0].'.name' (it can drift from the
-	# filename). Always (re)start so a stale instance is replaced.
-	killall dnsmasq 2>/dev/null || true
-	sleep 1
-	local dnsmasq_conf
-	dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
-	[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
-	mkdir -p /var/run/dnsmasq
-	setsid /usr/sbin/dnsmasq -C "$dnsmasq_conf" \
-		-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 < /dev/null &
-	sleep 1
+	# broken on this device, so launch dnsmasq directly (see launch_dnsmasq).
+	launch_dnsmasq
 
 	[ "$changed_network" = 1 ] || [ "$changed_dhcp" = 1 ] || [ "$changed_wireless" = 1 ] || [ "$changed_firewall" = 1 ]
 }
@@ -361,17 +368,8 @@ setup_captive_portal() {
 		commit dhcp
 EOF
 	# The dnsmasq init restart/start is broken on this device; relaunch it
-	# directly from the real generated config file (don't trust
-	# @dnsmasq[0].'.name', it can drift from the filename).
-	killall dnsmasq 2>/dev/null || true
-	sleep 1
-	local dnsmasq_conf
-	dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
-	[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
-	mkdir -p /var/run/dnsmasq
-	setsid /usr/sbin/dnsmasq -C "$dnsmasq_conf" \
-		-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 < /dev/null &
-	sleep 1
+	# directly (see launch_dnsmasq).
+	launch_dnsmasq
 
 	# nftables: redirect HTTP (80) from clients to the router so the captive
 	# portal page is served. The firewall4 (nftables "inet fw4") table may not
@@ -406,15 +404,7 @@ remove_captive_portal() {
 	uci -q commit dhcp 2>/dev/null || true
 
 	# Restart dnsmasq directly (init restart/start is broken on this device).
-	killall dnsmasq 2>/dev/null || true
-	sleep 1
-	local dnsmasq_conf
-	dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
-	[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
-	mkdir -p /var/run/dnsmasq
-	setsid /usr/sbin/dnsmasq -C "$dnsmasq_conf" \
-		-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 < /dev/null &
-	sleep 1
+	launch_dnsmasq
 
 	# Remove the captive-portal nftables rules (our own table + fw4 if present)
 	nft flush chain inet alemprator dstnat 2>/dev/null || true
