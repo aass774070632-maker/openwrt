@@ -57,7 +57,7 @@ start_service() {
 		np_bridge_exists "$br" || continue
 		/usr/libexec/alemprator-network-protection/rstp-manager apply "$br"
 
-		/usr/libexec/alemprator-network-protection/rstp-manager monitor "$br" &
+		/usr/libexec/alemprator-network-protection/rstp-manager monitor "$br" >/dev/null 2>&1 </dev/null &
 		local rstp_pid=$!
 		echo "$rstp_pid" > "$NP_RUN_DIR/rstp_monitor_${br}.pid"
 	done
@@ -68,7 +68,7 @@ start_service() {
 			sleep 300
 			/usr/libexec/alemprator-network-protection/logger rotate 1048576
 		done
-	) &
+	) >/dev/null 2>&1 </dev/null &
 	log_rotate_pid=$!
 	echo "$log_rotate_pid" > "$NP_RUN_DIR/logger_rotate.pid"
 

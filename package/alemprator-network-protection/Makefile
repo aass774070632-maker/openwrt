@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=alemprator-network-protection
 PKG_VERSION:=1.0
-PKG_RELEASE:=13
+PKG_RELEASE:=14
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKGARCH:=all
 PKG_LICENSE:=GPL-3.0-only

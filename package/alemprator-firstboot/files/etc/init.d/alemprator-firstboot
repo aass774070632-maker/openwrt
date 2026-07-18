@@ -126,7 +126,7 @@ schedule_deferred_cleanup() {
 		[ -f "$CLEANUP_TOKEN_FILE" ] || exit 0
 		[ "$(cat "$CLEANUP_TOKEN_FILE" 2>/dev/null)" = "$token" ] || exit 0
 		/etc/init.d/alemprator-firstboot finalize_cleanup >/dev/null 2>&1 || true
-	) &
+	) >/dev/null 2>&1 </dev/null &
 }
 
 cleanup_firstboot_runtime() {
@@ -464,7 +464,7 @@ start() {
 		( while true; do
 			/etc/init.d/alemprator-firstboot monitor_once >/dev/null 2>&1 || true
 			sleep 5
-		done ) &
+		done ) >/dev/null 2>&1 </dev/null &
 	fi
 }
 
