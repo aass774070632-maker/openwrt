@@ -1,0 +1,144 @@
+#!/bin/sh
+
+query_value() {
+	printf '%s' "&$QUERY_STRING" | sed -n "s/.*[&?]$1=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%2[Ff]/\//g; s/%3[Aa]/:/g; s/%3[Ff]/?/g; s/%3[Dd]/=/g; s/%26/\&/g; s/%5[Ff]/_/g'
+}
+
+urlencode() {
+	printf '%s' "$1" | awk '
+		BEGIN { for (i = 0; i < 256; i++) hex[sprintf("%c", i)] = sprintf("%%%02X", i) }
+		{
+			out = ""
+			for (i = 1; i <= length($0); i++) {
+				c = substr($0, i, 1)
+				if (c ~ /[A-Za-z0-9_.~-]/) out = out c
+				else if (c == " ") out = out "%20"
+				else out = out hex[c]
+			}
+			printf "%s", out
+		}'
+}
+
+append_query_param() {
+	local url="$1" key="$2" value="$3" sep='?'
+	[ -n "$value" ] || { printf '%s' "$url"; return 0; }
+	case "$url" in
+		*\?*) sep='&' ;;
+	esac
+	printf '%s%s%s=%s' "$url" "$sep" "$key" "$(urlencode "$value")"
+}
+
+portal_path="$(uci -q get hotspot_openwrt.main.portal_path || echo /hotspot)"
+terms_enabled="$(uci -q get hotspot_openwrt.main.terms_enabled || echo 0)"
+enabled="$(uci -q get hotspot_openwrt.main.enabled || echo 0)"
+remote_addr="${REMOTE_ADDR:-}"
+format="$(query_value format)"
+target="$(query_value target)"
+username="$(query_value username)"
+userurl="$(query_value userurl)"
+
+case "$portal_path" in
+	/*) ;;
+	*) portal_path="/hotspot" ;;
+esac
+
+[ -n "$target" ] || target='auto'
+
+login_url="$portal_path/login.html"
+status_url="$portal_path/status.html"
+terms_url="$portal_path/terms.html"
+service_down_url="$portal_path/service-unavailable.html"
+
+service_up='0'
+authenticated='0'
+matched_username=''
+
+if [ "$enabled" = '1' ] && command -v chilli_query >/dev/null 2>&1; then
+	for socket_path in /var/run/chilli_hotspot_openwrt.sock /var/run/chilli_hotspot_openwrt_secondary.sock; do
+		[ -S "$socket_path" ] || continue
+		if chilli_query -s "$socket_path" list >/dev/null 2>&1; then
+			service_up='1'
+			break
+		fi
+	done
+fi
+
+if [ "$service_up" = '1' ] && command -v chilli_query >/dev/null 2>&1; then
+	for socket_path in /var/run/chilli_hotspot_openwrt.sock /var/run/chilli_hotspot_openwrt_secondary.sock; do
+		[ -S "$socket_path" ] || continue
+		line="$(chilli_query -s "$socket_path" list 2>/dev/null | awk -v ip="$remote_addr" -v un="$username" '
+			ip != "" && $2 == ip { print; exit }
+			un != "" && $6 == un { print; exit }
+		')"
+		[ -n "$line" ] || continue
+		state="$(printf '%s' "$line" | awk '{ print $3 }')"
+		matched_username="$(printf '%s' "$line" | awk '{ print $6 }')"
+		if [ "$state" = 'pass' ]; then
+			authenticated='1'
+			break
+		fi
+	done
+fi
+
+case "$target" in
+	status)
+		if [ "$service_up" != '1' ]; then
+			redirect="$service_down_url"
+		elif [ "$authenticated" = '1' ]; then
+			redirect="$status_url"
+		else
+			redirect="$login_url"
+		fi
+		;;
+	login)
+		if [ "$service_up" != '1' ]; then
+			redirect="$service_down_url"
+		elif [ "$authenticated" = '1' ]; then
+			redirect="$status_url"
+		else
+			redirect="$login_url"
+		fi
+		;;
+	terms)
+		if [ "$service_up" != '1' ]; then
+			redirect="$service_down_url"
+		elif [ "$authenticated" = '1' ]; then
+			redirect="$status_url"
+		elif [ "$terms_enabled" = '1' ]; then
+			redirect="$terms_url"
+		else
+			redirect="$login_url"
+		fi
+		;;
+	*)
+		if [ "$service_up" != '1' ]; then
+			redirect="$service_down_url"
+		elif [ "$authenticated" = '1' ]; then
+			redirect="$status_url"
+		elif [ "$terms_enabled" = '1' ]; then
+			redirect="$terms_url"
+		else
+			redirect="$login_url"
+		fi
+		;;
+esac
+
+resolved_username="$username"
+[ -n "$resolved_username" ] || resolved_username="$matched_username"
+if [ "$redirect" = "$login_url" ] || [ "$redirect" = "$terms_url" ]; then
+	redirect="$(append_query_param "$redirect" userurl "$userurl")"
+fi
+if [ "$redirect" != "$service_down_url" ]; then
+	redirect="$(append_query_param "$redirect" username "$resolved_username")"
+fi
+
+if [ "$format" = 'json' ]; then
+	printf 'Content-Type: application/json\r\n'
+	printf 'Cache-Control: no-store\r\n\r\n'
+	printf '{"ok":true,"service_up":%s,"authenticated":%s,"target":"%s","redirect":"%s"}\n' "$([ "$service_up" = '1' ] && echo true || echo false)" "$([ "$authenticated" = '1' ] && echo true || echo false)" "$target" "$redirect"
+	exit 0
+fi
+
+printf 'Status: 302 Found\r\n'
+printf 'Cache-Control: no-store\r\n'
+printf 'Location: %s\r\n\r\n' "$redirect"

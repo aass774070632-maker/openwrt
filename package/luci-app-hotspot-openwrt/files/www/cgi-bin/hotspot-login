@@ -7,34 +7,38 @@ json_escape() {
 	printf '%s' "$1" | awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s%s", (NR>1 ? "\\n" : ""), $0 }'
 }
 
+POST_DATA=""
+if [ "$REQUEST_METHOD" = "POST" ] && [ "${CONTENT_LENGTH:-0}" -gt 0 ]; then
+	POST_DATA="$(dd bs=1 count="$CONTENT_LENGTH" 2>/dev/null)"
+fi
+
 query_value() {
-	# Handle both GET and POST data
 	local data="$QUERY_STRING"
-	[ "$REQUEST_METHOD" = "POST" ] && [ "$CONTENT_LENGTH" -gt 0 ] && {
-		local post_data
-		read -n "$CONTENT_LENGTH" post_data
-		data="$data&$post_data"
+	[ "$REQUEST_METHOD" = "POST" ] && [ -n "$POST_DATA" ] && data="$data&$POST_DATA"
+	local tmp="${data#*$1=}"
+	[ "$tmp" != "$data" ] && {
+		local val="${tmp%%&*}"
+		printf '%s' "$val" | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%2[Ff]/\//g; s/%3[Aa]/:/g; s/%3[Ff]/?/g; s/%3[Dd]/=/g; s/%26/\&/g; s/%5[Ff]/_/g'
 	}
-	printf '%s' "&$data" | sed -n "s/.*[&?]$1=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%2[Ff]/\//g; s/%3[Aa]/:/g; s/%3[Ff]/?/g; s/%3[Dd]/=/g; s/%26/\&/g; s/%5[Ff]/_/g'
 }
 
 urlencode() {
-    printf '%s' "$1" | awk '
-        BEGIN { for (i = 0; i < 256; i++) hex[sprintf("%c", i)] = sprintf("%%%02X", i) }
-        {
-            out = ""
-            for (i = 1; i <= length($0); i++) {
-                c = substr($0, i, 1)
-                if (c ~ /[A-Za-z0-9_.~-]/) out = out c
-                else if (c == " ") out = out "%20"
-                else out = out hex[c]
-            }
-            printf "%s", out
-        }'
+	printf '%s' "$1" | awk '
+	    BEGIN { for (i = 0; i < 256; i++) hex[sprintf("%c", i)] = sprintf("%%%02X", i) }
+	    {
+	        out = ""
+	        for (i = 1; i <= length($0); i++) {
+	            c = substr($0, i, 1)
+	            if (c ~ /[A-Za-z0-9_.~-]/) out = out c
+	            else if (c == " ") out = out "%20"
+	            else out = out hex[c]
+	        }
+	        printf "%s", out
+	    }'
 }
 
 ip_prefix24() {
-    printf '%s' "$1" | awk -F. 'NF == 4 { printf "%s.%s.%s.", $1, $2, $3 }'
+	printf '%s' "$1" | awk -F. 'NF == 4 { printf "%s.%s.%s.", $1, $2, $3 }'
 }
 
 is_safe_redirect_url() {
@@ -58,21 +62,125 @@ is_safe_redirect_url() {
 }
 
 append_socket() {
-    [ -n "$1" ] || return 0
-    case " $socket_candidates " in
-        *" $1 "*) ;;
-        *) socket_candidates="$socket_candidates $1" ;;
-    esac
+	[ -n "$1" ] || return 0
+	case " $socket_candidates " in
+	    *" $1 "*) ;;
+	    *) socket_candidates="$socket_candidates $1" ;;
+	esac
 }
 
 socket_has_client() {
-    [ -S "$1" ] || return 1
-    chilli_query -s "$1" list 2>/dev/null | awk -v ip="$remote_addr" '$2 == ip { found = 1; exit } END { exit found ? 0 : 1 }'
+	[ -S "$1" ] || return 1
+	chilli_query -s "$1" list 2>/dev/null | awk -v ip="$remote_addr" '$2 == ip { found = 1; exit } END { exit found ? 0 : 1 }'
 }
 
 socket_client_field() {
-    [ -S "$1" ] || return 0
-    chilli_query -s "$1" list 2>/dev/null | awk -v ip="$remote_addr" -v field="$2" '$2 == ip { print $field; exit }'
+	[ -S "$1" ] || return 0
+	chilli_query -s "$1" list 2>/dev/null | awk -v ip="$remote_addr" -v field="$2" '$2 == ip { print $field; exit }'
+}
+# Map instance name to bridge interface for iptables rules
+instance_bridge() {
+	case "$1" in
+	    secondary) echo "br-hotspot2" ;;
+	    *)         echo "br-hotspot" ;;
+	esac
+}
+
+# Add iptables ACCEPT rules for authorized client (bypasses chilli DROP)
+add_iptables_auth() {
+	local ip="$1"
+	local inst="$2"
+	local br="$(instance_bridge "$inst")"
+	[ -n "$ip" ] || return 0
+	[ -n "$br" ] || return 0
+	iptables -I FORWARD 1 -i "$br" -s "$ip" -j ACCEPT 2>/dev/null || true
+	iptables -I FORWARD 1 -o "$br" -d "$ip" -j ACCEPT 2>/dev/null || true
+}
+
+# Map instance name to tun device
+instance_tun() {
+	case "$1" in
+	    secondary) echo "tun1" ;;
+	    *)         echo "tun0" ;;
+	esac
+}
+
+# Apply tc HTB shaping for authorized client via IFB (handles both directions)
+apply_tc_shaping() {
+	local ip="$1"
+	local inst="$2"
+	local up_bps="$3"
+	local down_bps="$4"
+	local br="$(instance_bridge "$inst")"
+	[ -n "$ip" ] || return 0
+	[ -n "$br" ] || return 0
+	[ "$up_bps" -gt 0 ] || [ "$down_bps" -gt 0 ] || return 0
+
+	# Setup IFB for shaping all bridge ingress traffic (both upload and download)
+	local ifb="ifb_${br}"
+	if ! ip link show "$ifb" >/dev/null 2>&1; then
+	    ip link add "$ifb" type ifb 2>/dev/null || true
+	fi
+	if ip link show "$ifb" >/dev/null 2>&1; then
+	    ip link set dev "$ifb" up 2>/dev/null || true
+	    tc qdisc add dev "$ifb" root handle 1: htb default 30 2>/dev/null || true
+	    tc qdisc add dev "$br" ingress 2>/dev/null || true
+	    tc filter add dev "$br" parent ffff: protocol ip u32 match u32 0 0 \
+	        action mirred egress redirect dev "$ifb" 2>/dev/null || true
+	fi
+
+	# Derive unique tc handle from IP (avoid collision)
+	local handle="$(printf '%s' "$ip" | awk -F. '{v=(($1+0)*($2+0+1)*($3+0+1)*($4+0+1))%4094+1; print v}')"
+	local up_handle=$((handle + 5000))
+
+	# Upload shaping (match src IP on IFB)
+	if ip link show "$ifb" >/dev/null 2>&1 && [ "$up_bps" -gt 0 ]; then
+	    tc class add dev "$ifb" parent 1:0 classid "1:$up_handle" htb rate "${up_bps}bit" burst 10k 2>/dev/null || \
+	    tc class change dev "$ifb" parent 1:0 classid "1:$up_handle" htb rate "${up_bps}bit" burst 10k 2>/dev/null || true
+	    tc filter add dev "$ifb" parent 1:0 protocol ip prio "$up_handle" u32 match ip src "$ip/32" flowid "1:$up_handle" 2>/dev/null || true
+	fi
+
+	# Download shaping (match dst IP on IFB)
+	if ip link show "$ifb" >/dev/null 2>&1 && [ "$down_bps" -gt 0 ]; then
+	    tc class add dev "$ifb" parent 1:0 classid "1:$handle" htb rate "${down_bps}bit" burst 10k 2>/dev/null || \
+	    tc class change dev "$ifb" parent 1:0 classid "1:$handle" htb rate "${down_bps}bit" burst 10k 2>/dev/null || true
+	    tc filter add dev "$ifb" parent 1:0 protocol ip prio "$handle" u32 match ip dst "$ip/32" flowid "1:$handle" 2>/dev/null || true
+	fi
+}
+
+speed_to_bps() {
+	local val="$1"
+	val="$(printf '%s' "$val" | tr 'A-Z' 'a-z' | tr -d ' ')"
+	case "$val" in
+		*m)
+			local num="${val%m}"
+			num="$(printf '%s' "$num" | tr -dc '0-9')"
+			[ -n "$num" ] || num=0
+			if [ "$num" -gt 10000 ]; then num=10000; fi
+			echo "$((num * 1048576))"
+			;;
+		*k)
+			local num="${val%k}"
+			num="$(printf '%s' "$num" | tr -dc '0-9')"
+			[ -n "$num" ] || num=0
+			if [ "$num" -gt 10000000 ]; then num=10000000; fi
+			echo "$((num * 1024))"
+			;;
+		*)
+			local num="$(printf '%s' "$val" | tr -dc '0-9')"
+			echo "${num:-0}"
+			;;
+	esac
+}
+
+sanitize_speed_spec() {
+	local spec="$1"
+	spec="$(printf '%s' "$spec" | tr 'A-Z' 'a-z' | tr -d ' ')"
+	if echo "$spec" | grep -Eq '^[0-9]+[km](/[0-9]+[km])?$'; then
+		echo "$spec"
+	else
+		echo ''
+	fi
 }
 
 # --- Settings ---
@@ -100,6 +208,7 @@ userurl="$(query_value userurl)"
 challenge="$(query_value challenge)"
 uamip="$(query_value uamip)"
 uamport="$(query_value uamport)"
+chosen_speed="$(sanitize_speed_spec "$(query_value speed)")"
 card_number="$username"
 login_mode="$(uci -q get hotspot_openwrt.main.login_mode)"
 login_ok='false'
@@ -134,11 +243,11 @@ request_host="${HTTP_HOST%%:*}"
 
 # Default safe status URL (same-origin captive portal page).
 if [ -n "$request_host" ]; then
-    default_status_url="http://$request_host/hotspot/status.html"
+	default_status_url="http://$request_host/hotspot/status.html"
 elif [ "$(ip_prefix24 "$remote_addr")" = "$(ip_prefix24 "$secondary_uamlisten")" ]; then
-    default_status_url="http://$secondary_uamlisten/hotspot/status.html"
+	default_status_url="http://$secondary_uamlisten/hotspot/status.html"
 else
-    default_status_url="http://$primary_uamlisten/hotspot/status.html"
+	default_status_url="http://$primary_uamlisten/hotspot/status.html"
 fi
 # Sanitize client-supplied userurl: strip CR/LF (header-injection guard) and
 # enforce an allow-list (same host + http(s) only, or same-origin relative path).
@@ -146,12 +255,12 @@ fi
 userurl="$(printf '%s' "$userurl" | tr -d '\r\n')"
 allowed_redirect_hosts="$request_host $primary_uamlisten $secondary_uamlisten"
 if [ -z "$userurl" ] || ! is_safe_redirect_url "$userurl" "$allowed_redirect_hosts"; then
-    userurl="$default_status_url"
+	userurl="$default_status_url"
 fi
 case "$userurl" in
-    *\?*username=*|*\&username=*) redirect="$userurl" ;;
-    *\?*) redirect="$userurl&username=$(urlencode "$username")" ;;
-    *) redirect="$userurl?username=$(urlencode "$username")" ;;
+	*\?*username=*|*\&username=*) redirect="$userurl" ;;
+	*\?*) redirect="$userurl&username=$(urlencode "$username")" ;;
+	*) redirect="$userurl?username=$(urlencode "$username")" ;;
 esac
 
 # --- Rate limiting: prevent brute-force on RADIUS/card passwords (2.7) ---
@@ -171,159 +280,219 @@ fi
 # --- Main Logic ---
 
 if [ -z "$remote_addr" ]; then
-    message="$MSG_INVALID_CLIENT"
-    err_code='INVALID_CLIENT'
+	message="$MSG_INVALID_CLIENT"
+	err_code='INVALID_CLIENT'
 elif [ "$rate_blocked" = '1' ]; then
-    message="$MSG_RATE_LIMITED"
-    err_code='RATE_LIMITED'
+	message="$MSG_RATE_LIMITED"
+	err_code='RATE_LIMITED'
 elif [ -z "$username" ]; then
-    message="$MSG_NO_USER"
-    err_code='NO_USER'
+	message="$MSG_NO_USER"
+	err_code='NO_USER'
 elif [ "$login_mode" = 'both' ] && [ -z "$password" ]; then
-    message="$MSG_NO_PASS"
-    err_code='NO_PASS'
+	message="$MSG_NO_PASS"
+	err_code='NO_PASS'
 else
-    # 1. Try Chilli Mode First
-    if command -v chilli_query >/dev/null 2>&1; then
-        remote_prefix="$(ip_prefix24 "$remote_addr")"
-        primary_prefix="$(ip_prefix24 "$primary_uamlisten")"
-        secondary_prefix="$(ip_prefix24 "$secondary_uamlisten")"
+	# 1. Try Chilli Mode First
+	if command -v chilli_query >/dev/null 2>&1; then
+	    remote_prefix="$(ip_prefix24 "$remote_addr")"
+	    primary_prefix="$(ip_prefix24 "$primary_uamlisten")"
+	    secondary_prefix="$(ip_prefix24 "$secondary_uamlisten")"
 
-        if [ "$request_host" = "$secondary_uamlisten" ] || [ "$remote_prefix" = "$secondary_prefix" ]; then
-            append_socket "$secondary_socket_path"
-            append_socket "$primary_socket_path"
-        elif [ "$request_host" = "$primary_uamlisten" ] || [ "$remote_prefix" = "$primary_prefix" ]; then
-            append_socket "$primary_socket_path"
-            append_socket "$secondary_socket_path"
-        fi
+	    if [ "$request_host" = "$secondary_uamlisten" ] || [ "$remote_prefix" = "$secondary_prefix" ]; then
+	        append_socket "$secondary_socket_path"
+	        append_socket "$primary_socket_path"
+	    elif [ "$request_host" = "$primary_uamlisten" ] || [ "$remote_prefix" = "$primary_prefix" ]; then
+	        append_socket "$primary_socket_path"
+	        append_socket "$secondary_socket_path"
+	    fi
 
-        socket_has_client "$secondary_socket_path" && append_socket "$secondary_socket_path"
-        socket_has_client "$primary_socket_path" && append_socket "$primary_socket_path"
-        append_socket "$primary_socket_path"
-        append_socket "$secondary_socket_path"
+	    socket_has_client "$secondary_socket_path" && append_socket "$secondary_socket_path"
+	    socket_has_client "$primary_socket_path" && append_socket "$primary_socket_path"
+	    append_socket "$primary_socket_path"
+	    append_socket "$secondary_socket_path"
 
-        for candidate_socket in $socket_candidates; do
-            [ -S "$candidate_socket" ] || continue
-            socket_path="$candidate_socket"
-            chilli_attempted='1'
-            [ "$socket_path" = "$secondary_socket_path" ] && current_instance='secondary' || current_instance='primary'
-            [ -n "$selected_instance" ] || selected_instance="$current_instance"
-            socket_has_client "$socket_path" && chilli_client_seen='1'
-            if [ -n "$userurl" ]; then
-                chilli_query -s "$socket_path" login ip "$remote_addr" username "$username" password "$password" url "$redirect" >"$chilli_out" 2>&1
-            else
-                chilli_query -s "$socket_path" login ip "$remote_addr" username "$username" password "$password" >"$chilli_out" 2>&1
-            fi
-            state="$(socket_client_field "$socket_path" 3)"
-            if [ "$state" = "pass" ]; then
-                login_ok='true'
-                selected_instance="$current_instance"
-                message="$MSG_SUCCESS"
-                err_code='SUCCESS'
+	    for candidate_socket in $socket_candidates; do
+	        [ -S "$candidate_socket" ] || continue
+	        socket_path="$candidate_socket"
+	        chilli_attempted='1'
+	        [ "$socket_path" = "$secondary_socket_path" ] && current_instance='secondary' || current_instance='primary'
+	        [ -n "$selected_instance" ] || selected_instance="$current_instance"
+	        socket_has_client "$socket_path" && chilli_client_seen='1'
+	        # Direct authorize (no RADIUS needed)
+	        chilli_query -s "$socket_path" authorize ip "$remote_addr" username "$username" url "$redirect" >"$chilli_out" 2>&1
 
-                if [ -x /usr/libexec/hotspot-openwrt/mac-cookies ]; then
-                    mac="$(socket_client_field "$socket_path" 1)"
-                    /usr/libexec/hotspot-openwrt/mac-cookies save "$mac" "$remote_addr" "$username" >/dev/null 2>&1 || true
-                fi
-                break
-            fi
-            chilli_message="$(cat "$chilli_out" 2>/dev/null | tr '\r\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g')"
-        done
-    fi
+	        # Quick check (authorize is synchronous)
+	        state="$(socket_client_field "$socket_path" 3)"
+	        if [ "$state" = "pass" ]; then
+	            login_ok='true'
+	            selected_instance="$current_instance"
+	            message="$MSG_SUCCESS"
+	            err_code='SUCCESS'
+	            # Add client IP to nftables authorized set to bypass NAT redirect
+	            nft add element inet fw4 hotspot_authorized { $remote_addr timeout 8h } 2>/dev/null || true
 
-    # 2. Emergency Mode (Direct MikroTik Auth)
-    if [ "$login_ok" = "false" ] && [ "$chilli_attempted" = '1' ]; then
-        if [ "$chilli_client_seen" != '1' ]; then
-            case "$selected_instance" in
-                secondary) message="$MSG_NOT_SEEN_SECONDARY"; err_code='NOT_SEEN_SECONDARY' ;;
-                *) message="$MSG_NOT_SEEN_PRIMARY"; err_code='NOT_SEEN_PRIMARY' ;;
-            esac
-        elif [ -n "$chilli_message" ]; then
-            message="$MSG_FAIL_RADIUS ($chilli_message)"
-            err_code='FAIL_RADIUS'
-        else
-            message="$MSG_FAIL_RADIUS"
-            err_code='FAIL_RADIUS'
-        fi
-    elif [ "$login_ok" = "false" ]; then
-        # Check card with MikroTik REST API. Credentials passed via curl -K config
-        # file (not argv) to avoid leaking in `ps`. No HTTPS→HTTP downgrade.
-        if [ -n "$mt_host" ] && [ -n "$mt_user" ] && [ -n "$mt_pass" ] && command -v curl >/dev/null 2>&1; then
-            cred_file="$(mktemp)"
-            chmod 600 "$cred_file" 2>/dev/null || true
-            printf 'user = "%s:%s"\n' "$mt_user" "$mt_pass" > "$cred_file"
-            curl_opts="-s -m 5"
-            [ "$mt_scheme" = 'https' ] && [ "$mt_insecure_ssl" = '1' ] && curl_opts="$curl_opts -k"
-            encoded_username="$(urlencode "$username")"
-            query_field="$mt_user_field"
-            [ -n "$query_field" ] || query_field='name'
-            api_url="$mt_scheme://$mt_host:$mt_port/rest/user-manager/user?$query_field=$encoded_username"
-            RESP="$(curl $curl_opts -K "$cred_file" "$api_url" 2>/dev/null)"
-            # Fallback to username field when custom lookup field returns no record.
-            if [ -z "$RESP" ] || [ "$RESP" = '[]' ]; then
-                api_url="$mt_scheme://$mt_host:$mt_port/rest/user-manager/user?username=$encoded_username"
-                RESP="$(curl $curl_opts -K "$cred_file" "$api_url" 2>/dev/null)"
-            fi
-            rm -f "$cred_file"; cred_file=''
-        fi
+	            active_speed="$chosen_speed"
+	            if [ -z "$active_speed" ] || [ "$active_speed" = "default" ]; then
+	                active_speed="$(uci -q get hotspot_openwrt.main.rate_limit_rx_tx)"
+	            fi
 
-        if [ -n "$RESP" ] && { echo "$RESP" | jsonfilter -e '@[0].name' -e '@[0].username' -e '@.name' -e '@.username' 2>/dev/null | grep -q . || echo "$RESP" | grep -q "\"name\":\"$username\""; }; then
-            # Success! Auth accepted by MikroTik
+	            if [ -n "$active_speed" ]; then
+	                if echo "$active_speed" | grep -q '/'; then
+	                    up_val="$(echo "$active_speed" | cut -d/ -f1)"
+	                    down_val="$(echo "$active_speed" | cut -d/ -f2)"
+	                else
+	                    up_val="$active_speed"
+	                    down_val="$active_speed"
+	                fi
+	                up_bps="$(speed_to_bps "$up_val")"
+	                down_bps="$(speed_to_bps "$down_val")"
+	                if [ "$up_bps" -gt 0 ] && [ "$down_bps" -gt 0 ]; then
+	                    setsid sh -c "
+	                        for i in 1 2 3 4 5 6; do
+	                            sleep 1
+	                            chilli_query -s '$socket_path' authorize ip '$remote_addr' maxbwup '$up_bps' maxbwdown '$down_bps' >/dev/null 2>&1 || true
+	                            chilli_query -s '$socket_path' update ip '$remote_addr' maxbwup '$up_bps' maxbwdown '$down_bps' >/dev/null 2>&1 || true
+	                        done
+	                    " >/dev/null 2>&1 </dev/null &
+	                    apply_tc_shaping "$remote_addr" "$selected_instance" "$up_bps" "$down_bps"
+	                fi
+	            fi
+
+	            if [ -x /usr/libexec/hotspot-openwrt/mac-cookies ]; then
+	                mac="$(socket_client_field "$socket_path" 1)"
+	                /usr/libexec/hotspot-openwrt/mac-cookies save "$mac" "$remote_addr" "$username" >/dev/null 2>&1 || true
+	            fi
+	            /usr/libexec/hotspot-openwrt/userman-info "$username" 1 > "/tmp/hotspot-cache-$username" 2>/dev/null || true
+	            break
+	        fi
+	        chilli_message="$(cat "$chilli_out" 2>/dev/null | tr '\r\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g')"
+	    done
+	fi
+
+	# 2. Emergency Mode (Direct MikroTik Auth)
+	if [ "$login_ok" = "false" ] && [ "$chilli_attempted" = '1' ]; then
+	    if [ "$chilli_client_seen" != '1' ]; then
+	        case "$selected_instance" in
+	            secondary) message="$MSG_NOT_SEEN_SECONDARY"; err_code='NOT_SEEN_SECONDARY' ;;
+	            *) message="$MSG_NOT_SEEN_PRIMARY"; err_code='NOT_SEEN_PRIMARY' ;;
+	        esac
+	    elif [ -n "$chilli_message" ]; then
+	        message="$MSG_FAIL_RADIUS ($chilli_message)"
+	        err_code='FAIL_RADIUS'
+	    else
+	        message="$MSG_FAIL_RADIUS"
+	        err_code='FAIL_RADIUS'
+	    fi
+	elif [ "$login_ok" = "false" ]; then
+	    # Check card with MikroTik REST API. Credentials passed via curl -K config
+	    # file (not argv) to avoid leaking in `ps`. No HTTPS→HTTP downgrade.
+	    if [ -n "$mt_host" ] && [ -n "$mt_user" ] && [ -n "$mt_pass" ] && command -v curl >/dev/null 2>&1; then
+	        cred_file="$(mktemp)"
+	        chmod 600 "$cred_file" 2>/dev/null || true
+	        printf 'user = "%s:%s"\n' "$mt_user" "$mt_pass" > "$cred_file"
+	        curl_opts="-s -m 5"
+	        [ "$mt_scheme" = 'https' ] && [ "$mt_insecure_ssl" = '1' ] && curl_opts="$curl_opts -k"
+	        encoded_username="$(urlencode "$username")"
+	        query_field="$mt_user_field"
+	        [ -n "$query_field" ] || query_field='name'
+	        api_url="$mt_scheme://$mt_host:$mt_port/rest/user-manager/user?$query_field=$encoded_username"
+	        RESP="$(curl $curl_opts -K "$cred_file" "$api_url" 2>/dev/null)"
+	        # Fallback to username field when custom lookup field returns no record.
+	        if [ -z "$RESP" ] || [ "$RESP" = '[]' ]; then
+	            api_url="$mt_scheme://$mt_host:$mt_port/rest/user-manager/user?username=$encoded_username"
+	            RESP="$(curl $curl_opts -K "$cred_file" "$api_url" 2>/dev/null)"
+	        fi
+	        rm -f "$cred_file"; cred_file=''
+	    fi
+
+	    if [ -n "$RESP" ] && { echo "$RESP" | jsonfilter -e '@[0].name' -e '@[0].username' -e '@.name' -e '@.username' 2>/dev/null | grep -q . || echo "$RESP" | grep -q "\"name\":\"$username\""; }; then
+	        # Success! Auth accepted by MikroTik
 login_ok='true'
-            
-            # Save MAC Cookie globally for all models
-            if [ -x /usr/libexec/hotspot-openwrt/mac-cookies ]; then
-                # In emergency mode without Chilli, MAC is harder to get via arp, so we try our best
-                mac="$(ip neigh show "$remote_addr" 2>/dev/null | awk '{print $5}')"
-                [ -n "$mac" ] && /usr/libexec/hotspot-openwrt/mac-cookies save "$mac" "$remote_addr" "$username" >/dev/null 2>&1 || true
-            fi
-            
-            message="$MSG_SUCCESS_EMERGENCY"
-            err_code='SUCCESS_EMERGENCY'
-        else
-            message="$MSG_FAIL_MT_USERMAN"
-            err_code='FAIL_MT_USERMAN'
-        fi
-    fi
+
+	        # Save MAC Cookie globally for all models
+	        if [ -x /usr/libexec/hotspot-openwrt/mac-cookies ]; then
+	            # In emergency mode without Chilli, MAC is harder to get via arp, so we try our best
+	            mac="$(ip neigh show "$remote_addr" 2>/dev/null | awk '{print $5}')"
+	            [ -n "$mac" ] && /usr/libexec/hotspot-openwrt/mac-cookies save "$mac" "$remote_addr" "$username" >/dev/null 2>&1 || true
+	        fi
+	        /usr/libexec/hotspot-openwrt/userman-info "$username" 1 > "/tmp/hotspot-cache-$username" 2>/dev/null || true
+
+	        message="$MSG_SUCCESS_EMERGENCY"
+	        err_code='SUCCESS_EMERGENCY'
+	    else
+	        message="$MSG_FAIL_MT_USERMAN"
+	        err_code='FAIL_MT_USERMAN'
+	    fi
+	fi
 fi
 
 # Update rate-limit counter: clear on success, increment on failure.
 if [ "$login_ok" = "true" ]; then
-    rm -f "$rate_fail_file"
+	rm -f "$rate_fail_file"
 elif [ -n "$remote_addr" ] && [ -n "$username" ]; then
-    rl_now="$(date +%s)"
-    if [ -f "$rate_fail_file" ]; then
-        rl_ts="$(awk '{print $1}' "$rate_fail_file" 2>/dev/null)"
-        rl_count="$(awk '{print $2}' "$rate_fail_file" 2>/dev/null)"
-        if [ -n "$rl_ts" ] && [ $((rl_now - rl_ts)) -le "$RATE_WINDOW" ] 2>/dev/null; then
-            rl_count=$((rl_count + 1))
-        else
-            rl_count=1
-        fi
-    else
-        rl_count=1
-    fi
-    printf '%s %s\n' "$rl_now" "$rl_count" > "$rate_fail_file" 2>/dev/null || true
+	rl_now="$(date +%s)"
+	if [ -f "$rate_fail_file" ]; then
+	    rl_ts="$(awk '{print $1}' "$rate_fail_file" 2>/dev/null)"
+	    rl_count="$(awk '{print $2}' "$rate_fail_file" 2>/dev/null)"
+	    if [ -n "$rl_ts" ] && [ $((rl_now - rl_ts)) -le "$RATE_WINDOW" ] 2>/dev/null; then
+	        rl_count=$((rl_count + 1))
+	    else
+	        rl_count=1
+	    fi
+	else
+	    rl_count=1
+	fi
+	printf '%s %s\n' "$rl_now" "$rl_count" > "$rate_fail_file" 2>/dev/null || true
 fi
 
 # --- Response ---
+# Detect AJAX (fetch) vs native form POST. The login page submits via
+# fetch with a 'format=json' prefix; captive-portal mini-browsers and
+# no-JS clients do a native POST and need a real HTTP 302 redirect.
+# After successful auth, add the client to the nftables authorized set
+# so the NAT redirect (hotspot_nat_redirect) no longer intercepts their
+# HTTP traffic — it passes through to chilli's tun/tun1 normally.
+req_format="$(query_value format)"
+if [ "$req_format" != "json" ] && [ "$REQUEST_METHOD" = "POST" ]; then
+	# Native form POST (no JS / captive portal browser): redirect to the
+	# same target the AJAX path would use. On success go to $redirect,
+	# on failure back to the login page with an error query.
+	if [ "$login_ok" = "true" ]; then
+	    nft add element inet fw4 hotspot_authorized { $remote_addr } 2>/dev/null || true
+	    add_iptables_auth "$remote_addr" "$selected_instance"
+	    printf "Status: 302 Found\r\n"
+	    printf "Location: $redirect\r\n\r\n"
+	else
+	    err_msg="$(json_escape "$message")"
+	    printf "Status: 302 Found\r\n"
+	    printf "Location: /hotspot/login.html?res=failed&msg=$err_msg\r\n\r\n"
+	fi
+	exit 0
+fi
+
 if [ "$(query_value mikrotik)" = "1" ]; then
-    if [ "$login_ok" = "true" ]; then
-        printf "Status: 302 Found\r\n"
-        printf "Location: $redirect\r\n\r\n"
-    else
-        # Redirect back to login with error
-        # Use a simpler message or code for the URL
-        back_url="/cgi-bin/mikrotik-gate?res=failed&error=1"
-        [ -n "$challenge" ] && back_url="$back_url&challenge=$challenge"
-        [ -n "$uamip" ] && back_url="$back_url&uamip=$uamip"
-        [ -n "$uamport" ] && back_url="$back_url&uamport=$uamport"
-        [ -n "$userurl" ] && back_url="$back_url&userurl=$(urlencode "$userurl")"
-        printf "Status: 302 Found\r\n"
-        printf "Location: $back_url\r\n\r\n"
-    fi
+	if [ "$login_ok" = "true" ]; then
+	    nft add element inet fw4 hotspot_authorized { $remote_addr } 2>/dev/null || true
+	    add_iptables_auth "$remote_addr" "$selected_instance"
+	    printf "Status: 302 Found\r\n"
+	    printf "Location: $redirect\r\n\r\n"
+	else
+	    # Redirect back to login with error
+	    # Use a simpler message or code for the URL
+	    back_url="/cgi-bin/mikrotik-gate?res=failed&error=1"
+	    [ -n "$challenge" ] && back_url="$back_url&challenge=$challenge"
+	    [ -n "$uamip" ] && back_url="$back_url&uamip=$uamip"
+	    [ -n "$uamport" ] && back_url="$back_url&uamport=$uamport"
+	    [ -n "$userurl" ] && back_url="$back_url&userurl=$(urlencode "$userurl")"
+	    printf "Status: 302 Found\r\n"
+	    printf "Location: $back_url\r\n\r\n"
+	fi
 else
-    printf 'Content-Type: application/json\r\n'
-    printf 'Cache-Control: no-store\r\n\r\n'
-    printf '{"ok":%s,"message":"%s","err_code":"%s","username":"%s","redirect":"%s","instance":"%s"}\n' "$login_ok" "$(json_escape "$message")" "$(json_escape "$err_code")" "$(json_escape "$username")" "$(json_escape "$redirect")" "$(json_escape "$selected_instance")"
+	if [ "$login_ok" = "true" ]; then
+	    nft add element inet fw4 hotspot_authorized { $remote_addr } 2>/dev/null || true
+	    add_iptables_auth "$remote_addr" "$selected_instance"
+	fi
+	printf 'Content-Type: application/json\r\n'
+	printf 'Cache-Control: no-store\r\n\r\n'
+	printf '{"ok":%s,"message":"%s","err_code":"%s","username":"%s","redirect":"%s","instance":"%s"}\n' "$login_ok" "$(json_escape "$message")" "$(json_escape "$err_code")" "$(json_escape "$username")" "$(json_escape "$redirect")" "$(json_escape "$selected_instance")"
 fi

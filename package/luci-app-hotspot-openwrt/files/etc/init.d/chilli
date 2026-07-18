@@ -21,6 +21,9 @@ option_cb() {
 			. /lib/functions/network.sh
 			local ifname
 			network_get_device ifname "$2"
+			[ -z "$ifname" ] && ifname="$(uci -q get network.$2.device)"
+			[ -z "$ifname" ] && ifname="br-$2"
+			[ "$2" = 'hotspot' ] && ifname='br-hotspot'
 			echo "dhcpif=\"$ifname\"" >> "$chilli_conf"
 			;;
 		acctupdate|chillixml|coanoipcheck|debug|dhcpbroadcast|dhcpmacset|dhcpnotidle|\

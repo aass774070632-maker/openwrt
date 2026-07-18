@@ -8,39 +8,39 @@ query_value() {
 }
 
 urlencode() {
-    printf '%s' "$1" | awk '
-        BEGIN { for (i = 0; i < 256; i++) hex[sprintf("%c", i)] = sprintf("%%%02X", i) }
-        {
-            out = ""
-            for (i = 1; i <= length($0); i++) {
-                c = substr($0, i, 1)
-                if (c ~ /[A-Za-z0-9_.~-]/) out = out c
-                else if (c == " ") out = out "%20"
-                else out = out hex[c]
-            }
-            printf "%s", out
-        }'
+	printf '%s' "$1" | awk '
+	    BEGIN { for (i = 0; i < 256; i++) hex[sprintf("%c", i)] = sprintf("%%%02X", i) }
+	    {
+	        out = ""
+	        for (i = 1; i <= length($0); i++) {
+	            c = substr($0, i, 1)
+	            if (c ~ /[A-Za-z0-9_.~-]/) out = out c
+	            else if (c == " ") out = out "%20"
+	            else out = out hex[c]
+	        }
+	        printf "%s", out
+	    }'
 }
 
 # HTML-escape all metacharacters before injecting values into template output.
 # Neutralises reflected XSS from client-controlled query params (mac/username/...).
 html_escape() {
-    printf '%s' "$1" | awk '
-        BEGIN { q = sprintf("%c", 39) }
-        {
-            out = ""
-            for (i = 1; i <= length($0); i++) {
-                c = substr($0, i, 1)
-                if (c == "&") out = out "&amp;"
-                else if (c == "<") out = out "&lt;"
-                else if (c == ">") out = out "&gt;"
-                else if (c == "\"") out = out "&#34;"
-                else if (c == q) out = out "&#39;"
-                else if (c == "/") out = out "&#x2F;"
-                else out = out c
-            }
-            printf "%s%s", (NR>1 ? "\n" : ""), out
-        }'
+	printf '%s' "$1" | awk '
+	    BEGIN { q = sprintf("%c", 39) }
+	    {
+	        out = ""
+	        for (i = 1; i <= length($0); i++) {
+	            c = substr($0, i, 1)
+	            if (c == "&") out = out "&amp;"
+	            else if (c == "<") out = out "&lt;"
+	            else if (c == ">") out = out "&gt;"
+	            else if (c == "\"") out = out "&#34;"
+	            else if (c == q) out = out "&#39;"
+	            else if (c == "/") out = out "&#x2F;"
+	            else out = out c
+	        }
+	        printf "%s%s", (NR>1 ? "\n" : ""), out
+	    }'
 }
 
 # Make a value safe for use in a sed s/// replacement (escape & and /).

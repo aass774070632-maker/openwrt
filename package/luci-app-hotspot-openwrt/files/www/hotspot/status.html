@@ -74,8 +74,12 @@
 		</div>
 
 		<div class="info-card">
+			<p><span>إجمالي الباقة:</span> <strong id="balance-total">-</strong></p>
+			<p><span>المستهلك:</span> <strong id="balance-used">-</strong></p>
 			<p><span>الرصيد المتبقي:</span> <strong id="balance-val">-</strong></p>
 			<p><span>تاريخ الانتهاء:</span> <strong id="expiry-val">-</strong></p>
+		<p><span>الوقت المتبقي:</span> <strong id="time-remaining">-</strong></p>
+		<p><span>البيانات المتبقية:</span> <strong id="data-remaining">-</strong></p>
 		</div>
 
 		<div class="info-card" id="speed-card">
@@ -116,7 +120,13 @@
 		(function() {
 			var settings = window.HOTSPOT_OPENWRT_SETTINGS || {};
 			if (settings.networkName) document.getElementById('dynamic-name').textContent = settings.networkName;
-			if (settings.logoUrl) document.getElementById('dynamic-logo').innerHTML = '<img src="' + settings.logoUrl + '" class="hotspot-logo" alt="Logo">';
+			if (settings.logoUrl && /^https?:\/\//i.test(settings.logoUrl)) {
+				var img = document.createElement('img');
+				img.src = settings.logoUrl;
+				img.className = 'hotspot-logo';
+				img.alt = 'Logo';
+				document.getElementById('dynamic-logo').appendChild(img);
+			}
 			renderSupportPhone(settings.supportPhone);
 
 			function renderSupportPhone(phone) {
@@ -162,9 +172,13 @@
 			var cardNumber = document.getElementById('card-number');
 			var connectionState = document.getElementById('connection-state');
 			var profileName = document.getElementById('profile-name');
+			var balanceTotal = document.getElementById('balance-total');
+			var balanceUsed = document.getElementById('balance-used');
 			var balanceVal = document.getElementById('balance-val');
 			var expiryVal = document.getElementById('expiry-val');
 			var speedDown = document.getElementById('speed-down');
+			var timeRemaining = document.getElementById('time-remaining');
+			var dataRemaining = document.getElementById('data-remaining');
 			var speedUp = document.getElementById('speed-up');
 
 			var username = new URLSearchParams(window.location.search).get('username') || sessionStorage.getItem('hotspot_openwrt_session_username') || localStorage.getItem('hotspot_openwrt_username') || '';
@@ -188,7 +202,6 @@
 						location.replace(loginUrl);
 						return;
 					}
-					window.lastCardInfo = data;
 					cardNumber.textContent = data.card_number || username || '-';
 					connectionState.textContent = data.authenticated ? 'متصل الآن' : 'بانتظار الدخول';
 					connectionState.style.background = data.authenticated ? '#0d9488' : '#64748b';
@@ -196,12 +209,19 @@
 					speedUp.textContent = formatBandwidth(data.max_up);
 					speedDown.textContent = formatBandwidth(data.max_down);
 
-					var um = data.user_manager || {};
-					if (um.ok) {
-						profileName.textContent = um.profile || '-';
-						balanceVal.textContent = um.balance || 'مفتوح';
-						expiryVal.textContent = um.expires_at || um.validity || 'غير محدد';
-					}
+				profileName.textContent = data.profile || '-';
+				if (balanceTotal) balanceTotal.textContent = data.balance_total || '-';
+				if (balanceUsed) balanceUsed.textContent = data.balance_used || '-';
+				balanceVal.textContent = data.balance_remaining || 'مفتوح';
+				expiryVal.textContent = data.expires_at || 'غير محدد';
+				if (timeRemaining) {
+					timeRemaining.textContent = data.session_timeout_remaining_human && data.session_timeout_remaining > 0
+						? data.session_timeout_remaining_human
+						: (data.session_timeout > 0 ? 'غير محدود' : 'غير محدد');
+				}
+				if (dataRemaining) {
+					dataRemaining.textContent = data.remaining_bytes_human || 'غير محدد';
+				}
 				}).catch(function(){});
 			}
 
@@ -209,54 +229,74 @@
 			var refresh = Number(settings.statusAutorefreshSeconds || 60);
 			if (refresh > 0) setInterval(updateStatus, refresh * 1000);
 
-			// --- Advanced Speed Test Logic (6 Seconds Sustained) ---
+			// --- Speed Test ---
 			var testBtn = document.getElementById('start-test');
 			var testStatus = document.getElementById('test-status');
 			var pbar = document.getElementById('pbar');
 			var pfill = document.getElementById('pfill');
 			var resDown = document.getElementById('res-down');
 			var resUp = document.getElementById('res-up');
+			var speedtestUrl = (window.HOTSPOT_OPENWRT_SETTINGS && window.HOTSPOT_OPENWRT_SETTINGS.speedtestUrl) || '';
+			var speedtestEnabled = (window.HOTSPOT_OPENWRT_SETTINGS && window.HOTSPOT_OPENWRT_SETTINGS.speedtestEnabled) || false;
 
-			function runSustainedTest(mode, durationMs, callback) {
-				const isDown = (mode === 'down');
-				const limitBps = isDown ? (window.lastCardInfo?.max_down || 0) : (window.lastCardInfo?.max_up || 0);
-				const limitMbps = limitBps > 0 ? (limitBps / 1000000) : 0;
-				
-				let startTime = Date.now();
-				let timer = setInterval(function() {
-					let elapsed = Date.now() - startTime;
-					let progress = elapsed / durationMs;
-					
-					if (progress >= 1) {
-						clearInterval(timer);
-						let finalSpeed = limitMbps > 0 ? (limitMbps * (0.98 + Math.random() * 0.04)) : (20 + Math.random() * 5);
-						callback(finalSpeed, durationMs);
+			function measureDownload(ms, onProgress) {
+				return new Promise(function(resolve) {
+					if (!speedtestUrl) {
+						resolve(-1);
 						return;
 					}
+					var startTime = Date.now();
+					var totalBytes = 0;
+					var pending = 0;
 
-					pfill.style.width = (isDown ? (progress * 50) : (50 + progress * 50)) + '%';
-					
-					let target = limitMbps > 0 ? limitMbps : 25;
-					let currentDisplay;
-					
-					if (progress < 0.2) {
-						currentDisplay = target * progress * 5;
-					} else {
-						currentDisplay = target * (0.97 + Math.random() * 0.06);
+					function next() {
+						var elapsed = Date.now() - startTime;
+						if (elapsed >= ms) {
+							var secs = elapsed / 1000;
+							resolve(totalBytes > 0 ? (totalBytes * 8) / secs : 0);
+							return;
+						}
+						onProgress(elapsed / ms);
+						var url = speedtestUrl + (speedtestUrl.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now() + '&_r=' + Math.random();
+						pending++;
+						fetch(url, { cache: 'no-store', mode: 'cors' }).then(function(r) {
+							if (r.ok) {
+								r.clone().text().then(function(t) { totalBytes += t.length; }).catch(function() {});
+							}
+							pending--;
+							setTimeout(next, 50);
+						}).catch(function() { pending--; setTimeout(next, 50); });
 					}
-					
-					if (isDown) resDown.textContent = currentDisplay.toFixed(2);
-					else resUp.textContent = currentDisplay.toFixed(2);
-					
-					// Update Gauge if exists (we can call updateGauge if implemented)
-					if (window.updateGauge) window.updateGauge(currentDisplay);
-				}, 100);
+					next();
+				});
+			}
 
-				// Background activity
-				fetch('/cgi-bin/hotspot-speedtest' + (isDown ? '?down' : ''), {
-					method: isDown ? 'GET' : 'POST',
-					body: isDown ? null : new Uint8Array(1024 * 128)
-				}).catch(function(){});
+			function measureUpload(ms, onProgress) {
+				return new Promise(function(resolve) {
+					if (!speedtestUrl) {
+						resolve(-1);
+						return;
+					}
+					var startTime = Date.now();
+					var totalBytes = 0;
+					var body = new Array(1024).join('x');
+
+					function next() {
+						var elapsed = Date.now() - startTime;
+						if (elapsed >= ms) {
+							var secs = elapsed / 1000;
+							resolve(totalBytes > 0 ? (totalBytes * 8) / secs : 0);
+							return;
+						}
+						onProgress(elapsed / ms);
+						var url = speedtestUrl + (speedtestUrl.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now() + '&_r=' + Math.random();
+						fetch(url, { method: 'POST', body: body, cache: 'no-store', mode: 'cors' }).then(function(r) {
+							totalBytes += body.length;
+							setTimeout(next, 50);
+						}).catch(function() { setTimeout(next, 50); });
+					}
+					next();
+				});
 			}
 
 			testBtn.onclick = function() {
@@ -264,22 +304,38 @@
 				testBtn.style.opacity = '0.5';
 				pbar.style.display = 'block';
 				pfill.style.width = '0%';
-				resDown.textContent = '0.00';
-				resUp.textContent = '0.00';
-				
-				testStatus.textContent = 'جاري التحقق من سرعة التحميل...';
-				runSustainedTest('down', 6000, function(finalDownMbps) {
-					resDown.textContent = finalDownMbps.toFixed(2);
+				resDown.textContent = '...';
+				resUp.textContent = '...';
+
+				if (!speedtestUrl) {
+					testStatus.textContent = 'الرجاء تعيين رابط فحص السرعة في الإعدادات.';
+					pbar.style.display = 'none';
+					testBtn.disabled = false;
+					testBtn.style.opacity = '1';
+					return;
+				}
+
+				testStatus.textContent = 'جاري قياس سرعة التحميل...';
+				measureDownload(3000, function(p) { pfill.style.width = (p * 50) + '%'; })
+				.then(function(downBps) {
+					resDown.textContent = downBps < 0 ? '-' : (downBps / 1e6).toFixed(2);
 					
-					testStatus.textContent = 'جاري التحقق من سرعة الرفع...';
-					runSustainedTest('up', 6000, function(finalUpMbps) {
-						resUp.textContent = finalUpMbps.toFixed(2);
+					testStatus.textContent = 'جاري قياس سرعة الرفع...';
+					measureUpload(3000, function(p) { pfill.style.width = (50 + p * 50) + '%'; })
+					.then(function(upBps) {
+						resUp.textContent = upBps < 0 ? '-' : (upBps / 1e6).toFixed(2);
 						
-						testStatus.textContent = 'اكتمل الفحص المتقدم';
+						var memo = '';
+						if (downBps < 0) memo = '';
+						else if (downBps < 1e6) memo = '(بطيء جداً)';
+						else if (downBps < 5e6) memo = '(منخفضة)';
+						else if (downBps < 20e6) memo = '(متوسطة)';
+						else memo = '(جيدة)';
+						testStatus.textContent = 'تم الفحص ' + memo;
 						pbar.style.display = 'none';
 						testBtn.disabled = false;
 						testBtn.style.opacity = '1';
-						testBtn.textContent = 'إعادة الفحص المتقدم';
+						testBtn.textContent = 'إعادة الفحص';
 					});
 				});
 			};

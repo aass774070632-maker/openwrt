@@ -12,7 +12,7 @@
 		<h1 id="dynamic-name">تسجيل الدخول</h1>
 		<div id="dynamic-notice"></div>
 		
-		<form id="login-form" method="get" action="/cgi-bin/hotspot-login">
+		<form id="login-form" method="post" action="/cgi-bin/hotspot-login">
 			<div id="user-field">
 				<label for="username">رقم الكرت</label>
 				<input id="username" name="username" placeholder="أدخل رقم الكرت هنا" autocomplete="username" required>
@@ -96,8 +96,19 @@
 
 		// Branding
 		if (settings.networkName) document.getElementById('dynamic-name').textContent = settings.networkName;
-		if (settings.logoUrl) document.getElementById('dynamic-logo').innerHTML = '<img src="' + settings.logoUrl + '" class="hotspot-logo" alt="Logo">';
-		if (settings.noticeText) document.getElementById('dynamic-notice').innerHTML = '<div class="hotspot-notice">' + settings.noticeText + '</div>';
+		if (settings.logoUrl && /^https?:\/\//i.test(settings.logoUrl)) {
+			var img = document.createElement('img');
+			img.src = settings.logoUrl;
+			img.className = 'hotspot-logo';
+			img.alt = 'Logo';
+			document.getElementById('dynamic-logo').appendChild(img);
+		}
+		if (settings.noticeText) {
+			var notice = document.createElement('div');
+			notice.className = 'hotspot-notice';
+			notice.textContent = settings.noticeText;
+			document.getElementById('dynamic-notice').appendChild(notice);
+		}
 		renderSupportPhone(settings.supportPhone);
 
 		function renderSupportPhone(phone) {
@@ -137,10 +148,15 @@
 		if (settings.restAreaEnabled) addPortalLink('الاستراحة', settings.restAreaUrl || '');
 
 		// Speed Selection
-		if (settings.availableSpeeds) {
-			var speedList = settings.availableSpeeds.split('\n').filter(Boolean);
-			if (speedList.length > 0) {
-				var speedSelect = document.getElementById('speed');
+		var speedSelect = document.getElementById('speed');
+		if (speedSelect) {
+			var defOpt = document.createElement('option');
+			defOpt.value = 'default';
+			defOpt.textContent = 'السرعة الافتراضية للشبكة';
+			speedSelect.appendChild(defOpt);
+
+			if (settings.availableSpeeds) {
+				var speedList = settings.availableSpeeds.split('\n').filter(Boolean);
 				speedList.forEach(function(s) {
 					var parts = s.trim().split(/\s+/);
 					var val = parts[0];
@@ -150,8 +166,6 @@
 					opt.textContent = label;
 					speedSelect.appendChild(opt);
 				});
-			} else {
-				document.getElementById('speed-field').style.display = 'none';
 			}
 		} else {
 			document.getElementById('speed-field').style.display = 'none';
@@ -256,7 +270,7 @@
 			usernameInput.value = originalUsername;
 			passwordInput.value = originalPassword;
 
-			fetch('/cgi-bin/hotspot-login?format=json&' + formData, { cache: 'no-store' })
+			fetch('/cgi-bin/hotspot-login', { method: 'POST', body: 'format=json&' + formData, cache: 'no-store' })
 				.then(function(r) { return r.json(); })
 				.then(function(data) {
 					if (data.ok) {

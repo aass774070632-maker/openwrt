@@ -33,8 +33,7 @@ rate_limit_rx_tx="$(uci -q get hotspot_openwrt.main.rate_limit_rx_tx || echo '')
 primary_socket_path="/var/run/chilli_hotspot_openwrt.sock"
 secondary_socket_path="/var/run/chilli_hotspot_openwrt_secondary.sock"
 mac_cookie_helper='/usr/libexec/hotspot-openwrt/mac-cookies'
-watchdog_pid_file='/var/run/hotspot-openwrt-presence-watchdog.pid'
-mac_cookie_watchdog_pid_file='/var/run/hotspot-openwrt-mac-cookie-watchdog.pid'
+
 last_client=''
 clients_total='0'
 active_clients='0'

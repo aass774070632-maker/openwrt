@@ -24,6 +24,12 @@ for domain in \
 do
     uci -q del_list dhcp.@dnsmasq[0].address="$domain" || true
 done
+uci -q delete dhcp.@dnsmasq[0].interface
+uci -q add_list dhcp.@dnsmasq[0].interface='lan'
+uci -q add_list dhcp.@dnsmasq[0].interface='loopback'
+uci -q add_list dhcp.@dnsmasq[0].interface='alemprator_setup'
+uci set dhcp.@dnsmasq[0].nonwildcard='1'
+uci set dhcp.@dnsmasq[0].localservice='0'
 uci commit dhcp
 
 # Captive portal redirect handler

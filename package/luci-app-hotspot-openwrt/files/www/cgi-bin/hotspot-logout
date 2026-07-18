@@ -27,48 +27,56 @@ after_state=''
 client_mac=''
 chilli_out="$(mktemp)"
 trap 'rm -f "$chilli_out"' EXIT
-# (... existing client_field function ...)
+
+client_field() {
+	local socket="$1"
+	local field="$2"
+	chilli_query -s "$socket" list 2>/dev/null | awk -v ip="$remote_addr" -v col="$field" '$2 == ip { print $col; exit }'
+}
 
 if [ -n "$remote_addr" ]; then
-    # 1. Try Chilli Logout
-    if command -v chilli_query >/dev/null 2>&1; then
-        for socket_path in /var/run/chilli_hotspot_openwrt.sock /var/run/chilli_hotspot_openwrt_secondary.sock; do
-            [ -S "$socket_path" ] || continue
-            state="$(client_field "$socket_path" 3)"
-            mac="$(client_field "$socket_path" 1)"
-            [ -n "$state$mac" ] || continue
-            [ -n "$before_state" ] || before_state="$state"
-            matched_socket="$socket_path"
-            chilli_query -s "$socket_path" logout ip "$remote_addr" >"$chilli_out" 2>&1 || true
-            if [ -n "$mac" ]; then
-                [ -x /usr/libexec/hotspot-openwrt/mac-cookies ] && /usr/libexec/hotspot-openwrt/mac-cookies delete "$mac" >/dev/null 2>&1 || true
-                chilli_query -s "$socket_path" logout mac "$mac" >"$chilli_out" 2>&1 || true
-                client_mac="$mac"
-            fi
-            after_state="$(client_field "$socket_path" 3)"
-            [ "$after_state" != 'pass' ] && logout_ok='true'
-        done
-    fi
+	# 1. Try Chilli Logout
+	if command -v chilli_query >/dev/null 2>&1; then
+	    for socket_path in /var/run/chilli_hotspot_openwrt.sock /var/run/chilli_hotspot_openwrt_secondary.sock; do
+	        [ -S "$socket_path" ] || continue
+	        state="$(client_field "$socket_path" 3)"
+	        mac="$(client_field "$socket_path" 1)"
+	        [ -n "$state$mac" ] || continue
+	        [ -n "$before_state" ] || before_state="$state"
+	        matched_socket="$socket_path"
+	        chilli_query -s "$socket_path" logout ip "$remote_addr" >"$chilli_out" 2>&1 || true
+	        if [ -n "$mac" ]; then
+	            [ -x /usr/libexec/hotspot-openwrt/mac-cookies ] && /usr/libexec/hotspot-openwrt/mac-cookies delete "$mac" >/dev/null 2>&1 || true
+	            chilli_query -s "$socket_path" logout mac "$mac" >"$chilli_out" 2>&1 || true
+	            client_mac="$mac"
+	        fi
+	        after_state="$(client_field "$socket_path" 3)"
+	        [ "$after_state" != 'pass' ] && logout_ok='true'
+	    done
+	fi
 
-    # 2. Emergency Mode Logout
-    # Clear conntrack entries to terminate session
-    command -v conntrack >/dev/null 2>&1 && conntrack -D -s "$remote_addr" >/dev/null 2>&1 || true
-    command -v conntrack >/dev/null 2>&1 && conntrack -D -d "$remote_addr" >/dev/null 2>&1 || true
+	# 2. Emergency Mode Logout
+	# Clear conntrack entries to terminate session
+	command -v conntrack >/dev/null 2>&1 && conntrack -D -s "$remote_addr" >/dev/null 2>&1 || true
+	command -v conntrack >/dev/null 2>&1 && conntrack -D -d "$remote_addr" >/dev/null 2>&1 || true
 
-    [ -n "$matched_socket" ] || logout_ok='true'
-    if [ "$logout_ok" = 'true' ]; then
-        message="$MSG_SUCCESS"
-        err_code='SUCCESS'
-    else
-        message="$MSG_CHILLI_FAIL"
-        err_code='CHILLI_FAIL'
-    fi
+	if [ "$logout_ok" = 'true' ]; then
+	    message="$MSG_SUCCESS"
+	    err_code='SUCCESS'
+	    rm -f "/tmp/hotspot-cache-$username" 2>/dev/null || true
+	elif [ -z "$matched_socket" ]; then
+	    message='لا توجد جلسة نشطة لهذا الجهاز.'
+	    err_code='NO_SESSION'
+	else
+	    message="$MSG_CHILLI_FAIL"
+	    err_code='CHILLI_FAIL'
+	fi
 fi
 
 if [ "$format" = 'json' ]; then
 	printf 'Content-Type: application/json\r\n'
 	printf 'Cache-Control: no-store\r\n\r\n'
-    printf '{"ok":%s,"message":"%s","err_code":"%s","state_before":"%s","state_after":"%s","mac":"%s"}\n' "$logout_ok" "$(json_escape "$message")" "$(json_escape "$err_code")" "$(json_escape "$before_state")" "$(json_escape "$after_state")" "$(json_escape "$client_mac")"
+	printf '{"ok":%s,"message":"%s","err_code":"%s","state_before":"%s","state_after":"%s","mac":"%s"}\n' "$logout_ok" "$(json_escape "$message")" "$(json_escape "$err_code")" "$(json_escape "$before_state")" "$(json_escape "$after_state")" "$(json_escape "$client_mac")"
 	exit 0
 fi
 

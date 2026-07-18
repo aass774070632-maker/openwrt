@@ -43,6 +43,25 @@ start_service() {
 
 stop_service() {
 	/etc/init.d/chilli stop > /dev/null 2>&1 || true
+
+	# Clean up dnsmasq hotspot config
+	rm -f /etc/dnsmasq.d/hotspot-openwrt.conf
+	/etc/init.d/dnsmasq reload > /dev/null 2>&1 || true
+
+	# Remove nftables hotspot sets if they exist
+	nft flush set inet fw4 hotspot_blocked_mac 2>/dev/null || true
+	nft flush set inet fw4 hotspot_bypass_mac 2>/dev/null || true
+	nft delete set inet fw4 hotspot_blocked_mac 2>/dev/null || true
+	nft delete set inet fw4 hotspot_bypass_mac 2>/dev/null || true
+
+	# Restore /etc/hosts (remove hotspot domain line)
+	local domain
+	domain="$(uci -q get hotspot_openwrt.main.domain)"
+	[ -n "$domain" ] && sed -i "/[[:space:]]$domain$/d" /etc/hosts 2>/dev/null || true
+
+	# Remove state files
+	rm -f /var/run/hotspot-openwrt-absent/* 2>/dev/null || true
+	rmdir /var/run/hotspot-openwrt-absent 2>/dev/null || true
 }
 
 service_triggers() {

@@ -14,23 +14,23 @@
 -- =========== load nixio safely ===========
 local ok_nixio, nixio = pcall(require, "nixio")
 if not ok_nixio then
-    local f = io.open("/tmp/radius-proxy.log", "a")
-    if f then
-        f:write(os.date("%Y-%m-%d %H:%M:%S") .. " FATAL: cannot load nixio\n")
-        f:close()
-    end
-    io.stderr:write("radius-proxy: cannot load nixio\n")
-    os.exit(1)
+	local f = io.open("/tmp/radius-proxy.log", "a")
+	if f then
+	    f:write(os.date("%Y-%m-%d %H:%M:%S") .. " FATAL: cannot load nixio\n")
+	    f:close()
+	end
+	io.stderr:write("radius-proxy: cannot load nixio\n")
+	os.exit(1)
 end
 
 -- =========== safe logging ===========
 local LOG_FILE = "/tmp/radius-proxy.log"
 local function log(msg)
-    local f = io.open(LOG_FILE, "a")
-    if f then
-        f:write(os.date("%Y-%m-%d %H:%M:%S") .. " [" .. tostring(nixio.getpid() or "?") .. "] " .. msg .. "\n")
-        f:close()
-    end
+	local f = io.open(LOG_FILE, "a")
+	if f then
+	    f:write(os.date("%Y-%m-%d %H:%M:%S") .. " [" .. tostring(nixio.getpid() or "?") .. "] " .. msg .. "\n")
+	    f:close()
+	end
 end
 
 log("========================================")
@@ -38,15 +38,15 @@ log("radius-proxy starting")
 
 -- =========== read config via uci CLI ===========
 local function uci_get(key)
-    local h = io.popen("uci -q get " .. key .. " 2>/dev/null")
-    if not h then return nil end
-    local v = h:read("*a")
-    h:close()
-    if v then
-        v = v:gsub("^%s*(.-)%s*$", "%1") -- trim whitespace/newlines
-        if v ~= "" then return v end
-    end
-    return nil
+	local h = io.popen("uci -q get " .. key .. " 2>/dev/null")
+	if not h then return nil end
+	local v = h:read("*a")
+	h:close()
+	if v then
+	    v = v:gsub("^%s*(.-)%s*$", "%1") -- trim whitespace/newlines
+	    if v ~= "" then return v end
+	end
+	return nil
 end
 
 local server1          = uci_get("hotspot_openwrt.main.radius_server")    or "192.168.1.2"
@@ -63,187 +63,251 @@ log("radius_routing:\n" .. radius_routing)
 -- =========== build routing table ===========
 local route_to_server2 = {}
 for entry in radius_routing:gmatch("[^\n,]+") do
-    local len_str = entry:match("^%s*(%d+)%s*:")
-    if len_str then
-        route_to_server2[tonumber(len_str)] = true
-        log("  routing rule: card-length " .. len_str .. " -> server2")
-    end
+	local len_str = entry:match("^%s*(%d+)%s*:")
+	if len_str then
+	    route_to_server2[tonumber(len_str)] = true
+	    log("  routing rule: card-length " .. len_str .. " -> server2")
+	end
 end
 
 local POLLIN = nixio.poll_flags("in")
 
+-- =========== local test users (for development/testing) ===========
+-- When a user is listed here, authentication is handled locally
+-- without forwarding to the external RADIUS server.
+local LOCAL_USERS = {
+  test123 = "test123",
+  admin   = "admin123",
+}
+local LOCAL_SECRET = "12345678"  -- must match chilli.hotspot_openwrt.radiussecret
+
+-- =========== RADIUS helpers for local auth ===========
+local function md5_bytes(s)
+	local h = io.popen("echo -n " .. nixio.quote(s) .. " | openssl md5 -binary 2>/dev/null", "r")
+	if not h then return nil end
+	local r = h:read("*a")
+	h:close()
+	return r
+end
+
+local function build_access_accept(req_data, username)
+	-- Build an Access-Accept (code=2) reply packet
+	local req_auth = req_data:sub(5, 20)  -- bytes 5-20 = Request Authenticator
+	local req_id    = req_data:byte(2)
+
+	-- Build reply attributes
+	local attrs = ""
+	-- Session-Timeout (type 27) = 3600
+	attrs = attrs .. string.char(27, 6, 0, 0, 14, 16)   -- 3600 in network byte order
+	-- Idle-Timeout (type 28) = 600
+	attrs = attrs .. string.char(28, 6, 0, 0, 2, 88)    -- 600 in network byte order
+
+	local code = string.char(2)   -- Access-Accept
+	local id   = string.char(req_id)
+	local len  = 20 + #attrs     -- header(20) + attributes
+
+	-- Build packet with zero Response Authenticator first
+	local pkt = code .. id .. string.char(math.floor(len/256), len % 256)
+	pkt = pkt .. string.rep("\0", 16)  -- zero authenticator (will be filled)
+	pkt = pkt .. attrs
+
+	-- Compute Response Authenticator: MD5(pkt + secret)
+	local auth = md5_bytes(pkt .. LOCAL_SECRET)
+	if not auth or #auth < 16 then
+	    log("LOCAL_AUTH ERROR: md5_bytes failed")
+	    return nil
+	end
+
+	-- Replace zero authenticator with computed one
+	local reply = pkt:sub(1, 4) .. auth .. pkt:sub(21)
+	return reply
+end
+
 -- =========== RADIUS attribute parser ===========
 local function get_radius_username(data)
-    local len = #data
-    if len < 20 then return nil end
-    local pos = 21   -- skip 20-byte RADIUS header
-    while pos <= len do
-        local attr_type = data:byte(pos)
-        local attr_len  = data:byte(pos + 1)
-        if not attr_type or not attr_len or attr_len < 2 then break end
-        if pos + attr_len - 1 > len then break end
-        if attr_type == 1 then   -- User-Name (type 1)
-            return data:sub(pos + 2, pos + attr_len - 1)
-        end
-        pos = pos + attr_len
-    end
-    return nil
+	local len = #data
+	if len < 20 then return nil end
+	local pos = 21   -- skip 20-byte RADIUS header
+	while pos <= len do
+	    local attr_type = data:byte(pos)
+	    local attr_len  = data:byte(pos + 1)
+	    if not attr_type or not attr_len or attr_len < 2 then break end
+	    if pos + attr_len - 1 > len then break end
+	    if attr_type == 1 then   -- User-Name (type 1)
+	        return data:sub(pos + 2, pos + attr_len - 1)
+	    end
+	    pos = pos + attr_len
+	end
+	return nil
 end
 
 -- =========== choose target server ===========
 local function choose_server(username)
-    if not username or username == "" then return server1 end
+	if not username or username == "" then return server1 end
 
-    local clean = username:match("^([^@]+)") or username
-    local card_len = #clean
+	local clean = username:match("^([^@]+)") or username
+	local card_len = #clean
 
-    if route_to_server2[card_len] then
-        log("  -> server2 (" .. server2 .. ") rule: card_len=" .. card_len)
-        return server2
-    end
+	if route_to_server2[card_len] then
+	    log("  -> server2 (" .. server2 .. ") rule: card_len=" .. card_len)
+	    return server2
+	end
 
-    if username:find("@userman2", 1, true) then
-        log("  -> server2 (" .. server2 .. ") suffix @userman2")
-        return server2
-    end
+	if username:find("@userman2", 1, true) then
+	    log("  -> server2 (" .. server2 .. ") suffix @userman2")
+	    return server2
+	end
 
-    log("  -> server1 (" .. server1 .. ") default")
-    return server1
+	log("  -> server1 (" .. server1 .. ") default")
+	return server1
 end
 
 -- =========== check if bit has data (simple: revents > 0) ===========
 local function has_data(fd_entry)
-    return fd_entry.revents and fd_entry.revents > 0
+	return fd_entry.revents and fd_entry.revents > 0
 end
 
 -- =========== main proxy loop ===========
 local function run_proxy()
-    -- Auth listening socket  (CoovaChilli -> proxy)
-    local auth_in = nixio.socket("inet", "dgram")
-    auth_in:setsockopt("socket", "reuseaddr", 1)
-    if not auth_in:bind("127.0.0.1", 1812) then
-        log("FATAL: cannot bind 127.0.0.1:1812 – port in use?")
-        os.exit(1)
-    end
+	-- Auth listening socket  (CoovaChilli -> proxy)
+	local auth_in = nixio.socket("inet", "dgram")
+	auth_in:setsockopt("socket", "reuseaddr", 1)
+	if not auth_in:bind("127.0.0.1", 1812) then
+	    log("FATAL: cannot bind 127.0.0.1:1812 – port in use?")
+	    os.exit(1)
+	end
 
-    -- Acct listening socket
-    local acct_in = nixio.socket("inet", "dgram")
-    acct_in:setsockopt("socket", "reuseaddr", 1)
-    if not acct_in:bind("127.0.0.1", 1813) then
-        log("FATAL: cannot bind 127.0.0.1:1813 – port in use?")
-        os.exit(1)
-    end
+	-- Acct listening socket
+	local acct_in = nixio.socket("inet", "dgram")
+	acct_in:setsockopt("socket", "reuseaddr", 1)
+	if not acct_in:bind("127.0.0.1", 1813) then
+	    log("FATAL: cannot bind 127.0.0.1:1813 – port in use?")
+	    os.exit(1)
+	end
 
-    -- Outbound sockets (proxy -> RADIUS server)
-    local auth_out = nixio.socket("inet", "dgram")
-    auth_out:setsockopt("socket", "reuseaddr", 1)
-    auth_out:bind("0.0.0.0", 0)
+	-- Outbound sockets (proxy -> RADIUS server)
+	local auth_out = nixio.socket("inet", "dgram")
+	auth_out:setsockopt("socket", "reuseaddr", 1)
+	auth_out:bind("0.0.0.0", 0)
 
-    local acct_out = nixio.socket("inet", "dgram")
-    acct_out:setsockopt("socket", "reuseaddr", 1)
-    acct_out:bind("0.0.0.0", 0)
+	local acct_out = nixio.socket("inet", "dgram")
+	acct_out:setsockopt("socket", "reuseaddr", 1)
+	acct_out:bind("0.0.0.0", 0)
 
-    log("OK: listening on 127.0.0.1:1812 (auth) + 127.0.0.1:1813 (acct)")
+	log("OK: listening on 127.0.0.1:1812 (auth) + 127.0.0.1:1813 (acct)")
 
-    local fds = {
-        { fd = auth_in,  events = POLLIN },   -- [1]
-        { fd = auth_out, events = POLLIN },   -- [2]
-        { fd = acct_in,  events = POLLIN },   -- [3]
-        { fd = acct_out, events = POLLIN },   -- [4]
-    }
+	local fds = {
+	    { fd = auth_in,  events = POLLIN },   -- [1]
+	    { fd = auth_out, events = POLLIN },   -- [2]
+	    { fd = acct_in,  events = POLLIN },   -- [3]
+	    { fd = acct_out, events = POLLIN },   -- [4]
+	}
 
-    -- transaction tables:  "id_serverIP" -> { port, ts }
-    local auth_trans = {}
-    local acct_trans = {}
-    local loops = 0
+	-- transaction tables:  "id_serverIP" -> { port, ts }
+	local auth_trans = {}
+	local acct_trans = {}
+	local loops = 0
 
-    while true do
-        local n = nixio.poll(fds, 3000)
+	while true do
+	    local n = nixio.poll(fds, 3000)
 
-        -- housekeeping: drop stale transactions every ~30 s
-        loops = loops + 1
-        if loops % 10 == 0 then
-            local now = os.time()
-            for k, v in pairs(auth_trans) do
-                if now - v.ts > 30 then auth_trans[k] = nil end
-            end
-            for k, v in pairs(acct_trans) do
-                if now - v.ts > 30 then acct_trans[k] = nil end
-            end
-        end
+	    -- housekeeping: drop stale transactions every ~30 s
+	    loops = loops + 1
+	    if loops % 10 == 0 then
+	        local now = os.time()
+	        for k, v in pairs(auth_trans) do
+	            if now - v.ts > 30 then auth_trans[k] = nil end
+	        end
+	        for k, v in pairs(acct_trans) do
+	            if now - v.ts > 30 then acct_trans[k] = nil end
+	        end
+	    end
 
-        if n and n > 0 then
-            -- [1] Auth request from CoovaChilli
-            if has_data(fds[1]) then
-                local data, src_ip, src_port = auth_in:recvfrom(4096)
-                if data and #data >= 20 then
-                    local id = data:byte(2)
-                    local username = get_radius_username(data)
-                    log("AUTH req id=" .. id .. " user=" .. tostring(username))
-                    local target = choose_server(username)
-                    local key = id .. "_" .. target
-                    auth_trans[key] = { port = src_port, ts = os.time() }
-                    auth_out:sendto(data, target, remote_auth_port)
-                end
-            end
+	    if n and n > 0 then
+	        -- [1] Auth request from CoovaChilli
+	        if has_data(fds[1]) then
+	            local data, src_ip, src_port = auth_in:recvfrom(4096)
+	            if data and #data >= 20 then
+	                local id = data:byte(2)
+	                local username = get_radius_username(data)
+	                log("AUTH req id=" .. id .. " user=" .. tostring(username))
 
-            -- [2] Auth reply from RADIUS server
-            if has_data(fds[2]) then
-                local data, src_ip, src_port = auth_out:recvfrom(4096)
-                if data and #data >= 20 then
-                    local id  = data:byte(2)
-                    local code = data:byte(1)
-                    log("AUTH reply id=" .. id .. " code=" .. code .. " from=" .. tostring(src_ip))
-                    local key = id .. "_" .. src_ip
-                    local t = auth_trans[key]
-                    if t then
-                        auth_in:sendto(data, "127.0.0.1", t.port)
-                        auth_trans[key] = nil
-                    else
-                        log("  WARN: no matching transaction for auth reply key=" .. key)
-                    end
-                end
-            end
+	                -- Check local users first
+	                if username and LOCAL_USERS[username] then
+	                    log("  -> local auth for " .. username)
+	                    local reply = build_access_accept(data, username)
+	                    if reply then
+	                        auth_in:sendto(reply, "127.0.0.1", src_port)
+	                        log("  -> Access-Accept sent locally for " .. username)
+	                    else
+	                        log("  -> ERROR building local reply")
+	                    end
+	                else
+	                    local target = choose_server(username)
+	                    local key = id .. "_" .. target
+	                    auth_trans[key] = { port = src_port, ts = os.time() }
+	                    auth_out:sendto(data, target, remote_auth_port)
+	                end
+	            end
+	        end
 
-            -- [3] Acct request from CoovaChilli
-            if has_data(fds[3]) then
-                local data, src_ip, src_port = acct_in:recvfrom(4096)
-                if data and #data >= 20 then
-                    local id = data:byte(2)
-                    local username = get_radius_username(data)
-                    log("ACCT req id=" .. id .. " user=" .. tostring(username))
-                    local target = choose_server(username)
-                    local key = id .. "_" .. target
-                    acct_trans[key] = { port = src_port, ts = os.time() }
-                    acct_out:sendto(data, target, remote_acct_port)
-                end
-            end
+	        -- [2] Auth reply from RADIUS server
+	        if has_data(fds[2]) then
+	            local data, src_ip, src_port = auth_out:recvfrom(4096)
+	            if data and #data >= 20 then
+	                local id  = data:byte(2)
+	                local code = data:byte(1)
+	                log("AUTH reply id=" .. id .. " code=" .. code .. " from=" .. tostring(src_ip))
+	                local key = id .. "_" .. src_ip
+	                local t = auth_trans[key]
+	                if t then
+	                    auth_in:sendto(data, "127.0.0.1", t.port)
+	                    auth_trans[key] = nil
+	                else
+	                    log("  WARN: no matching transaction for auth reply key=" .. key)
+	                end
+	            end
+	        end
 
-            -- [4] Acct reply from RADIUS server
-            if has_data(fds[4]) then
-                local data, src_ip, src_port = acct_out:recvfrom(4096)
-                if data and #data >= 20 then
-                    local id = data:byte(2)
-                    log("ACCT reply id=" .. id .. " from=" .. tostring(src_ip))
-                    local key = id .. "_" .. src_ip
-                    local t = acct_trans[key]
-                    if t then
-                        acct_in:sendto(data, "127.0.0.1", t.port)
-                        acct_trans[key] = nil
-                    else
-                        log("  WARN: no matching transaction for acct reply key=" .. key)
-                    end
-                end
-            end
-        end
-    end
+	        -- [3] Acct request from CoovaChilli
+	        if has_data(fds[3]) then
+	            local data, src_ip, src_port = acct_in:recvfrom(4096)
+	            if data and #data >= 20 then
+	                local id = data:byte(2)
+	                local username = get_radius_username(data)
+	                log("ACCT req id=" .. id .. " user=" .. tostring(username))
+	                local target = choose_server(username)
+	                local key = id .. "_" .. target
+	                acct_trans[key] = { port = src_port, ts = os.time() }
+	                acct_out:sendto(data, target, remote_acct_port)
+	            end
+	        end
+
+	        -- [4] Acct reply from RADIUS server
+	        if has_data(fds[4]) then
+	            local data, src_ip, src_port = acct_out:recvfrom(4096)
+	            if data and #data >= 20 then
+	                local id = data:byte(2)
+	                log("ACCT reply id=" .. id .. " from=" .. tostring(src_ip))
+	                local key = id .. "_" .. src_ip
+	                local t = acct_trans[key]
+	                if t then
+	                    acct_in:sendto(data, "127.0.0.1", t.port)
+	                    acct_trans[key] = nil
+	                else
+	                    log("  WARN: no matching transaction for acct reply key=" .. key)
+	                end
+	            end
+	        end
+	    end
+	end
 end
 
 -- =========== run with error capture ===========
 log("calling run_proxy()...")
 local ok, err = pcall(run_proxy)
 if not ok then
-    log("FATAL ERROR: " .. tostring(err))
-    io.stderr:write("radius-proxy FATAL: " .. tostring(err) .. "\n")
-    os.exit(1)
+	log("FATAL ERROR: " .. tostring(err))
+	io.stderr:write("radius-proxy FATAL: " .. tostring(err) .. "\n")
+	os.exit(1)
 end

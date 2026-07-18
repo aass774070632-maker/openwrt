@@ -5,6 +5,7 @@ secondary_socket_path='/var/run/chilli_hotspot_openwrt_secondary.sock'
 mac="$1"
 ip="$2"
 state="$3"
+action="$4"
 
 printf '{"ok":'
 
@@ -16,6 +17,17 @@ fi
 if ! command -v chilli_query >/dev/null 2>&1; then
 	printf 'false,"message":"CoovaChilli is not running"}\n'
 	exit 0
+fi
+
+# If action is 'block', add MAC to blocked list immediately
+if [ "$action" = "block" ]; then
+	normalized_mac="$(printf '%s' "$mac" | tr 'A-Z-' 'a-z:')"
+	existing="$(uci -q show hotspot_openwrt.main.ip_binding 2>/dev/null | grep -i "blocked.*$normalized_mac" || true)"
+	if [ -z "$existing" ]; then
+		uci add_list hotspot_openwrt.main.ip_binding="blocked $normalized_mac comment:blocked-by-kick-$(date +%s)"
+		uci commit hotspot_openwrt
+	fi
+	nft add element inet fw4 hotspot_blocked_mac "{ $normalized_mac }" 2>/dev/null || true
 fi
 
 # Normalize MAC for dhcp-release

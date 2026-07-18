@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>الخدمة متوقفة</title>
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<main class="hotspot-shell">
+		<h1>الخدمة متوقفة حاليا</h1>
+		<div class="hotspot-notice" style="margin-top:10px;">
+			خدمة الهوتسبوت متوقفة أو لم تكتمل عملية التشغيل بعد. يرجى إعادة المحاولة خلال لحظات.
+		</div>
+		<button id="retry-btn" type="button">إعادة المحاولة</button>
+		<p style="text-align:center; color:#64748b; font-size:13px; margin-top:12px;">سيتم إعادة الفحص تلقائيا كل 8 ثوانٍ.</p>
+	</main>
+	<script>
+	(function() {
+		function retry() {
+			window.location.replace('/cgi-bin/hotspot-gate?target=auto');
+		}
+		document.getElementById('retry-btn').addEventListener('click', retry);
+		setInterval(retry, 8000);
+	})();
+	</script>
+</body>
+</html>

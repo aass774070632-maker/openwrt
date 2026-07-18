@@ -4,8 +4,35 @@ json_escape() {
 	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
-query_value() {
-	printf '%s' "&$QUERY_STRING" | sed -n "s/.*[&?]$1=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g; s/%2[Bb]/+/g; s/%2[Dd]/-/g; s/%2[Ee]/./g; s/%5[Ff]/_/g'
+human_bytes() {
+	awk -v bytes="${1:-0}" 'BEGIN {
+		split("B KB MB GB TB", unit)
+		value = bytes + 0
+		idx = 1
+		while (value >= 1024 && idx < 5) {
+			value = value / 1024
+			idx++
+		}
+		if (idx == 1) printf "%d %s", value, unit[idx]
+		else printf "%.1f %s", value, unit[idx]
+	}'
+}
+
+human_time() {
+	awk -v secs="${1:-0}" 'BEGIN {
+		if (secs <= 0) { print "غير محدود"; exit }
+		d = int(secs / 86400)
+		h = int((secs % 86400) / 3600)
+		m = int((secs % 3600) / 60)
+		s = int(secs % 60)
+		res = ""
+		if (d > 0) res = res d " يوم "
+		if (h > 0) res = res h " ساعة "
+		if (m > 0) res = res m " دقيقة "
+		if (s > 0 && d == 0 && h == 0) res = res s " ثانية"
+		if (res == "") res = "0 ثانية"
+		print res
+	}'
 }
 
 strip_realm() {
@@ -13,100 +40,116 @@ strip_realm() {
 }
 
 normalize_mac() {
-	printf '%s' "$1" | tr 'A-Z-' 'a-z:'
-}
-
-status_url_for_ip() {
-	case "$1" in
-		192.168.20.*) printf '%s' 'http://192.168.20.1/hotspot/status.html' ;;
-		*) printf '%s' 'http://192.168.10.1/hotspot/status.html' ;;
-	esac
+	printf '%s' "$1" | tr '-' ':'
 }
 
 primary_socket_path='/var/run/chilli_hotspot_openwrt.sock'
 secondary_socket_path='/var/run/chilli_hotspot_openwrt_secondary.sock'
 remote_addr="${REMOTE_ADDR:-}"
-requested_username="$(query_value username)"
+requested_username="$(printf '%s' "&$QUERY_STRING" | sed -n "s/.*[&?]username=\([^&]*\).*/\1/p" | head -n 1 | sed 's/+/ /g; s/%40/@/g')"
 requested_card="$(strip_realm "$requested_username")"
+
 mac_address=''
 client_ip=''
 client_state='unknown'
 client_username=''
-selected_socket_path=''
 session_id=''
 input_octets=''
 output_octets=''
 max_up=''
 max_down=''
+session_timeout=''
+session_elapsed=''
+idle_timeout=''
+max_input=''
+max_output=''
+max_total=''
 authenticated='false'
 source='browser'
-user_manager='{"enabled":false,"ok":false,"source":"not_requested","message":"لم يتم طلب معلومات MikroTik User Manager."}'
-message='لم يتم العثور على جلسة CoovaChilli لهذا الجهاز بعد.'
-err_code='NO_SESSION'
-auth_out="$(mktemp)"
-trap 'rm -f "$auth_out"' EXIT
+message=''
 
 if command -v chilli_query >/dev/null 2>&1; then
-	client_line="$(
-		for socket_path in "$primary_socket_path" "$secondary_socket_path"; do
-			[ -S "$socket_path" ] || continue
-			chilli_query -s "$socket_path" list 2>/dev/null | awk -v remote_addr="$remote_addr" -v requested_username="$requested_username" '
-				remote_addr != "" && $2 == remote_addr { print; found = 1; exit }
-				requested_username != "" && $6 == requested_username { print; found = 1; exit }
-				END { if (!found) exit 0 }
-			'
-		done | sed -n '1p'
-	)"
-	if [ -n "$client_line" ]; then
-		mac_address="$(printf '%s' "$client_line" | awk '{ print $1 }')"
+	for socket_path in "$primary_socket_path" "$secondary_socket_path"; do
+		[ -S "$socket_path" ] || continue
+
+		client_line="$(chilli_query -s "$socket_path" list 2>/dev/null | awk -v ra="$remote_addr" -v ru="$requested_username" '
+			ra != "" && $2 == ra { print; found=1; exit }
+			ru != "" && $6 == ru { print; found=1; exit }
+			END { if (!found) exit 1 }
+		' | sed -n '1p')"
+
+		[ -z "$client_line" ] && continue
+
+		mac_address="$(normalize_mac "$(printf '%s' "$client_line" | awk '{ print $1 }')")"
 		client_ip="$(printf '%s' "$client_line" | awk '{ print $2 }')"
-		for socket_path in "$primary_socket_path" "$secondary_socket_path"; do
-			[ -S "$socket_path" ] || continue
-			chilli_query -s "$socket_path" list 2>/dev/null | awk -v ip="$client_ip" -v mac="$mac_address" '$2 == ip || $1 == mac { found = 1; exit } END { exit found ? 0 : 1 }' && {
-				selected_socket_path="$socket_path"
-				break
-			}
-		done
 		client_state="$(printf '%s' "$client_line" | awk '{ print $3 }')"
 		session_id="$(printf '%s' "$client_line" | awk '{ print $4 }')"
 		client_username="$(printf '%s' "$client_line" | awk '{ print $6 }')"
+
 		input_octets="$(printf '%s' "$client_line" | awk '{ print $9 }' | awk -F/ '{ print $1 }')"
+		max_input="$(printf '%s' "$client_line" | awk '{ print $9 }' | awk -F/ '{ print $2 }')"
 		output_octets="$(printf '%s' "$client_line" | awk '{ print $10 }' | awk -F/ '{ print $1 }')"
+		max_output="$(printf '%s' "$client_line" | awk '{ print $10 }' | awk -F/ '{ print $2 }')"
+
+		max_total="$(printf '%s' "$client_line" | awk '{ print $11 }')"
+
 		max_up="$(printf '%s' "$client_line" | awk '{ print $13 }' | sed 's/.*%//; s/\///; s/[^0-9]//g')"
 		max_down="$(printf '%s' "$client_line" | awk '{ print $14 }' | sed 's/.*%//; s/\///; s/[^0-9]//g')"
+
+		session_elapsed="$(printf '%s' "$client_line" | awk '{ print $7 }' | awk -F/ '{ print $1 }')"
+		session_timeout="$(printf '%s' "$client_line" | awk '{ print $7 }' | awk -F/ '{ print $2 }')"
+		idle_timeout="$(printf '%s' "$client_line" | awk '{ print $8 }' | awk -F/ '{ print $2 }')"
+
 		[ -n "$max_up" ] || max_up='0'
 		[ -n "$max_down" ] || max_down='0'
+		[ -n "$max_input" ] || max_input='0'
+		[ -n "$max_output" ] || max_output='0'
+		[ -n "$max_total" ] || max_total='0'
+		[ -n "$session_timeout" ] || session_timeout='0'
+		[ -n "$session_elapsed" ] || session_elapsed='0'
+		[ -n "$idle_timeout" ] || idle_timeout='0'
 		[ "$client_username" = '-' ] && client_username=''
 		[ -z "$requested_card" ] && requested_card="$(strip_realm "$client_username")"
-		if [ "$client_state" != 'pass' ] && [ -n "$selected_socket_path" ] && [ -n "$mac_address" ] && [ -n "$client_ip" ] && [ -x /usr/libexec/hotspot-openwrt/mac-cookies ]; then
-			cookie_line="$(/usr/libexec/hotspot-openwrt/mac-cookies find "$(normalize_mac "$mac_address")" 2>/dev/null || true)"
-			[ -n "$cookie_line" ] || cookie_line="$(/usr/libexec/hotspot-openwrt/mac-cookies find-card "$requested_card" 2>/dev/null || true)"
-			if [ -n "$cookie_line" ]; then
-				cookie_username="$(printf '%s' "$cookie_line" | awk -F '\t' '{ print $3 }')"
-				cookie_card="$(printf '%s' "$cookie_line" | awk -F '\t' '{ print $4 }')"
-				if [ -n "$cookie_username" ]; then
-					chilli_query -s "$selected_socket_path" authorize ip "$client_ip" username "$cookie_username" url "$(status_url_for_ip "$client_ip")?username=$cookie_card" >"$auth_out" 2>&1 || true
-					client_line="$(chilli_query -s "$selected_socket_path" list 2>/dev/null | awk -v ip="$client_ip" '$2 == ip { print; exit }')"
-					client_state="$(printf '%s' "$client_line" | awk '{ print $3 }')"
-					client_username="$(printf '%s' "$client_line" | awk '{ print $6 }')"
-					[ "$client_username" = '-' ] && client_username="$cookie_username"
-					requested_card="${cookie_card:-$(strip_realm "$client_username")}"
-				fi
-			fi
+
+		if [ "$client_state" = 'pass' ]; then
+			authenticated='true'
 		fi
-		[ "$client_state" = 'pass' ] && authenticated='true'
 		source='coovachilli'
-		message='تمت قراءة حالة الجلسة من CoovaChilli، وسيتم إرفاق معلومات MikroTik User Manager عند توفرها.'
-		err_code='SUCCESS_CHILLI'
+		break
+	done
+fi
+
+# Read from cached REST API data (set once at login by hotspot-login)
+cache_username="${requested_card:-$client_username}"
+cache_file=''
+cache_profile=''
+cache_balance_total=''
+cache_balance_remaining=''
+cache_balance=''
+cache_expires_at=''
+if [ -n "$cache_username" ]; then
+	cache_file="/tmp/hotspot-cache-$cache_username"
+	if [ -f "$cache_file" ] && [ -s "$cache_file" ]; then
+	    cache_profile="$(jsonfilter -i "$cache_file" -e '@.profile' 2>/dev/null || true)"
+	    cache_balance_total="$(jsonfilter -i "$cache_file" -e '@.balance_total' 2>/dev/null || true)"
+	    cache_balance_remaining="$(jsonfilter -i "$cache_file" -e '@.balance_remaining' 2>/dev/null || true)"
+	    cache_balance="$(jsonfilter -i "$cache_file" -e '@.balance' 2>/dev/null || true)"
+	    cache_expires_at="$(jsonfilter -i "$cache_file" -e '@.expires_at' 2>/dev/null || true)"
 	fi
 fi
 
-if [ -n "$requested_card" ] && [ -x /usr/libexec/hotspot-openwrt/userman-info ]; then
-	user_manager="$(/usr/libexec/hotspot-openwrt/userman-info "$requested_card" 2>/dev/null)"
-	case "$user_manager" in
-		\{*\}) ;;
-		*) user_manager='{"enabled":false,"ok":false,"source":"helper_error","message":"تعذر تشغيل جسر MikroTik User Manager."}' ;;
-	esac
+usage_bytes=$(( ${input_octets:-0} + ${output_octets:-0} ))
+max_input=$(( ${max_total:-0} > 0 ? ${max_total:-0} : ${max_input:-0} ))
+max_output=$(( ${max_total:-0} > 0 ? ${max_total:-0} : ${max_output:-0} ))
+session_timeout_remaining=$(( ${session_timeout:-0} > 0 ? ${session_timeout:-0} - ${session_elapsed:-0} : 0 ))
+
+[ "$session_timeout_remaining" -lt 0 ] && session_timeout_remaining=0
+
+if [ "$max_input" -gt 0 ] || [ "$max_total" -gt 0 ]; then
+	remaining_bytes=$(( ${max_total:-0} > 0 ? ${max_total:-0} - ${usage_bytes:-0} : ${max_input:-0} - ${usage_bytes:-0} ))
+	[ "$remaining_bytes" -lt 0 ] && remaining_bytes=0
+else
+	remaining_bytes=-1
 fi
 
 printf 'Content-Type: application/json\r\n'
@@ -122,11 +165,50 @@ printf '"ip":"%s",' "$(json_escape "$client_ip")"
 printf '"state":"%s",' "$(json_escape "$client_state")"
 printf '"session_id":"%s",' "$(json_escape "$session_id")"
 printf '"input_octets":"%s",' "$(json_escape "$input_octets")"
+printf '"upload_octets":"%s",' "$(json_escape "$input_octets")"
 printf '"output_octets":"%s",' "$(json_escape "$output_octets")"
+printf '"download_octets":"%s",' "$(json_escape "$output_octets")"
 printf '"max_up":"%s",' "$(json_escape "$max_up")"
 printf '"max_down":"%s",' "$(json_escape "$max_down")"
-printf '"authenticated":%s,' "$authenticated"
-printf '"mikrotik_user_manager":"routeros_rest_optional",'
-printf '"user_manager":%s,' "$user_manager"
+printf '"session_timeout":"%s",' "$(json_escape "$session_timeout")"
+printf '"session_elapsed":"%s",' "$(json_escape "$session_elapsed")"
+printf '"session_timeout_remaining":"%s",' "$(json_escape "$session_timeout_remaining")"
+printf '"session_timeout_remaining_human":"%s",' "$(json_escape "$(human_time "$session_timeout_remaining")")"
+printf '"idle_timeout":"%s",' "$(json_escape "$idle_timeout")"
+printf '"max_input":"%s",' "$(json_escape "$max_input")"
+printf '"max_output":"%s",' "$(json_escape "$max_output")"
+printf '"max_total":"%s"' "$(json_escape "$max_total")"
+if [ "$remaining_bytes" -ge 0 ]; then
+	printf ',"remaining_bytes":"%s"' "$(json_escape "$remaining_bytes")"
+	printf ',"remaining_bytes_human":"%s"' "$(json_escape "$(human_bytes "$remaining_bytes")")"
+else
+	printf ',"remaining_bytes":"-1"'
+	printf ',"remaining_bytes_human":"غير محدود"'
+fi
+printf ',"authenticated":%s,' "$authenticated"
+if [ -n "$cache_balance_total" ]; then
+	printf '"balance_total":"%s",' "$(json_escape "$cache_balance_total")"
+else
+	printf '"balance_total":"-",'
+fi
+printf '"balance_used":"%s",' "$(json_escape "$(human_bytes "$usage_bytes")")"
+if [ -n "$cache_balance_remaining" ]; then
+	printf '"balance_remaining":"%s",' "$(json_escape "$cache_balance_remaining")"
+elif [ -n "$cache_balance" ]; then
+	printf '"balance_remaining":"%s",' "$(json_escape "$cache_balance")"
+else
+	printf '"balance_remaining":"%s",' "$(json_escape "$(human_time "$session_timeout_remaining")")"
+fi
+if [ -n "$cache_profile" ]; then
+	printf '"profile":"%s",' "$(json_escape "$cache_profile")"
+else
+	printf '"profile":"%s",' "$(json_escape "$client_username")"
+fi
+if [ -n "$cache_expires_at" ]; then
+	printf '"expires_at":"%s",' "$(json_escape "$cache_expires_at")"
+else
+	printf '"expires_at":"غير محدد",'
+fi
+printf '"data_source":"radius",'
 printf '"message":"%s"' "$(json_escape "$message")"
 printf '}\n'
