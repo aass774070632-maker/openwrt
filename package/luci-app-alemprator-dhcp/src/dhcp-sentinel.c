@@ -77,10 +77,11 @@ void generate_heartbeat() {
 }
 
 int main(int argc, char **argv) {
-    if (daemon(0, 0) == -1) {
-        perror("Failed to daemonize");
-        exit(EXIT_FAILURE);
-    }
+    // NOTE: Do NOT call daemon() here. The service is launched and supervised
+    // by procd (see the init script), which handles daemonization and respawn.
+    // Calling daemon() additionally would fork away from the process procd
+    // tracks, causing procd to think the service exited and constantly respawn
+    // it (and on shutdown, fail to terminate the real process cleanly).
 
     srand(time(NULL));
     char current_hash[65];
