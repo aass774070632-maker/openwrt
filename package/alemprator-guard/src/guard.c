@@ -206,6 +206,18 @@ int main(void)
         return 0;   /* Valid local cache → authorized */
     }
 
+    if (strcmp(cached_status, "blocked") == 0) {
+        syslog(LOG_ERR, "cached status is BLOCKED → NOT authorized");
+        closelog();
+        return 1;
+    }
+
+    if (strcmp(cached_status, "expired") == 0) {
+        syslog(LOG_ERR, "cached status is EXPIRED → NOT authorized");
+        closelog();
+        return 1;
+    }
+
     /* 5. Compute HMAC signature */
     snprintf(action, sizeof(action), "hotspot_guard|%s|%s", token, mac);
     guard_hmac(action, sig);
