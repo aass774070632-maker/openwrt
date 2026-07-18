@@ -323,13 +323,14 @@ EOF
 	[ "$changed_firewall" = 1 ] && /etc/init.d/firewall restart >/dev/null 2>&1 || true
 	[ "$changed_wireless" = 1 ] && wifi reload >/dev/null 2>&1 || true
 	# DHCP is mandatory on the setup network so clients can obtain an IP and
-	# reach the captive portal. Always (re)start dnsmasq when provisioning.
+	# reach the captive portal. dnsmasq is sometimes disabled on this device,
+	# so enable it first, then (re)start it. The init 'restart' may fail
+	# silently (udhcpc hook), so fall back to launching dnsmasq directly from
+	# the real generated config file (do not trust @dnsmasq[0].'.name', it can
+	# drift from the filename).
+	/etc/init.d/dnsmasq enable >/dev/null 2>&1 || true
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
 	if ! pidof dnsmasq >/dev/null 2>&1; then
-		# init script restart may fail silently (e.g. udhcpc hook); fall back
-		# to starting dnsmasq directly from the generated config file. Do not
-		# trust dhcp.@dnsmasq[0].'.name' (it can drift from the generated file
-		# name) — locate the actual generated config under /var/etc instead.
 		local dnsmasq_conf
 		dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
 		[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
@@ -391,6 +392,7 @@ setup_captive_portal() {
 		set dhcp.@dnsmasq[0].address='/#/${setup_ip}'
 		commit dhcp
 EOF
+	/etc/init.d/dnsmasq enable >/dev/null 2>&1 || true
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
 	# The init 'restart' may fail (udhcpc hook) and leave dnsmasq dead. Ensure
 	# it is actually running by locating the real generated config file

@@ -218,6 +218,7 @@ uci -q set ${CFG}.main.auto_cleanup_armed='1'
 	uci -q commit ${CFG}
 	
 /etc/init.d/network reload >/dev/null 2>&1 || true
+/etc/init.d/dnsmasq enable >/dev/null 2>&1 || true
 /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
 # Some builds fail to start dnsmasq inside ujail; fallback to direct start.
 # Locate the real generated config file (don't trust @dnsmasq[0].'.name').
