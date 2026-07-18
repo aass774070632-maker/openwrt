@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-hotspot-openwrt
 PKG_VERSION:=1.0
-PKG_RELEASE:=157
+PKG_RELEASE:=158
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKGARCH:=all
 PKG_LICENSE:=GPL-3.0-only
@@ -45,7 +45,6 @@ define Package/luci-app-hotspot-openwrt/postinst
 [ "$${IPKG_NO_SCRIPT}" = "1" ] && exit 0
 rm -f "$${IPKG_INSTROOT}/tmp/luci-indexcache" "$${IPKG_INSTROOT}"/tmp/luci-indexcache.*.json
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
-/etc/init.d/rpcd reload >/dev/null 2>&1 || true
 /etc/init.d/uhttpd reload >/dev/null 2>&1 || true
 # Warn if a deployed device still uses a known-weak default secret so the admin
 # changes it (1.4 only changed defaults for new installs; existing values are
