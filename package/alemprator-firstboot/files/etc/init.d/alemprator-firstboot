@@ -143,7 +143,7 @@ cleanup_firstboot_runtime() {
 	[ "$changed_network" = 1 ] && /etc/init.d/network reload >/dev/null 2>&1 || true
 	if [ "$changed_dhcp" = 1 ]; then
 		/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
-		if ! pgrep -x dnsmasq >/dev/null 2>&1; then
+		if ! pidof dnsmasq >/dev/null 2>&1; then
 			local dnsmasq_cfg
 			dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
 			/usr/sbin/dnsmasq -C "/var/etc/dnsmasq.conf.${dnsmasq_cfg}" \
@@ -325,7 +325,7 @@ EOF
 	# DHCP is mandatory on the setup network so clients can obtain an IP and
 	# reach the captive portal. Always (re)start dnsmasq when provisioning.
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
-	if ! pgrep -x dnsmasq >/dev/null 2>&1; then
+	if ! pidof dnsmasq >/dev/null 2>&1; then
 		# init script restart may fail silently (e.g. udhcpc hook); fall back
 		# to starting dnsmasq directly from the generated config file. Do not
 		# trust dhcp.@dnsmasq[0].'.name' (it can drift from the generated file
@@ -389,7 +389,7 @@ setup_captive_portal() {
 EOF
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
 	# Fallback: start directly if jail fails
-	if ! pgrep -x dnsmasq >/dev/null 2>&1; then
+	if ! pidof dnsmasq >/dev/null 2>&1; then
 		local dnsmasq_cfg
 		dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
 		/usr/sbin/dnsmasq -C "/var/etc/dnsmasq.conf.${dnsmasq_cfg}" \
@@ -414,7 +414,7 @@ remove_captive_portal() {
 	uci -q commit dhcp 2>/dev/null || true
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
 	# Fallback: start directly if jail fails
-	if ! pgrep -x dnsmasq >/dev/null 2>&1; then
+	if ! pidof dnsmasq >/dev/null 2>&1; then
 		local dnsmasq_cfg
 		dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
 		/usr/sbin/dnsmasq -C "/var/etc/dnsmasq.conf.${dnsmasq_cfg}" \
