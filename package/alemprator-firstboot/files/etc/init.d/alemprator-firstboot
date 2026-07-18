@@ -338,17 +338,19 @@ EOF
 boot() {
 	load_firstboot_config
 
-	# Factory-reset safety net: if the device is not yet configured and the
-	# uci-defaults script did not run (e.g. firstboot -y wiped the overlay or
-	# uci-defaults was skipped), bootstrap the firstboot flags ourselves so the
+	# Factory-reset safety net: if the device is not yet configured OR the
+	# setup section names are stale (e.g. uci-defaults did not run, or an old
+	# config carried over after firstboot -y wiped the overlay), bootstrap the
+	# firstboot flags and force the canonical br_setup section names so the
 	# Setup AP is always created on a clean device.
-	if [ "$enabled" != "1" ] && [ "$configured_once" != "1" ] && [ ! -f "$configured_flag" ]; then
+	if [ "$enabled" != "1" ] || [ "$configured_once" != "1" ] || [ ! -f "$configured_flag" ] || \
+	   [ "$network_section" != "br_setup" ] || [ "$dhcp_section" != "br_setup" ] || [ "$firewall_section" != "br_setup" ]; then
 		uci -q set ${CFG}.main.enabled='1'
 		uci -q set ${CFG}.main.configured_once='0'
 		uci -q set ${CFG}.main.auto_cleanup_armed='1'
-		uci -q set ${CFG}.main.network_section="${network_section}"
-		uci -q set ${CFG}.main.dhcp_section="${dhcp_section}"
-		uci -q set ${CFG}.main.firewall_section="${firewall_section}"
+		uci -q set ${CFG}.main.network_section='br_setup'
+		uci -q set ${CFG}.main.dhcp_section='br_setup'
+		uci -q set ${CFG}.main.firewall_section='br_setup'
 		uci -q commit ${CFG}
 		touch "$pending_flag"
 		load_firstboot_config
