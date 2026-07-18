@@ -147,6 +147,26 @@ load_config() {
 load_state() {
 	[ -f "$STATE_FILE" ] || return 0
 	. "$STATE_FILE"
+	recover_stuck_state
+}
+
+# Reset transient states (downloading/upgrading/checking) that cannot survive a
+# reboot or process crash. Prevents the device from being stuck in a "pending
+# update" state after power loss or network failure mid-upgrade.
+recover_stuck_state() {
+	case "$status" in
+		downloading|upgrading|checking)
+			if pgrep -f 'agent.sh' >/dev/null 2>&1 || pgrep -x uclient-fetch >/dev/null 2>&1; then
+				return 0
+			fi
+			status="error"
+			last_result="stuck_state_recovered"
+			last_error="update interrupted (no active process); state reset"
+			reset_progress_state
+			write_state
+			rm -f "$TMP_IMAGE"
+			;;
+	esac
 }
 
 write_state() {
@@ -828,7 +848,12 @@ download_and_verify() {
 		sleep 1
 	done
 
-	wait "$fetch_pid" || return 1
+	if ! wait "$fetch_pid"; then
+		# Network failure / 404 / server error. Remove any partial image so a
+		# subsequent retry starts clean and never boots a truncated firmware.
+		rm -f "$TMP_IMAGE"
+		return 1
+	fi
 
 	if [ -f "$TMP_IMAGE" ]; then
 		current_bytes="$(wc -c < "$TMP_IMAGE" 2>/dev/null | tr -d ' ')"
@@ -839,8 +864,22 @@ download_and_verify() {
 	update_download_progress "$current_bytes"
 	write_state
 
+	# No expected hash from the server: cannot verify integrity, so refuse to
+	# apply rather than risk flashing a corrupted/untrusted image.
+	if [ -z "$expected" ]; then
+		log "download_and_verify: no sha256 provided by server; refusing image"
+		rm -f "$TMP_IMAGE"
+		return 1
+	fi
+
 	got="$(sha256sum "$TMP_IMAGE" | awk '{print $1}')"
-	[ "$got" = "$expected" ]
+	if [ "$got" != "$expected" ]; then
+		log "download_and_verify: sha256 mismatch got=$got expected=$expected"
+		rm -f "$TMP_IMAGE"
+		return 1
+	fi
+
+	return 0
 }
 
 run_check_cycle() {
