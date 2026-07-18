@@ -370,9 +370,13 @@ boot() {
 	load_firstboot_config
 
 	if [ "$enabled" = "1" ] && [ "$auto_cleanup_armed" = "1" ] && [ -f "$pending_flag" ]; then
-		provision_setup_ap >/dev/null 2>&1 || true
+		logger -t alemprator-firstboot "boot: provisioning setup AP (enabled=$enabled armed=$auto_cleanup_armed pending=$( [ -f "$pending_flag" ] && echo Y || echo N ))"
+		provision_setup_ap
+		rc=$?
+		logger -t alemprator-firstboot "boot: provision_setup_ap rc=$rc dnsmasq=$( pidof dnsmasq >/dev/null && echo Y || echo N )"
 		ensure_baseline_file >/dev/null 2>&1 || true
 		setup_captive_portal
+		logger -t alemprator-firstboot "boot: captive portal done dnsmasq=$( pidof dnsmasq >/dev/null && echo Y || echo N )"
 	fi
 }
 
