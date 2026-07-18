@@ -402,14 +402,29 @@ EOF
 	/usr/sbin/dnsmasq -C "$dnsmasq_conf" \
 		-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
 
-	# nftables: أعد HTTP (80) من العملاء للراوتر
-	nft add chain inet fw4 alemprator_captive 2>/dev/null || true
-	nft flush chain inet fw4 alemprator_captive 2>/dev/null || true
-	nft add rule inet fw4 dstnat \
+	# nftables: redirect HTTP (80) from clients to the router so the captive
+	# portal page is served. The firewall4 (nftables "inet fw4") table may not
+	# be loaded on this device, so create our own independent table/chain to
+	# avoid depending on fw4 being present.
+	nft add table inet alemprator 2>/dev/null || true
+	nft add chain inet alemprator dstnat '{ type nat hook prerouting priority dstnat; policy accept; }' 2>/dev/null || true
+	nft flush chain inet alemprator dstnat 2>/dev/null || true
+	nft add rule inet alemprator dstnat \
 		iifname "${network_section}" \
 		ip daddr != "${setup_ip}" \
 		tcp dport 80 \
 		dnat to "${setup_ip}:80" 2>/dev/null || true
+
+	# Also try against fw4 if it exists (harmless if not).
+	if nft list table inet fw4 >/dev/null 2>&1; then
+		nft add chain inet fw4 alemprator_captive 2>/dev/null || true
+		nft flush chain inet fw4 alemprator_captive 2>/dev/null || true
+		nft add rule inet fw4 dstnat \
+			iifname "${network_section}" \
+			ip daddr != "${setup_ip}" \
+			tcp dport 80 \
+			dnat to "${setup_ip}:80" 2>/dev/null || true
+	fi
 
 	logger -t alemprator-firstboot "Captive portal activated on ${setup_ip}"
 }
@@ -418,14 +433,22 @@ remove_captive_portal() {
 	# إزالة قاعدة DNS الخاصة بالـ Captive Portal
 	uci -q delete dhcp.@dnsmasq[0].address 2>/dev/null || true
 	uci -q commit dhcp 2>/dev/null || true
-	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
-	# Fallback: start directly if jail fails
-	if ! pidof dnsmasq >/dev/null 2>&1; then
-		local dnsmasq_cfg
-		dnsmasq_cfg="$(uci -q get dhcp.@dnsmasq[0].'.name' 2>/dev/null || echo dnsmasq)"
-		/usr/sbin/dnsmasq -C "/var/etc/dnsmasq.conf.${dnsmasq_cfg}" \
-			-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
-	fi
+
+	# Restart dnsmasq directly (init restart/start is broken on this device).
+	killall dnsmasq 2>/dev/null || true
+	sleep 1
+	local dnsmasq_conf
+	dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
+	[ -f "$dnsmasq_conf" ] || dnsmasq_conf="/var/etc/dnsmasq.conf"
+	mkdir -p /var/run/dnsmasq
+	/usr/sbin/dnsmasq -C "$dnsmasq_conf" \
+		-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
+
+	# Remove the captive-portal nftables rules (our own table + fw4 if present)
+	nft flush chain inet alemprator dstnat 2>/dev/null || true
+	nft delete table inet alemprator 2>/dev/null || true
+	nft flush chain inet fw4 alemprator_captive 2>/dev/null || true
+
 	logger -t alemprator-firstboot "Captive portal removed"
 }
 
