@@ -1,10 +1,6 @@
 #!/bin/sh /etc/rc.common
 
-# NOTE: intentionally NOT using USE_PROCD=1. This target router runs the
-# traditional rc.common where USE_PROCD would route boot/start through
-# procd_open_service, which blocks indefinitely and never runs our logic.
-# With the traditional path, boot() (and start()) are plain shell functions
-# defined below and are invoked directly on boot.
+USE_PROCD=1
 START=98
 EXTRA_COMMANDS="finalize_cleanup monitor_once force_cleanup"
 EXTRA_HELP="    finalize_cleanup  Finalize deferred firstboot cleanup\n    monitor_once      Check tracked configs and cleanup if firstboot changed\n    force_cleanup     Immediately cleanup temporary firstboot provisioning"
@@ -73,10 +69,10 @@ load_firstboot_config() {
 	config_get auto_cleanup_pending main auto_cleanup_pending 0
 	config_get configured_flag main configured_flag "/etc/configured"
 	config_get pending_flag main pending_flag "/etc/alemprator-firstboot-pending"
-	config_get network_section main network_section "br_setup"
-	config_get dhcp_section main dhcp_section "br_setup"
+	config_get network_section main network_section "alemprator_setup"
+	config_get dhcp_section main dhcp_section "alemprator_setup"
 	config_get wireless_section main wireless_section "alemprator_firstboot"
-	config_get firewall_section main firewall_section "br_setup"
+	config_get firewall_section main firewall_section "alemprator_setup"
 }
 
 # Launch dnsmasq detached so it survives the init script's process exit.
@@ -447,16 +443,16 @@ start() {
 	# Factory-reset safety net: if the device is not yet configured OR the
 	# setup section names are stale (e.g. uci-defaults did not run, or an old
 	# config carried over after firstboot -y wiped the overlay), bootstrap the
-	# firstboot flags and force the canonical br_setup section names so the
-	# Setup AP is always created on a clean device.
+	# firstboot flags and force the canonical alemprator_setup section names so
+	# the Setup AP is always created on a clean device.
 	if [ "$enabled" != "1" ] || [ "$configured_once" != "1" ] || [ ! -f "$configured_flag" ] || \
-	   [ "$network_section" != "br_setup" ] || [ "$dhcp_section" != "br_setup" ] || [ "$firewall_section" != "br_setup" ]; then
+	   [ "$network_section" != "alemprator_setup" ] || [ "$dhcp_section" != "alemprator_setup" ] || [ "$firewall_section" != "alemprator_setup" ]; then
 		uci -q set ${CFG}.main.enabled='1'
 		uci -q set ${CFG}.main.configured_once='0'
 		uci -q set ${CFG}.main.auto_cleanup_armed='1'
-		uci -q set ${CFG}.main.network_section='br_setup'
-		uci -q set ${CFG}.main.dhcp_section='br_setup'
-		uci -q set ${CFG}.main.firewall_section='br_setup'
+		uci -q set ${CFG}.main.network_section='alemprator_setup'
+		uci -q set ${CFG}.main.dhcp_section='alemprator_setup'
+		uci -q set ${CFG}.main.firewall_section='alemprator_setup'
 		uci -q commit ${CFG}
 		touch "$pending_flag"
 		load_firstboot_config

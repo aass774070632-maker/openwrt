@@ -45,9 +45,9 @@ esac
 DEFAULT_LAN_NETMASK="255.255.255.0"
 DEFAULT_SETUP_IPADDR="192.168.8.1"
 DEFAULT_SETUP_NETMASK="255.255.255.0"
-SETUP_NETWORK="br_setup"
+SETUP_NETWORK="alemprator_setup"
 SETUP_WIRELESS="alemprator_firstboot"
-SETUP_FIREWALL="br_setup"
+SETUP_FIREWALL="alemprator_setup"
 is_configured=0
 configured_once="$(uci -q get ${CFG}.main.configured_once)"
 
@@ -151,14 +151,6 @@ if ! uci -q get dhcp.@dnsmasq[0] >/dev/null 2>&1; then
 	uci -q add dhcp dnsmasq >/dev/null 2>&1 || true
 fi
 
-# Clean any stale entries from @dnsmasq[0].interface so only lan and loopback
-# remain — otherwise a leftover name (e.g. "alemprator_setup") causes dnsmasq
-# to fail binding or serve DHCP on a non-existent interface.
-uci -q delete dhcp.@dnsmasq[0].interface 2>/dev/null || true
-uci -q add_list dhcp.@dnsmasq[0].interface='lan' 2>/dev/null || true
-uci -q add_list dhcp.@dnsmasq[0].interface='loopback' 2>/dev/null || true
-uci -q commit dhcp 2>/dev/null || true
-
 	uci -q batch <<EOF >/dev/null
 	set network.${SETUP_NETWORK}=interface
 	set network.${SETUP_NETWORK}.proto='static'
@@ -226,18 +218,11 @@ uci -q set ${CFG}.main.auto_cleanup_armed='1'
 	uci -q commit ${CFG}
 	
 /etc/init.d/network reload >/dev/null 2>&1 || true
-# The dnsmasq init restart/start is broken on this device; launch it directly
-# from the real generated config file (don't trust @dnsmasq[0].'.name').
-killall dnsmasq 2>/dev/null || true
-sleep 1
-_dnsconf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
-[ -f "$_dnsconf" ] || _dnsconf="/var/etc/dnsmasq.conf"
-mkdir -p /var/run/dnsmasq
-# Launch dnsmasq DETACHED (background) — running it with -k (foreground) here
-# blocks this uci-defaults script, which runs synchronously during first boot,
-# so the device never finishes booting (LED keeps blinking). Mirror launch_dnsmasq().
-setsid /usr/sbin/dnsmasq -C "$_dnsconf" \
-	-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 </dev/null 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- 1000>&- &
+# Let the standard dnsmasq init script manage the daemon. Do NOT launch dnsmasq
+# manually here — running it inline (even detached) races with the init system
+# and previously caused a hang during first boot. init.d/alemprator-firstboot
+# falls back to launch_dnsmasq() only if the init daemon is found missing.
+/etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
 /etc/init.d/firewall restart >/dev/null 2>&1 || true
 wifi reload >/dev/null 2>&1 || true
 
