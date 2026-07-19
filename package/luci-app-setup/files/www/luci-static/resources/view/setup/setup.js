@@ -3167,6 +3167,14 @@ return view.extend({
 			self.state = {};
 		self.state.lanIpaddr = self.refs.lanIpaddr.value.trim();
 		self.state.lanNetmask = self.refs.lanNetmask.value.trim();
+		var ipParts = self.state.lanIpaddr.split('.');
+		if (ipParts.length !== 4 || ipParts.some(function(o) { var n = +o; return isNaN(n) || n < 0 || n > 255; })) {
+			self.state.lanIpaddr = '192.168.1.1';
+		}
+		var nmParts = self.state.lanNetmask.split('.');
+		if (nmParts.length !== 4 || nmParts.some(function(o) { var n = +o; return isNaN(n) || n < 0 || n > 255; })) {
+			self.state.lanNetmask = '255.255.255.0';
+		}
 		self.state.mode = self.refs.mode.value;
 
 		/* Bridge Hotspot mode and Quick Hotspot flag */
@@ -5686,12 +5694,10 @@ return view.extend({
 
 		self.refs.mode.addEventListener('change', function() {
                 if (self.refs.mode.value !== 'ap') {
-                        // User chose Mesh, Extender, etc. Reset hotspot.
-                        // Actually, even if they explicitly select 'ap' from the dropdown, maybe reset? Yes, if they are touching mode, they want basic setup.
+                        if (self.refs.hotspotQuickEnabled) self.refs.hotspotQuickEnabled.checked = false;
+                        if (self.refs.hotspotEnabled) self.refs.hotspotEnabled.checked = false;
+                        if (self.refs.hotspotQuickSecondaryEnabled) self.refs.hotspotQuickSecondaryEnabled.checked = false;
                 }
-                if (self.refs.hotspotQuickEnabled) self.refs.hotspotQuickEnabled.checked = false;
-                if (self.refs.hotspotEnabled) self.refs.hotspotEnabled.checked = false;
-                if (self.refs.hotspotQuickSecondaryEnabled) self.refs.hotspotQuickSecondaryEnabled.checked = false;
                 self.updateStepUi();
         });
 
