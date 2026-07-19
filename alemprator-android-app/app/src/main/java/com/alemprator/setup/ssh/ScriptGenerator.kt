@@ -65,7 +65,7 @@ class ScriptGenerator {
 
         if (!device.rootPassword.isNullOrBlank()) {
             val password = sh(device.rootPassword)
-            commands.add("printf '%s\\n%s\\n' $password $password | passwd root")
+            commands.add("printf '%s\\n%s\\n' $password $password | passwd root 2>/dev/null || true")
         }
 
         // حذف البرمجة المؤقتة (firstboot) قبل الـ commit لضمان
