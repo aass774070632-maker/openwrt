@@ -233,8 +233,11 @@ sleep 1
 _dnsconf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
 [ -f "$_dnsconf" ] || _dnsconf="/var/etc/dnsmasq.conf"
 mkdir -p /var/run/dnsmasq
-/usr/sbin/dnsmasq -C "$_dnsconf" \
-	-k -x /var/run/dnsmasq/dnsmasq.pid 2>/dev/null || true
+# Launch dnsmasq DETACHED (background) — running it with -k (foreground) here
+# blocks this uci-defaults script, which runs synchronously during first boot,
+# so the device never finishes booting (LED keeps blinking). Mirror launch_dnsmasq().
+setsid /usr/sbin/dnsmasq -C "$_dnsconf" \
+	-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 </dev/null 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- 1000>&- &
 /etc/init.d/firewall restart >/dev/null 2>&1 || true
 wifi reload >/dev/null 2>&1 || true
 
