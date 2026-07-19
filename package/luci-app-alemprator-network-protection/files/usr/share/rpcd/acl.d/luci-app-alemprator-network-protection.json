@@ -1,0 +1,20 @@
+{
+	"luci-app-alemprator-network-protection": {
+		"description": "Grant access to Alemprator Network Protection pages",
+		"superuser": true,
+		"read": {
+			"ubus": {
+				"alemprator-network-protection": [ "*" ],
+				"file": [ "read", "list" ]
+			},
+			"uci": [ "alemprator-network-protection" ]
+		},
+		"write": {
+			"ubus": {
+				"alemprator-network-protection": [ "*" ],
+				"file": [ "write" ]
+			},
+			"uci": [ "alemprator-network-protection" ]
+		}
+	}
+}

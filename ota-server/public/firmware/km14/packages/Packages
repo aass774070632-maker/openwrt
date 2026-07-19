@@ -1,0 +1,458 @@
+Package: alemprator-firstboot
+Version: 1.0-r12
+Depends: libc, dnsmasq, firewall4, luci-app-setup
+Source: feeds/base/alemprator-firstboot
+SourceName: alemprator-firstboot
+License: GPL-3.0-only
+Section: utils
+SourceDateEpoch: 1779002215
+Architecture: mipsel_24kc
+Installed-Size: 40960
+Filename: ota-server/public/firmware/km14/packages/alemprator-firstboot_1.0-r12_mipsel_24kc.ipk
+Size: 5996
+SHA256sum: 35529103adde3b3ee07c98f97309bd303a02197240b87d39b233ff2f6541aab0
+Description:  Independent first-boot provisioning layer for ALemprator devices.
+ Provides a LAN bridge on 192.168.1.20 and a temporary isolated setup network on 192.168.8.1
+ and lets luci-app-setup disable it safely after the first successful apply.
+
+Package: alemprator-guard
+Version: 1.0-r1
+Depends: libc, libopenssl3
+Source: feeds/base/alemprator-guard
+SourceName: alemprator-guard
+License: Proprietary
+Section: base
+SourceDateEpoch: 1779002215
+Architecture: mipsel_24kc
+Installed-Size: 71680
+Filename: ota-server/public/firmware/km14/packages/alemprator-guard_1.0-r1_mipsel_24kc.ipk
+Size: 3882
+SHA256sum: c84f31ee76a5c79d39cdad9bb9d1f8fadb41ea3bbde1381d8b4316be7a583cbb
+Description:  Compiled binary that validates hardware authorization for
+ the Alemprator Hotspot system. Contacts the Alemprator
+ licensing server using HMAC-signed requests.
+ Exit 0 = Authorized, Exit 1 = Not authorized.
+
+Package: alemprator-guard
+Version: 1.0-r2
+Depends: libc, libopenssl3
+Source: feeds/base/alemprator-guard
+SourceName: alemprator-guard
+License: Proprietary
+Section: base
+SourceDateEpoch: 1779002215
+Architecture: mipsel_24kc
+Installed-Size: 71680
+Filename: ota-server/public/firmware/km14/packages/alemprator-guard_1.0-r2_mipsel_24kc.ipk
+Size: 4005
+SHA256sum: 63974848503cf65bf1ac4418558a9a7865a8d03c3bf529012a082120dea196e0
+Description:  Compiled binary that validates hardware authorization for
+ the Alemprator Hotspot system. Contacts the Alemprator
+ licensing server using HMAC-signed requests.
+ Exit 0 = Authorized, Exit 1 = Not authorized.
+
+Package: alemprator-mtax
+Version: 1.0-r3
+Depends: libc
+Source: feeds/base/alemprator-ax
+SourceName: alemprator-mtax
+License: Proprietary
+Section: utils
+SourceDateEpoch: 1776367611
+Architecture: mipsel_24kc
+Installed-Size: 71680
+Filename: ota-server/public/firmware/km14/packages/alemprator-mtax_1.0-r3_mipsel_24kc.ipk
+Size: 26520
+SHA256sum: 5a4625de2827fc0871d6b253c8699b93b18f8b89ccb19c3ee94879c623e19dcf
+Description:  Extracted ALemprator MT AX backend package rebuilt from device rootfs.
+ This package contains prebuilt MIPS little-endian binaries for mipsel_24kc.
+
+Package: alemprator-network-protection
+Version: 1.0-r4
+Depends: libc, ip-full, bridge, nftables, jshn, ucode, ucode-mod-fs, ucode-mod-ubus, rpcd, rpcd-mod-file, rpcd-mod-ucode
+Source: feeds/base/alemprator-network-protection
+SourceName: alemprator-network-protection
+License: GPL-3.0-only
+Section: base
+SourceDateEpoch: 1782168249
+Maintainer: ALemprator
+Architecture: mipsel_24kc
+Installed-Size: 92160
+Filename: ota-server/public/firmware/km14/packages/alemprator-network-protection_1.0-r4_mipsel_24kc.ipk
+Size: 16385
+SHA256sum: 7ef523a54c3a34bf21bcb413ede188e19f594e6105cd305123478b963ea5746c
+Description:  Alemprator Network Protection provides Layer 2 network security
+ including loop detection, broadcast/ARP storm detection, DHCP rogue
+ detection, MAC flapping detection, port isolation, and RSTP management.
+ Event-driven, low-footprint design for embedded OpenWrt devices.
+
+Package: alemprator-suite
+Version: 1.0-r1
+Depends: libc, alemprator-firstboot, luci-app-setup, luci-app-alemprator-ota
+Source: feeds/base/alemprator-suite
+SourceName: alemprator-suite
+License: GPL-3.0-only
+Section: base
+SourceDateEpoch: 1778032132
+Architecture: mipsel_24kc
+Installed-Size: 10240
+Filename: ota-server/public/firmware/km14/packages/alemprator-suite_1.0-r1_mipsel_24kc.ipk
+Size: 837
+SHA256sum: 3a986bada4ce5b6e9245d5216fe0630d9abce36a98c2f1e611c46ff7e1145d42
+Description:  Unified package: firstboot, LuCI setup, and OTA agent for supported Alemprator devices.
+
+Package: bandix-plus
+Version: 0.1.0-r1
+Depends: libc, zoneinfo-all, conntrack, iw
+Source: feeds/base/bandix-plus
+SourceName: bandix-plus
+License: Apache-2.0
+Section: net
+SourceDateEpoch: 1779002215
+Maintainer: timsaya
+Architecture: mipsel_24kc
+Installed-Size: 6522880
+Filename: ota-server/public/firmware/km14/packages/bandix-plus_0.1.0-r1_mipsel_24kc.ipk
+Size: 2306507
+SHA256sum: 78207c3a4f8114cde6aa8e4cdae0a2f27e0e8158c4eccaa5142f811d0f0e9fed
+Description:  Bandix Plus core service for network traffic monitoring
+
+Package: luci-app-alemprator-network-protection
+Version: 1.0-r8
+Depends: libc, luci-base, alemprator-network-protection
+Source: feeds/base/luci-app-alemprator-network-protection
+SourceName: luci-app-alemprator-network-protection
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1782168249
+Maintainer: ALemprator
+Architecture: all
+Installed-Size: 51200
+Filename: ota-server/public/firmware/km14/packages/luci-app-alemprator-network-protection_1.0-r8_all.ipk
+Size: 9035
+SHA256sum: efe65a0dd9fe9eb3ce485cf8a694d30b221412fa549bed0176e3b2fe97e674aa
+Description:  Web interface for Alemprator Network Protection.
+ Provides management of loop protection, broadcast/ARP storm detection,
+ DHCP rogue detection, MAC flapping, port isolation, and RSTP.
+
+Package: luci-app-alemprator-ota
+Version: 1.0-r47
+Depends: libc, luci-base, rpcd, rpcd-mod-file, cgi-io, uclient-fetch, jsonfilter, libubox20240329, ca-bundle, openssl-util
+Source: feeds/base/luci-app-alemprator-ota
+SourceName: luci-app-alemprator-ota
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1779002215
+Maintainer: ALemprator
+Architecture: mipsel_24kc
+Installed-Size: 163840
+Filename: ota-server/public/firmware/km14/packages/luci-app-alemprator-ota_1.0-r47_mipsel_24kc.ipk
+Size: 27778
+SHA256sum: 87e2f1f2440f6582f0214d2ed0d4bb8c830b7920cc34dee4264762fac877fbb7
+Description:  Lightweight OTA identity and update system for ALemprator OpenWrt builds.
+ Supports device registration, periodic update checks, staged rollout gates,
+ update windows, retries, and a LuCI page under System -> System Update.
+
+Package: luci-app-alemprator-ota
+Version: 1.0-r48
+Depends: libc, luci-base, rpcd, rpcd-mod-file, cgi-io, uclient-fetch, jsonfilter, libubox20240329, ca-bundle, openssl-util
+Source: feeds/base/luci-app-alemprator-ota
+SourceName: luci-app-alemprator-ota
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1783085928
+Maintainer: ALemprator
+Architecture: mipsel_24kc
+Installed-Size: 174080
+Filename: ota-server/public/firmware/km14/packages/luci-app-alemprator-ota_1.0-r48_mipsel_24kc.ipk
+Size: 28057
+SHA256sum: 7dd3e03a01313dea80d46e5789b66ed029a85e880c9dc9dbefa4691bc17137a7
+Description:  Lightweight OTA identity and update system for ALemprator OpenWrt builds.
+ Supports device registration, periodic update checks, staged rollout gates,
+ update windows, retries, and a LuCI page under System -> System Update.
+
+Package: luci-app-alemprator-ota
+Version: 1.0-r55
+Depends: libc, luci-base, rpcd, rpcd-mod-file, cgi-io, uclient-fetch, jsonfilter, libubox20240329, ca-bundle, openssl-util
+Source: feeds/base/luci-app-alemprator-ota
+SourceName: luci-app-alemprator-ota
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1783085928
+Maintainer: ALemprator
+Architecture: mipsel_24kc
+Installed-Size: 163840
+Filename: ota-server/public/firmware/km14/packages/luci-app-alemprator-ota_1.0-r55_mipsel_24kc.ipk
+Size: 27788
+SHA256sum: ba21f2d71b86716a1fa1c99f85bd8f6cadf0811661983d5a8fb2ea22fe248d88
+Description:  Lightweight OTA identity and update system for ALemprator OpenWrt builds.
+ Supports device registration, periodic update checks, staged rollout gates,
+ update windows, retries, and a LuCI page under System -> System Update.
+
+Package: luci-app-bandix-plus
+Version: 0.1.0-r1
+Depends: libc, luci-base, luci-lib-jsonc, curl, bandix-plus
+Source: feeds/base/luci-app-bandix-plus
+SourceName: luci-app-bandix-plus
+License: Apache-2.0
+Section: luci
+SourceDateEpoch: 1778200540
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 215040
+Filename: ota-server/public/firmware/km14/packages/luci-app-bandix-plus_0.1.0-r1_all.ipk
+Size: 40781
+SHA256sum: a83fa74d77503818059b4261ba54522726dcfb59538dc34fb62fd6f0e8df6337
+Description:  LuCI Bandix Plus app for network traffic monitoring
+
+Package: luci-app-cpu-perf
+Version: 0.6.1-r2
+Depends: libc, ucode, ucode-mod-fs
+Source: feeds/base/luci-app-cpu-perf
+SourceName: luci-app-cpu-perf
+License: MIT
+Section: luci
+SourceDateEpoch: 1778200540
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 51200
+Filename: ota-server/public/firmware/km14/packages/luci-app-cpu-perf_0.6.1-r2_all.ipk
+Size: 9079
+SHA256sum: a62fdefeae8131deabaad9b0ea359e2fa6c8ed86e452e8f552f7206802aba4cb
+Description:  CPU performance information and management for LuCI
+
+Package: luci-app-cpu-status
+Version: 0.6.3-r1
+Depends: libc
+Source: feeds/base/luci-app-cpu-status
+SourceName: luci-app-cpu-status
+License: MIT
+Section: luci
+SourceDateEpoch: 1778200540
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 40960
+Filename: ota-server/public/firmware/km14/packages/luci-app-cpu-status_0.6.3-r1_all.ipk
+Size: 6563
+SHA256sum: 35ff9fd71032bf407e5ec968bbf47484564852e4ddbc0b0e8b844477b7bcdb24
+Description:  CPU utilization info for the LuCI status page
+
+Package: luci-app-hotspot-openwrt
+Version: 1.0-r131
+Depends: libc, luci-base, rpcd, rpcd-mod-file, uhttpd, coova-chilli, kmod-tun, curl, ip-full, jsonfilter, unzip
+Source: feeds/base/luci-app-hotspot-openwrt
+SourceName: luci-app-hotspot-openwrt
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1783446874
+Architecture: mipsel_24kc
+Installed-Size: 430080
+Filename: ota-server/public/firmware/km14/packages/luci-app-hotspot-openwrt_1.0-r131_mipsel_24kc.ipk
+Size: 84871
+SHA256sum: 58db1d743173f8b462c1fb63647425956f847f36e0c63d7e49547c703820a27d
+Description:  LuCI wizard and backend engine for turning OpenWrt into a CoovaChilli
+ captive portal authenticated by MikroTik User Manager through RADIUS UDP.
+
+Package: luci-app-hotspot-openwrt
+Version: 1.0-r139
+Depends: libc, luci-base, rpcd, rpcd-mod-file, uhttpd, coova-chilli, kmod-tun, ip-full, jsonfilter, unzip
+Source: feeds/base/luci-app-hotspot-openwrt
+SourceName: luci-app-hotspot-openwrt
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1783446874
+Architecture: mipsel_24kc
+Installed-Size: 337920
+Filename: ota-server/public/firmware/km14/packages/luci-app-hotspot-openwrt_1.0-r139_mipsel_24kc.ipk
+Size: 72534
+SHA256sum: f3e042beb09ed7df91fa70fdd5e67de99bb072f7ae96cb2ecb71b9cb0449642e
+Description:  LuCI wizard and backend engine for turning OpenWrt into a CoovaChilli
+ captive portal authenticated by MikroTik User Manager through RADIUS UDP.
+
+Package: luci-app-hotspot-openwrt
+Version: 1.0-r140
+Depends: libc, luci-base, rpcd, rpcd-mod-file, uhttpd, coova-chilli, kmod-tun, ip-full, jsonfilter, unzip
+Source: feeds/base/luci-app-hotspot-openwrt
+SourceName: luci-app-hotspot-openwrt
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1783446874
+Architecture: mipsel_24kc
+Installed-Size: 348160
+Filename: ota-server/public/firmware/km14/packages/luci-app-hotspot-openwrt_1.0-r140_mipsel_24kc.ipk
+Size: 73181
+SHA256sum: 3331747ce18578a29a29d09a277650247a4b98db15976b29cdcfe45db6f2e697
+Description:  LuCI wizard and backend engine for turning OpenWrt into a CoovaChilli
+ captive portal authenticated by MikroTik User Manager through RADIUS UDP.
+
+Package: luci-app-hotspot-openwrt
+Version: 1.0-r141
+Depends: libc, luci-base, rpcd, rpcd-mod-file, uhttpd, coova-chilli, kmod-tun, ip-full, jsonfilter, unzip
+Source: feeds/base/luci-app-hotspot-openwrt
+SourceName: luci-app-hotspot-openwrt
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1783446874
+Architecture: mipsel_24kc
+Installed-Size: 348160
+Filename: ota-server/public/firmware/km14/packages/luci-app-hotspot-openwrt_1.0-r141_mipsel_24kc.ipk
+Size: 73311
+SHA256sum: 74f7c1d05d1c4d9c32db3c8409d73f35f8965e177e3197e3967649a4b5f22d37
+Description:  LuCI wizard and backend engine for turning OpenWrt into a CoovaChilli
+ captive portal authenticated by MikroTik User Manager through RADIUS UDP.
+
+Package: luci-app-hotspot-openwrt
+Version: 1.0-r142
+Depends: libc, luci-base, rpcd, rpcd-mod-file, uhttpd, coova-chilli, kmod-tun, ip-full, jsonfilter, unzip
+Source: feeds/base/luci-app-hotspot-openwrt
+SourceName: luci-app-hotspot-openwrt
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1783446874
+Architecture: mipsel_24kc
+Installed-Size: 419840
+Filename: ota-server/public/firmware/km14/packages/luci-app-hotspot-openwrt_1.0-r142_mipsel_24kc.ipk
+Size: 84830
+SHA256sum: 298958fa12675c0a7987c34f259705e291535dc200f8e161caed9c39621dddd3
+Description:  LuCI wizard and backend engine for turning OpenWrt into a CoovaChilli
+ captive portal authenticated by MikroTik User Manager through RADIUS UDP.
+
+Package: luci-app-hotspot-openwrt
+Version: 1.0-r143
+Depends: libc, luci-base, rpcd, rpcd-mod-file, uhttpd, coova-chilli, kmod-tun, ip-full, jsonfilter, unzip
+Source: feeds/base/luci-app-hotspot-openwrt
+SourceName: luci-app-hotspot-openwrt
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1783446874
+Architecture: mipsel_24kc
+Installed-Size: 430080
+Filename: ota-server/public/firmware/km14/packages/luci-app-hotspot-openwrt_1.0-r143_mipsel_24kc.ipk
+Size: 85427
+SHA256sum: 4c8fb539b9f4c3ee4d8a27cc9569fcb23afca6d3591ce2a82daf470e1480fdb8
+Description:  LuCI wizard and backend engine for turning OpenWrt into a CoovaChilli
+ captive portal authenticated by MikroTik User Manager through RADIUS UDP.
+
+Package: luci-app-hotspot-openwrt
+Version: 1.0-r152
+Depends: libc, luci-base, rpcd, rpcd-mod-file, uhttpd, coova-chilli, kmod-tun, ip-full, jsonfilter, unzip
+Source: feeds/base/luci-app-hotspot-openwrt
+SourceName: luci-app-hotspot-openwrt
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1783446874
+Architecture: mipsel_24kc
+Installed-Size: 430080
+Filename: ota-server/public/firmware/km14/packages/luci-app-hotspot-openwrt_1.0-r152_mipsel_24kc.ipk
+Size: 85545
+SHA256sum: d53c0eab9d503453892f7fbb8f4279de561a66e75a767039e7890b83f6384095
+Description:  LuCI wizard and backend engine for turning OpenWrt into a CoovaChilli
+ captive portal authenticated by MikroTik User Manager through RADIUS UDP.
+
+Package: luci-app-log-viewer
+Version: 1.5.0-r2
+Depends: libc, ucode, ucode-mod-fs
+Source: feeds/base/luci-app-log-viewer
+SourceName: luci-app-log-viewer
+License: MIT
+Section: luci
+SourceDateEpoch: 1778200540
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 61440
+Filename: ota-server/public/firmware/km14/packages/luci-app-log-viewer_1.5.0-r2_all.ipk
+Size: 10617
+SHA256sum: 46aeb1b15c76c4ba4f65680f5f7a7a3e007ca908ee880d81f6a30d39f9438d46
+Description:  Advanced syslog and kernel log (tail, search, etc)
+
+Package: luci-app-netspeedtest
+Version: 26.137.52127~e1ca5a9
+Depends: libc, iperf3, librespeed-go, mikrotik-btest, uhttpd, rpcd, rpcd-mod-file
+Source: feeds/base/luci-app-netspeedtest
+SourceName: luci-app-netspeedtest
+License: MIT
+Section: luci
+SourceDateEpoch: 1783085928
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 624640
+Filename: ota-server/public/firmware/km14/packages/luci-app-netspeedtest_26.137.52127~e1ca5a9_all.ipk
+Size: 374097
+SHA256sum: 99062c24e6d50fcb41de79b1e8ed4cefd11c7c6e394f7e2ea16073b8f4d9755d
+Description:  Test Net speed
+
+Package: luci-app-setup
+Version: 1.0-r120
+Depends: libc, luci-base, luci-theme-bootstrap, rpcd
+Source: feeds/base/luci-app-setup
+SourceName: luci-app-setup
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1783382131
+Architecture: mipsel_24kc
+Installed-Size: 645120
+Filename: ota-server/public/firmware/km14/packages/luci-app-setup_1.0-r120_mipsel_24kc.ipk
+Size: 112573
+SHA256sum: 7033623f9978c5f20d6b6de50f065200d83270504931dd64eef5c3954534e9b2
+Description:  Portable ALemprator LuCI frontend for standard OpenWrt LAN, Wi-Fi and button policies.
+ Optional backend binaries may still be used on targets where they are available.
+ When luci-app-hotspot-openwrt is also installed, the setup wizard gains a quick-setup
+ step for CoovaChilli + MikroTik RADIUS (Hotspot) without opening the separate hotspot page.
+
+Package: luci-app-setup
+Version: 1.0-r121
+Depends: libc, luci-base, luci-theme-bootstrap, rpcd
+Source: feeds/base/luci-app-setup
+SourceName: luci-app-setup
+License: GPL-3.0-only
+Section: luci
+SourceDateEpoch: 1783446874
+Architecture: mipsel_24kc
+Installed-Size: 655360
+Filename: ota-server/public/firmware/km14/packages/luci-app-setup_1.0-r121_mipsel_24kc.ipk
+Size: 114530
+SHA256sum: 5cdd59b825665d9fc41ace314851812b462cc7a1d3067016042a71c46fd43ef6
+Description:  Portable ALemprator LuCI frontend for standard OpenWrt LAN, Wi-Fi and button policies.
+ Optional backend binaries may still be used on targets where they are available.
+ When luci-app-hotspot-openwrt is also installed, the setup wizard gains a quick-setup
+ step for CoovaChilli + MikroTik RADIUS (Hotspot) without opening the separate hotspot page.
+
+Package: luci-app-temp-status
+Version: 0.8.1-r1
+Depends: libc, ucode, ucode-mod-fs
+Source: feeds/base/luci-app-temp-status
+SourceName: luci-app-temp-status
+License: MIT
+Section: luci
+SourceDateEpoch: 1778200540
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 51200
+Filename: ota-server/public/firmware/km14/packages/luci-app-temp-status_0.8.1-r1_all.ipk
+Size: 8795
+SHA256sum: b450b1b8d5c7f8f8ea39eea7fca2992900f8d0ff9a13c1135a24a0137495cbc6
+Description:  Temperature sensors data for the LuCI status page
+
+Package: luci-app-tn-netports
+Version: 2.0.7-r1
+Depends: libc, luci-lua-runtime, luabitop, jsonfilter
+Source: feeds/base/luci-app-tn-netports
+SourceName: luci-app-tn-netports
+License: MIT
+Section: luci
+SourceDateEpoch: 1778200540
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 112640
+Filename: ota-server/public/firmware/km14/packages/luci-app-tn-netports_2.0.7-r1_all.ipk
+Size: 18695
+SHA256sum: 2db0d71462a94a473abdf2fea18a936e42b0352d93861cac31e9b59c868aacc6
+Description:  Network ports status LuCI application
+

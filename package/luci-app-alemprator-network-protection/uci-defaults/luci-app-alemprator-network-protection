@@ -1,0 +1,13 @@
+#!/bin/sh
+
+uci -q batch <<-EOF
+	set rpcd.@config[0].uci_list="${rpcd_uci_list} alemprator-rpcd-list"
+	set rpcd.alemprator-rpcd-list=rpcd
+	set rpcd.alemprator-rpcd-list.users="luci-app-alemprator-network-protection"
+	add_list rpcd.alemprator-rpcd-list.allow="alemprator-network-protection.*"
+	commit rpcd
+EOF
+
+/etc/init.d/rpcd reload 2>/dev/null || /etc/init.d/rpcd restart 2>/dev/null || true
+
+exit 0

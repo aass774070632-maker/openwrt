@@ -1,0 +1,13 @@
+{
+	"admin/network/network-protection": {
+		"title": "Network Protection",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "network-protection/overview"
+		},
+		"depends": {
+			"acl": [ "luci-app-alemprator-network-protection" ]
+		}
+	}
+}
