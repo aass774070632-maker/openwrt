@@ -75,11 +75,10 @@ local POLLIN = nixio.poll_flags("in")
 -- =========== local test users (for development/testing) ===========
 -- When a user is listed here, authentication is handled locally
 -- without forwarding to the external RADIUS server.
+-- أضف مستخدمين محليين هنا للاختبار (فارغ افتراضياً للإنتاج)
 local LOCAL_USERS = {
-  test123 = "test123",
-  admin   = "admin123",
 }
-local LOCAL_SECRET = "12345678"  -- must match chilli.hotspot_openwrt.radiussecret
+local LOCAL_SECRET = uci_get("hotspot_openwrt.main.radius_secret") or "12345678"  -- must match chilli.hotspot_openwrt.radiussecret
 
 -- =========== RADIUS helpers for local auth ===========
 local function md5_bytes(s)

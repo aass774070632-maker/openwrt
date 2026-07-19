@@ -21,7 +21,7 @@ check_firewall_integrity() {
 check_chilli_status() {
 	if ! pidof chilli >/dev/null; then
 	    log "ERROR: CoovaChilli is not running. Attempting emergency restart."
-	    /etc/init.d/chspot-openwrt restart
+	    /etc/init.d/hotspot-openwrt restart
 	fi
 }
 

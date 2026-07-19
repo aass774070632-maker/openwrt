@@ -8,7 +8,7 @@
 
 var STATUS_CMD = '/usr/libexec/hotspot-openwrt/status-json';
 var APPLY_CMD = '/usr/libexec/hotspot-openwrt/apply';
-var LICENSE_CHECK_CMD = '/usr/libexec/hotspot-openwrt/license-check';
+
 var PORTAL_UPLOAD_CMD = '/usr/libexec/hotspot-openwrt/portal-upload';
 var PORTAL_UPLOAD_TMP = '/tmp/hotspot-openwrt-upload';
 var LOGS_CMD = '/usr/libexec/hotspot-openwrt/logs';
@@ -1436,7 +1436,7 @@ return view.extend({
 		return Promise.all([
 			uci.load('hotspot_openwrt'),
 			L.resolveDefault(uci.load('setup'), null),
-			L.resolveDefault(uci.load('hotspot_licensing'), null),
+
 			uci.load('network'),
 			uci.load('wireless'),
 			fetchStatus()
