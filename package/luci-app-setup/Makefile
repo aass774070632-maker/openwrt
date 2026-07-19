@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-setup
 PKG_VERSION:=1.0
-PKG_RELEASE:=121
+PKG_RELEASE:=122
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 PKGARCH:=all
 PKG_LICENSE:=GPL-3.0-only
@@ -13,7 +13,7 @@ define Package/luci-app-setup
   SECTION:=luci
   CATEGORY:=LuCI
 	TITLE:=LuCI Support for ALemprator Setup
-	DEPENDS:=+luci-base +luci-theme-bootstrap +rpcd
+	DEPENDS:=+luci-base +luci-theme-bootstrap +rpcd +watchcat +alemprator-firstboot +luci-app-alemprator-ota
 endef
 
 define Package/luci-app-setup/description

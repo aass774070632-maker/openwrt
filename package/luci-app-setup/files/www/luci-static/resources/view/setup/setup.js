@@ -3172,7 +3172,6 @@ return view.extend({
 		/* Bridge Hotspot mode and Quick Hotspot flag */
 		if (self.state.mode == 'hotspot' || (self.state.mode == 'ap' && self.state.hotspotQuickEnabled)) {
 			self.state.hotspotQuickEnabled = true;
-			self.state.hotspotQuickSecondaryEnabled = true;
 		} else {
 			self.state.hotspotQuickEnabled = false;
 		}
@@ -4784,7 +4783,6 @@ return view.extend({
                         self.refs.mode.value = 'ap';
                         self.state.mode = 'ap';
                         self.state.hotspotQuickEnabled = true;
-                        self.state.hotspotQuickSecondaryEnabled = true;
                     } else {
                         self.refs.mode.value = val;
                         self.state.mode = val;

@@ -17,11 +17,10 @@
 				"/bin/tar -tzf /tmp/backup.tar.gz": [ "exec" ],
 				"/usr/libexec/alemprator-setup/cleanup-hotspot --force --reload": [ "exec" ],
 				"/usr/libexec/hotspot-openwrt/apply": [ "exec" ],
+				"/usr/libexec/hotspot-openwrt/test-radius": [ "exec" ],
 				"/sbin/reboot": [ "exec" ],
 				"/sbin/sysupgrade --restore-backup /tmp/backup.tar.gz": [ "exec" ],
-				"/tmp/backup.tar.gz": [ "write" ],
-			"/usr/libexec/hotspot-openwrt/apply": [ "exec" ],
-			"/usr/libexec/hotspot-openwrt/test-radius": [ "exec" ]
+				"/tmp/backup.tar.gz": [ "write" ]
 		},
 		"uci": [ "alemprator_firstboot", "alemprator_ota", "chilli", "dhcp", "firewall", "hotspot_openwrt", "network", "setup", "watchcat", "wireless" ],
 			"ubus": {
