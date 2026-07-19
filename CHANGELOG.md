@@ -106,6 +106,16 @@
 
 ---
 
+### v1.0-r22 (إعادة بناء نظيفة — hotspot r161, setup r124)
+- إعادة بناء كاملة للـ firmware من الصفر (kernel + rootfs)
+- hotspot r161, setup r124 (bump PKG_RELEASE بعد الـ build النظيف)
+- initramfs مضمّن للطوارئ (TFTP recovery)
+- **ملفات الإصدار في `releases/v1.0-r22/km14/`:**
+  - `openwrt-ramips-mt7621-kt_km14-102h-squashfs-factory.bin` (19M)
+  - `openwrt-ramips-mt7621-kt_km14-102h-squashfs-sysupgrade.bin` (17M)
+  - `openwrt-ramips-mt7621-kt_km14-102h-initramfs-kernel.bin` (16M)
+  - sha256sums, manifest, r22-km14.config
+
 ### v1.0-r21 (إصلاح شامل — 13 مشكلة في hotspot + setup)
 - **إصلاح `luci-app-hotspot-openwrt` (r158→r160):** 8 إصلاحات
   - `enforcement-check:24`: typo `chspot-openwrt` → `hotspot-openwrt`

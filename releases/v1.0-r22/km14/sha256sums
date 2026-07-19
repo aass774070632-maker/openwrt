@@ -1,0 +1,5 @@
+221f2c7452d94c0e1c821d5996f60ec7fe8fadaf5ca54d3b7441ed28d05f871e  openwrt-ramips-mt7621-kt_km14-102h-initramfs-kernel.bin
+90556389870068c31cffa1fe88dc4ec22d85fa73bf97155b256f8ac811aad1aa  openwrt-ramips-mt7621-kt_km14-102h-squashfs-factory.bin
+4f1ebb57372446907901058c03b4012a3936942a97e30a3cc408bfc67383154a  openwrt-ramips-mt7621-kt_km14-102h-squashfs-sysupgrade.bin
+98144c5c00035f4a10e4bada61b3805651c1c76d5a5ae0126503ef97225d61e0  openwrt-ramips-mt7621-kt_km14-102h.manifest
+c84a0b4e75cc7e41beb1dacaa353f8c9ad587de2388d5984b2bffa3002409092  r22-km14.config
