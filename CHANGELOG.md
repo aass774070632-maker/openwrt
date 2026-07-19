@@ -106,6 +106,27 @@
 
 ---
 
+### v1.0-r21 (إصلاح شامل — 13 مشكلة في hotspot + setup)
+- **إصلاح `luci-app-hotspot-openwrt` (r158→r160):** 8 إصلاحات
+  - `enforcement-check:24`: typo `chspot-openwrt` → `hotspot-openwrt`
+  - `hotspot-openwrt.js:11`: إزالة dead `LICENSE_CHECK_CMD`
+  - `hotspot-openwrt.js:1439`: إزالة dead `uci.load('hotspot_licensing')`
+  - `hotspot_openwrt` config: إضافة `maint_enabled`, `maint_mode`, `maint_start`, `maint_end`
+  - `radius-proxy:78-82`: إفراغ `LOCAL_USERS` وقراءة `LOCAL_SECRET` من UCI
+  - `apply:424-431`: fallback لـ `od -An -tx1` إن لم يكن `hexdump` موجوداً
+  - `status-json:157-158`: استبدال pid_file variables بـ `pidof`
+  - `hotspot-login:12`: إضافة `timeout 5` لـ `dd` لمنع التعليق
+- **إصلاح `luci-app-setup` (r121→r123):** 5 إصلاحات
+  - `luci-app-setup.json`: إزالة مفتاح JSON مكرر + نقل `test-radius` داخل `file`
+  - `setup.js:3175,4787`: إزالة `hotspotQuickSecondaryEnabled = true` القسري
+  - `Makefile`: إضافة `+watchcat +alemprator-firstboot +luci-app-alemprator-ota` إلى DEPENDS
+  - `setup.js:5687-5696`: إعادة تعيين hotspot flags فقط عندما `mode != 'ap'`
+  - `setup.js:3168-3179`: إضافة validation لـ `lanIpaddr`/`lanNetmask` مع fallback آمن
+- **بناء firmware كامل KM14** مع جميع الإصلاحات
+- sha256sums, manifest, 18 IPK في `releases/v1.0-r21/km14/`
+
+---
+
 ### v1.0-r20 (الإصدار الموحد المكتمل)
 - **إصدار التجميع الموحد المكتمل (Consolidated Master Release):**
   - دمج شامل لكافة إصلاحات الحزم الـ 16 دون استثناء.
