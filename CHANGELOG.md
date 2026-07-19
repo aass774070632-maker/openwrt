@@ -149,6 +149,25 @@
 
 ---
 
+### v1.0-r40
+- **إصلاح حرج لعدم الإقلاع (boot loop):** السبب الجذري كان تشغيل `dnsmasq -k` (أمامي) داخل `uci-defaults/99-alemprator-firstboot` الذي يعيق الإقلاع المتزامن فيعطّل الجهاز.
+- تعديل مؤقت: تشغيل dnsmasq خلفياً (`setsid ... &`) في uci-defaults لتمرير الإقلاع.
+- أسماء الواجهات: `br_setup` (انحراف عن r12).
+- بناء ناجح وصورة تقلع بنجاح على الجهاز الحي.
+
+---
+
+### v1.0-r41
+- **إرجاع سلوك firstboot المعتمد (r12-style):**
+  - تغيير أسماء الواجهات من `br_setup` إلى `alemprator_setup` في `uci-defaults` و `init.d` وملف الإعداد الافتراضي (مطابق لـ r12 ومتوافق مع `luci-app-setup` الذي يتوقع `alemprator_setup`).
+  - إرجاع `USE_PROCD=1` في `init.d/alemprator-firstboot` (نمط r12).
+  - **إزالة التشغيل اليدوي لـ dnsmasq من `uci-defaults`** (السبب الجذري لتعطل الإقلاع) — الاعتماد على `init.d/dnsmasq` القياسي.
+  - الإبقاء على `launch_dnsmasq()` كاحتياط في `init.d` فقط (يُستدعى من captive portal / provisioning) لتغطية حالة تعطل `init.d/dnsmasq` إن وُجدت على الجهاز الحي.
+- التوافق مؤكد: لا تعارض مع `luci-app-hotspot-openwrt r161` (يتوقع `alemprator_setup`) ولا مع تطبيق الجوال (يحذف `alemprator_setup` عند الإعداد النهائي).
+- `alemprator-firstboot 1.0-r41`، أرشفة في `releases/v1.0-r41/km14/`.
+
+---
+
 ## ملخص التغييرات لكل ملف
 
 | الملف | r13 | r14 | r15 | r16 | r17 | r18 | r19 | r20 |
