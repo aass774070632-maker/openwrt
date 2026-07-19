@@ -96,7 +96,25 @@ launch_dnsmasq() {
 		killall dnsmasq 2>/dev/null || true
 		dnsmasq_conf="$(ls -1 /var/etc/dnsmasq.conf.* 2>/dev/null | head -1)"
 	fi
+	# Inject the Setup AP interface into dnsmasq config so DHCP serves
+	# clients connecting to the temporary setup WiFi network.
+	# Inject the Setup AP interface and captive portal DNS wildcard into dnsmasq config
 	if [ -n "$dnsmasq_conf" ] && [ -f "$dnsmasq_conf" ]; then
+		local setup_dev setup_ip
+		setup_dev="$(ubus call network.interface.${network_section} status 2>/dev/null | \
+			jsonfilter -e '@.device' 2>/dev/null)"
+		[ -n "$setup_dev" ] || setup_dev="phy0-ap0"
+		if [ -n "$setup_dev" ] && ! grep -q "interface=${setup_dev}" "$dnsmasq_conf" 2>/dev/null; then
+			sed -i "/^interface=br-lan/a interface=${setup_dev}" "$dnsmasq_conf"
+			logger -t alemprator-firstboot "injected interface=${setup_dev} into dnsmasq config"
+		fi
+
+		setup_ip="$(uci -q get network.${network_section}.ipaddr 2>/dev/null || echo '192.168.8.1')"
+		if [ -f "$pending_flag" ] && [ -n "$setup_ip" ] && ! grep -q "address=/#/" "$dnsmasq_conf" 2>/dev/null; then
+			echo "address=/#/${setup_ip}" >> "$dnsmasq_conf"
+			logger -t alemprator-firstboot "injected address=/#/${setup_ip} into dnsmasq config"
+		fi
+
 		setsid /usr/sbin/dnsmasq -C "$dnsmasq_conf" \
 			-x /var/run/dnsmasq/dnsmasq.pid >/dev/null 2>&1 </dev/null 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- 1000>&- &
 	else
