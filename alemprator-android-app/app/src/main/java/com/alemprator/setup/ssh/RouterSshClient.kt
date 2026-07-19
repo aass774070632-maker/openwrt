@@ -14,6 +14,25 @@ class RouterSshClient(
     private val password: String = "testing321"
 ) {
 
+    private fun connectSession(jsch: JSch, candidatePasswords: List<String>): Session {
+        var lastException: Exception? = null
+        val config = java.util.Properties()
+        config["StrictHostKeyChecking"] = "no"
+
+        for (pwd in candidatePasswords.distinct()) {
+            try {
+                val session = jsch.getSession(username, host, port)
+                session.setPassword(pwd)
+                session.setConfig(config)
+                session.connect(4000)
+                return session
+            } catch (e: Exception) {
+                lastException = e
+            }
+        }
+        throw lastException ?: Exception("فشل الاتصال بـ SSH")
+    }
+
     /**
      * Executes a list of shell commands on the router sequentially.
      * Returns true if all commands execute successfully.
@@ -24,14 +43,8 @@ class RouterSshClient(
         val outputLog = StringBuilder()
         
         try {
-            session = jsch.getSession(username, host, port)
-            session.setPassword(password)
-            
-            val config = java.util.Properties()
-            config["StrictHostKeyChecking"] = "no"
-            session.setConfig(config)
-            
-            session.connect(10000)
+            val candidatePasswords = listOf(password, "123456", "", "testing321", "admin")
+            session = connectSession(jsch, candidatePasswords)
             
             for (cmd in commands) {
                 if (cmd.trim().isEmpty()) continue
@@ -76,15 +89,12 @@ class RouterSshClient(
         val jsch = JSch()
         var session: Session? = null
         try {
-            session = jsch.getSession(username, host, port)
-            session.setPassword(password)
-            val config = java.util.Properties()
-            config["StrictHostKeyChecking"] = "no"
-            session.setConfig(config)
-            session.connect(5000)
+            val candidatePasswords = listOf(password, "123456", "", "testing321", "admin")
+            session = connectSession(jsch, candidatePasswords)
             
             val channel = session.openChannel("exec") as com.jcraft.jsch.ChannelExec
-            channel.setCommand("cat /sys/class/net/eth0/address || cat /sys/class/net/br-lan/address")
+            val getMacCmd = "cat /sys/class/net/eth0/address 2>/dev/null || cat /sys/class/net/br-lan/address 2>/dev/null || cat /sys/class/net/br_setup/address 2>/dev/null || cat /sys/class/net/phy0-ap0/address 2>/dev/null || cat /sys/class/net/lan1/address 2>/dev/null || cat /sys/class/net/wan/address 2>/dev/null"
+            channel.setCommand(getMacCmd)
             
             val outputStream = ByteArrayOutputStream()
             channel.outputStream = outputStream
@@ -96,7 +106,7 @@ class RouterSshClient(
             
             val mac = outputStream.toString().trim().uppercase()
             channel.disconnect()
-            return@withContext if (mac.isNotEmpty()) mac else null
+            return@withContext if (mac.isNotEmpty() && mac.contains(":")) mac else null
         } catch (e: Exception) {
             return@withContext null
         } finally {
