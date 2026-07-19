@@ -425,7 +425,11 @@ captive_portal_dhcpopt() {
 	url="http://$hotspot_ip$portal_path/api.json"
 	length="$(printf '%s' "$url" | wc -c | awk '{ print $1 + 0 }')"
 	[ "$length" -gt 0 ] && [ "$length" -le 255 ] || return 1
-	hex="$(printf '%s' "$url" | hexdump -ve '1/1 "%02x"' 2>/dev/null)" || return 1
+	if command -v hexdump >/dev/null 2>&1; then
+		hex="$(printf '%s' "$url" | hexdump -ve '1/1 "%02x"' 2>/dev/null)"
+	else
+		hex="$(printf '%s' "$url" | od -An -tx1 2>/dev/null | tr -d ' \n')"
+	fi
 	[ -n "$hex" ] || return 1
 	printf '72%02x%s' "$length" "$hex"
 }

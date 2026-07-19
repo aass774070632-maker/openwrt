@@ -9,7 +9,8 @@ json_escape() {
 
 POST_DATA=""
 if [ "$REQUEST_METHOD" = "POST" ] && [ "${CONTENT_LENGTH:-0}" -gt 0 ]; then
-	POST_DATA="$(dd bs=1 count="$CONTENT_LENGTH" 2>/dev/null)"
+	MAX_WAIT=5
+	POST_DATA="$(timeout "$MAX_WAIT" dd bs=1 count="$CONTENT_LENGTH" 2>/dev/null)"
 fi
 
 query_value() {
