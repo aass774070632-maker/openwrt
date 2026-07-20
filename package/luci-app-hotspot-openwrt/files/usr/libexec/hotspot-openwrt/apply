@@ -616,7 +616,7 @@ setup_wan_connection() {
 
 	case "$wan_connection_type" in
 		pppoe)
-			[ -n "$wan_pppoe_device" ] || wan_pppoe_device='eth0'
+			[ -n "$wan_pppoe_device" ] || wan_pppoe_device='wan'
 			uci -q batch <<-EOF
 				set network.wan.proto='pppoe'
 				set network.wan.device='$wan_pppoe_device'

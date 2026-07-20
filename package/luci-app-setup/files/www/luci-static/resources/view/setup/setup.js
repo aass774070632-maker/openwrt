@@ -2941,7 +2941,7 @@ return view.extend({
 		var hotspotQuickWanInterface = normalizeInterfaceName(uci.get('setup', 'default', 'hotspot_quick_wan_interface') || uci.get('hotspot_openwrt', 'main', 'wan_interface') || 'wan', 'wan');
 		var hotspotQuickPppoeEnabled = uci.get('setup', 'default', 'hotspot_quick_pppoe_enabled') || (uci.get('hotspot_openwrt', 'main', 'wan_connection_type') == 'pppoe' ? '1' : '0');
 		var hotspotQuickWanConnectionType = hotspotQuickPppoeEnabled == '1' ? 'pppoe' : 'dhcp';
-		var hotspotQuickPppoeDevice = String(uci.get('setup', 'default', 'hotspot_quick_pppoe_device') || uci.get('hotspot_openwrt', 'main', 'wan_pppoe_device') || 'eth0').trim();
+		var hotspotQuickPppoeDevice = String(uci.get('setup', 'default', 'hotspot_quick_pppoe_device') || uci.get('hotspot_openwrt', 'main', 'wan_pppoe_device') || 'wan').trim();
 		var hotspotQuickPppoeUsername = String(uci.get('setup', 'default', 'hotspot_quick_pppoe_username') || uci.get('hotspot_openwrt', 'main', 'wan_pppoe_username') || '').trim();
 		var hotspotQuickPppoePassword = String(uci.get('setup', 'default', 'hotspot_quick_pppoe_password') || uci.get('hotspot_openwrt', 'main', 'wan_pppoe_password') || '').trim();
 		var hotspotQuickSubscriberInterface = normalizeInterfaceName(uci.get('setup', 'default', 'hotspot_quick_subscriber_interface') || uci.get('hotspot_openwrt', 'main', 'subscriber_interface') || 'hotspot', 'hotspot');
@@ -3223,7 +3223,7 @@ return view.extend({
 		self.state.otaWindowEnd = self.refs.otaWindowEnd ? normalizeHour(self.refs.otaWindowEnd.value, 6) : self.state.otaWindowEnd;
 		self.state.hotspotQuickWanInterface = self.refs.hotspotQuickWanInterface ? self.refs.hotspotQuickWanInterface.value.trim() : (self.state.hotspotQuickWanInterface || 'lan');
 		self.state.hotspotQuickWanConnectionType = self.refs.hotspotQuickWanConnectionType ? self.refs.hotspotQuickWanConnectionType.value : (self.state.hotspotQuickWanConnectionType || 'dhcp');
-		self.state.hotspotQuickPppoeDevice = self.refs.hotspotQuickPppoeDevice ? self.refs.hotspotQuickPppoeDevice.value.trim() : (self.state.hotspotQuickPppoeDevice || 'eth0');
+		self.state.hotspotQuickPppoeDevice = self.refs.hotspotQuickPppoeDevice ? self.refs.hotspotQuickPppoeDevice.value.trim() : (self.state.hotspotQuickPppoeDevice || 'wan');
 		self.state.hotspotQuickPppoeUsername = self.refs.hotspotQuickPppoeUsername ? self.refs.hotspotQuickPppoeUsername.value.trim() : (self.state.hotspotQuickPppoeUsername || '');
 		self.state.hotspotQuickPppoePassword = self.refs.hotspotQuickPppoePassword ? self.refs.hotspotQuickPppoePassword.value : (self.state.hotspotQuickPppoePassword || '');
 		if (self.refs.hotspotQuickWanConnectionType)
@@ -3776,7 +3776,7 @@ return view.extend({
 			uci.set('setup', 'default', 'hotspot_enabled_from_wizard', '0');
 			ensureNamedSection('hotspot_openwrt', 'main', 'main');
 			uci.set('hotspot_openwrt', 'main', 'wan_connection_type', state.hotspotQuickWanConnectionType == 'pppoe' ? 'pppoe' : 'dhcp');
-			uci.set('hotspot_openwrt', 'main', 'wan_pppoe_device', state.hotspotQuickPppoeDevice || 'eth0');
+			uci.set('hotspot_openwrt', 'main', 'wan_pppoe_device', state.hotspotQuickPppoeDevice || 'wan');
 			uci.set('hotspot_openwrt', 'main', 'wan_pppoe_username', state.hotspotQuickPppoeUsername || '');
 			uci.set('hotspot_openwrt', 'main', 'wan_pppoe_password', state.hotspotQuickPppoePassword || '');
 			return;
@@ -4433,7 +4433,7 @@ return view.extend({
 			uci.set('setup', 'default', 'hotspot_quick_enabled', self.state.hotspotQuickEnabled ? '1' : '0');
 			uci.set('setup', 'default', 'hotspot_quick_wan_interface', self.state.hotspotQuickWanInterface);
 			uci.set('setup', 'default', 'hotspot_quick_pppoe_enabled', self.state.hotspotQuickWanConnectionType == 'pppoe' ? '1' : '0');
-			uci.set('setup', 'default', 'hotspot_quick_pppoe_device', self.state.hotspotQuickPppoeDevice || 'eth0');
+			uci.set('setup', 'default', 'hotspot_quick_pppoe_device', self.state.hotspotQuickPppoeDevice || 'wan');
 			uci.set('setup', 'default', 'hotspot_quick_pppoe_username', self.state.hotspotQuickPppoeUsername || '');
 			uci.set('setup', 'default', 'hotspot_quick_pppoe_password', self.state.hotspotQuickPppoePassword || '');
 			uci.set('setup', 'default', 'hotspot_quick_subscriber_interface', self.state.hotspotQuickSubscriberInterface);
@@ -5033,7 +5033,7 @@ return view.extend({
 			E('option', { 'value': 'pppoe' }, _('PPPoE (حساب مستخدم)'))
 		]);
 		self.refs.hotspotQuickWanConnectionType.value = self.state.hotspotQuickWanConnectionType || 'dhcp';
-		self.refs.hotspotQuickPppoeDevice = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickPppoeDevice || 'eth0', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickPppoeDevice = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickPppoeDevice || 'wan', 'style': 'max-width:220px;' });
 		self.refs.hotspotQuickPppoeUsername = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickPppoeUsername || '', 'style': 'max-width:280px;' });
 		self.refs.hotspotQuickPppoePassword = E('input', { 'class': 'cbi-input-text', 'type': 'password', 'value': self.state.hotspotQuickPppoePassword || '', 'style': 'max-width:280px;' });
 		self.refs.hotspotQuickSubscriberInterface = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickSubscriberInterface || 'hotspot', 'style': 'max-width:220px;' });

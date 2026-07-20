@@ -190,6 +190,18 @@
 
 ---
 
+### v1.0-r45 — تعديل افتراضي واجهة PPPoE إلى `wan`
+- **`luci-app-hotspot-openwrt` r164:** تغيير الافتراضي `wan_pppoe_device` من `eth0` إلى **`wan`** في:
+  - `config/hotspot_openwrt` (الافتراضي)
+  - `hotspot-openwrt.js` (getValue)
+  - `setup.js` (المعالج: ref/قراءة/state/حفظ)
+  - `apply` (احتياطي عند空空)
+  - السبب: على KM14-102H الواجهة الفيزيائية `eth0` مقسّمة عبر السويتش إلى lan/wan بـ VLANs؛ ضبط PPPoE على `eth0` الخام يفصل LAN ويفقد الوصول للإدارة. الواجهة الصحيحة هي `wan` (VLAN مشتق من السويتش).
+- أرشفة في `releases/v1.0-r45/km14/`.
+  - SHA256 factory: `9f3ebe8f656fec414c2bdafd365be85a5f3948d824d4c8df96d841c9cb86240a`
+
+---
+
 ## ملخص التغييرات لكل ملف
 
 | الملف | r13 | r14 | r15 | r16 | r17 | r18 | r19 | r20 |

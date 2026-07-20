@@ -452,7 +452,7 @@ function getValue(option) {
 	if (option == 'walled_garden_ip')
 		return readList('walled_garden_ip').join('\n');
 	if (option == 'wan_pppoe_device')
-		return val || uci.get('setup', 'default', 'hotspot_quick_pppoe_device') || 'eth0';
+		return val || uci.get('setup', 'default', 'hotspot_quick_pppoe_device') || 'wan';
 	if (option == 'wan_connection_type')
 		return val || uci.get('setup', 'default', 'hotspot_quick_pppoe_enabled') == '1' ? 'pppoe' : 'dhcp';
 	if (option == 'ip_binding')
