@@ -202,6 +202,30 @@
 
 ---
 
+### v1.0-r46 — دعم حقل VLAN الاختياري لـ PPPoE
+- **`luci-app-setup` r125 / `luci-app-hotspot-openwrt` r165:** إضافة حقل `wan_pppoe_vlan` (رقم VLAN اختياري) لاتصال PPPoE عبر واجهة موسومة (مثل `br-lan.20`). الافتراضي `wan_pppoe_device='br-lan'`.
+
+---
+
+### v1.0-r47 — ضبط WAN قبل فحص RADIUS
+- **`luci-app-hotspot-openwrt` r166:** نقل `setup_wan_connection` + `uci commit network` قبل فحص RADIUS كي يُطبَّق WAN حتى لو فشل إعداد الهوتسبوت.
+
+---
+
+### v1.0-r48 — استقلال WAN عن RADIUS + تشغيل الواجهة
+- **`luci-app-hotspot-openwrt` r167:** إضافة `ifup wan` بعد إعداد WAN؛ تأكيد أن WAN (PPPoE/DHCP) يُطبَّق دائماً بغض النظر عن حالة الهوتسبوت.
+
+---
+
+### v1.0-r49 — إصلاح: تطبيق WAN عند الإقلاع حتى مع تعطيل الهوتسبوت
+- **`luci-app-hotspot-openwrt` r168:** إزالة الحارس المبكر في `init.d/hotspot-openwrt` الذي كان يمنع تشغيل `apply --start` عند `enabled != '1'` (مما ترك `network.wan` على dhcp بعد الريست/الإقلاع رغم ضبط PPPoE). وحصر تشغيل خدمات `chilli`/`radius-proxy` بـ `enabled='1'` داخل `apply`.
+- يضمن هذا أن PPPoE/VLAN يُطبَّق تلقائياً عند الإقلاع بعد الريست دون الحاجة لضغط "حفظ وتطبيق" يدوياً.
+- أرشفة في `releases/v1.0-r49/km14/`.
+
+---
+
+
+
 ## ملخص التغييرات لكل ملف
 
 | الملف | r13 | r14 | r15 | r16 | r17 | r18 | r19 | r20 |
