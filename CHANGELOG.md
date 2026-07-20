@@ -181,6 +181,15 @@
 
 ---
 
+### v1.0-r44 — إصلاح: WAN/PPPoE مستقل عن فحص RADIUS
+- **`luci-app-hotspot-openwrt` r163:** إصلاح حرج في `apply` — فحص `RADIUS secret` كان يوقف التطبيق بالكامل (`FATAL: RADIUS secret is empty`) **قبل** كتابة `network.wan`، مما منع ضبط PPPoE/WAN بمعزل عن الهوتسبوت.
+  - الآن فحص RADIUS يمنع التطبيق **فقط عند تفعيل الهوتسبوت** (`enabled=1`). WAN/PPPoE يُضبط دائماً مستقلاً.
+  - `enabled` الافتراضي يبقى `0` (لا يفشل عند أول إعداد).
+- أرشفة في `releases/v1.0-r44/km14/`.
+  - SHA256 factory: `9b2e54d2dac0081b86aa9732d43c5e69bd99386570482b985e5e3829f6fa06a8`
+
+---
+
 ## ملخص التغييرات لكل ملف
 
 | الملف | r13 | r14 | r15 | r16 | r17 | r18 | r19 | r20 |

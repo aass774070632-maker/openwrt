@@ -672,6 +672,8 @@ apply_config() {
 	wan_pppoe_device="$(uci -q get hotspot_openwrt.main.wan_pppoe_device)"
 	wan_pppoe_username="$(uci -q get hotspot_openwrt.main.wan_pppoe_username)"
 	wan_pppoe_password="$(uci -q get hotspot_openwrt.main.wan_pppoe_password)"
+	hotspot_enabled="$(uci -q get hotspot_openwrt.main.enabled)"
+	[ "$hotspot_enabled" = '1' ] || hotspot_enabled='0'
 	hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip)"
 	hotspot_cidr="$(uci -q get hotspot_openwrt.main.hotspot_cidr)"
 	mtu="$(uci -q get hotspot_openwrt.main.mtu)"
@@ -766,16 +768,19 @@ speedtest_url="$(uci -q get hotspot_openwrt.main.speedtest_url)"
 	[ -n "$uamssl_key" ] || uamssl_key='/etc/chilli/hotspot.key'
 	[ -n "$radius_nas_ip" ] || radius_nas_ip="$(ip -4 addr show br-lan 2>/dev/null | awk '/inet / { sub(/\/.*/, "", $2); print $2; exit }')"
 
-	# Validate RADIUS secret
-	if [ -z "$radius_secret" ]; then
-		logger -t hotspot-audit "FATAL: RADIUS secret is empty"
-		printf 'FATAL: RADIUS secret is empty\n' >&2
-		return 1
-	fi
-	if [ "${#radius_secret}" -lt 8 ]; then
-		logger -t hotspot-audit "FATAL: RADIUS secret is too short (min 8 chars, got ${#radius_secret})"
-		printf 'FATAL: RADIUS secret is too short (min 8 chars, got %s)\n' "${#radius_secret}" >&2
-		return 1
+	# Validate RADIUS secret (only blocks when the hotspot is actually enabled;
+	# WAN/PPPoE configuration must succeed independently of the hotspot).
+	if [ "$hotspot_enabled" = '1' ]; then
+		if [ -z "$radius_secret" ]; then
+			logger -t hotspot-audit "FATAL: RADIUS secret is empty"
+			printf 'FATAL: RADIUS secret is empty\n' >&2
+			return 1
+		fi
+		if [ "${#radius_secret}" -lt 8 ]; then
+			logger -t hotspot-audit "FATAL: RADIUS secret is too short (min 8 chars, got ${#radius_secret})"
+			printf 'FATAL: RADIUS secret is too short (min 8 chars, got %s)\n' "${#radius_secret}" >&2
+			return 1
+		fi
 	fi
 	[ -n "$radius_server2" ] || radius_server2="$radius_server"
 	session_timeout_seconds="$(duration_to_seconds "$session_timeout")"
