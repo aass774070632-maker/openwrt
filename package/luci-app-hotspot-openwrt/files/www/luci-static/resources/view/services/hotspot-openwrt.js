@@ -68,7 +68,14 @@ var FIELD_GROUPS = {
 		{ option: 'subscriber_interface', label: 'واجهة الهوتسبوت', hint: 'واجهة المشتركين التي سيأخذها CoovaChilli. القيمة الآمنة الافتراضية هي hotspot.', placeholder: 'hotspot', choices: getSubscriberInterfaceChoices },
 		{ option: 'bridge_ports', label: 'منافذ المشتركين', hint: 'اختر كرتًا أو أكثر للمشتركين. اتركه فارغًا عند استخدام WiFi فقط.', placeholder: 'lan4', choices: getBridgePortChoices, multiple: true },
 		{ option: 'bridge_ageing_time', label: 'Ageing time', hint: 'قيمة ageing_time لجسري الهوتسبوت br-hotspot و br-hotspot2. الافتراضي 10.', placeholder: '10' },
-		{ option: 'wifi_iface', label: 'واجهة WiFi', hint: 'اختر قسم WiFi الذي سيبث شبكة الهوتسبوت.', placeholder: 'hotspot_openwrt_radio0_ap', choices: getWifiChoices }
+			{ option: 'wifi_iface', label: 'واجهة WiFi', hint: 'اختر قسم WiFi الذي سيبث شبكة الهوتسبوت.', placeholder: 'hotspot_openwrt_radio0_ap', choices: getWifiChoices },
+		{ option: 'wan_connection_type', label: 'نوع اتصال الإنترنت (WAN)', hint: 'كيف يتصل الراوتر بالإنترنت عبر MikroTik. اختر PPPoE إذا كان MikroTik يوزع الإنترنت عبر حساب مستخدم.', choices: [
+			{ value: 'dhcp', label: 'DHCP تلقائي (افتراضي)' },
+			{ value: 'pppoe', label: 'PPPoE (حساب مستخدم وكلمة سر)' }
+		], default: 'dhcp' },
+		{ option: 'wan_pppoe_device', label: 'واجهة PPPoE الفيزيائية', hint: 'الواجهة الفيزيائية التي يأتي منها اتصال PPPoE (غالباً eth0 على KM14-102H).', placeholder: 'eth0' },
+		{ option: 'wan_pppoe_username', label: 'اسم مستخدم PPPoE', hint: 'الحساب المُعطى من MikroTik User Manager ل this الراوتر.', placeholder: 'emp-r1' },
+		{ option: 'wan_pppoe_password', label: 'كلمة سر PPPoE', hint: 'كلمة سر حساب PPPoE.', placeholder: '', password: true }
 	],
 	profile: [
 		{ option: 'hotspot_ip', label: 'عنوان الهوتسبوت', hint: 'يمتلكه tun0 فقط، وليس br-hotspot', placeholder: '192.168.10.1' },
@@ -444,6 +451,10 @@ function getValue(option) {
 	}
 	if (option == 'walled_garden_ip')
 		return readList('walled_garden_ip').join('\n');
+	if (option == 'wan_pppoe_device')
+		return val || uci.get('setup', 'default', 'hotspot_quick_pppoe_device') || 'eth0';
+	if (option == 'wan_connection_type')
+		return val || uci.get('setup', 'default', 'hotspot_quick_pppoe_enabled') == '1' ? 'pppoe' : 'dhcp';
 	if (option == 'ip_binding')
 		return readLineList('ip_binding').join('\n');
 	if (option == 'mtu')

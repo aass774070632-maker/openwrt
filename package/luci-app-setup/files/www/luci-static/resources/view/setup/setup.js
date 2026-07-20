@@ -2939,6 +2939,11 @@ return view.extend({
 		var hasVlanApIface = !!(findSecondaryApIfaceSection(radios, '2g') || findSecondaryApIfaceSection(radios, '5g'));
 		var hotspotQuickEnabled = uci.get('setup', 'default', 'hotspot_quick_enabled') == '1' || uci.get('hotspot_openwrt', 'main', 'quick_setup_enabled') == '1';
 		var hotspotQuickWanInterface = normalizeInterfaceName(uci.get('setup', 'default', 'hotspot_quick_wan_interface') || uci.get('hotspot_openwrt', 'main', 'wan_interface') || 'wan', 'wan');
+		var hotspotQuickPppoeEnabled = uci.get('setup', 'default', 'hotspot_quick_pppoe_enabled') || (uci.get('hotspot_openwrt', 'main', 'wan_connection_type') == 'pppoe' ? '1' : '0');
+		var hotspotQuickWanConnectionType = hotspotQuickPppoeEnabled == '1' ? 'pppoe' : 'dhcp';
+		var hotspotQuickPppoeDevice = String(uci.get('setup', 'default', 'hotspot_quick_pppoe_device') || uci.get('hotspot_openwrt', 'main', 'wan_pppoe_device') || 'eth0').trim();
+		var hotspotQuickPppoeUsername = String(uci.get('setup', 'default', 'hotspot_quick_pppoe_username') || uci.get('hotspot_openwrt', 'main', 'wan_pppoe_username') || '').trim();
+		var hotspotQuickPppoePassword = String(uci.get('setup', 'default', 'hotspot_quick_pppoe_password') || uci.get('hotspot_openwrt', 'main', 'wan_pppoe_password') || '').trim();
 		var hotspotQuickSubscriberInterface = normalizeInterfaceName(uci.get('setup', 'default', 'hotspot_quick_subscriber_interface') || uci.get('hotspot_openwrt', 'main', 'subscriber_interface') || 'hotspot', 'hotspot');
 		var hotspotQuickSsid1 = String(uci.get('setup', 'default', 'hotspot_quick_ssid_1') || uci.get('hotspot_openwrt', 'main', 'quick_ssid_primary') || 'Hotspot-1').trim();
 		var hotspotQuickGateway1 = String(uci.get('setup', 'default', 'hotspot_quick_gateway_1') || uci.get('hotspot_openwrt', 'main', 'quick_gateway_primary') || uci.get('hotspot_openwrt', 'main', 'hotspot_ip') || '192.168.10.1').trim();
@@ -3065,6 +3070,10 @@ return view.extend({
 			meshBand: inferMeshBand(radio2g, radio5g, meshIface),
 			hotspotQuickEnabled: hotspotQuickEnabled,
 			hotspotQuickWanInterface: hotspotQuickWanInterface,
+			hotspotQuickWanConnectionType: hotspotQuickWanConnectionType,
+			hotspotQuickPppoeDevice: hotspotQuickPppoeDevice,
+			hotspotQuickPppoeUsername: hotspotQuickPppoeUsername,
+			hotspotQuickPppoePassword: hotspotQuickPppoePassword,
 			hotspotQuickSubscriberInterface: hotspotQuickSubscriberInterface,
 			hotspotQuickSsid1: hotspotQuickSsid1,
 			hotspotQuickGateway1: hotspotQuickGateway1,
@@ -3213,6 +3222,15 @@ return view.extend({
 		self.state.otaWindowStart = self.refs.otaWindowStart ? normalizeHour(self.refs.otaWindowStart.value, 2) : self.state.otaWindowStart;
 		self.state.otaWindowEnd = self.refs.otaWindowEnd ? normalizeHour(self.refs.otaWindowEnd.value, 6) : self.state.otaWindowEnd;
 		self.state.hotspotQuickWanInterface = self.refs.hotspotQuickWanInterface ? self.refs.hotspotQuickWanInterface.value.trim() : (self.state.hotspotQuickWanInterface || 'lan');
+		self.state.hotspotQuickWanConnectionType = self.refs.hotspotQuickWanConnectionType ? self.refs.hotspotQuickWanConnectionType.value : (self.state.hotspotQuickWanConnectionType || 'dhcp');
+		self.state.hotspotQuickPppoeDevice = self.refs.hotspotQuickPppoeDevice ? self.refs.hotspotQuickPppoeDevice.value.trim() : (self.state.hotspotQuickPppoeDevice || 'eth0');
+		self.state.hotspotQuickPppoeUsername = self.refs.hotspotQuickPppoeUsername ? self.refs.hotspotQuickPppoeUsername.value.trim() : (self.state.hotspotQuickPppoeUsername || '');
+		self.state.hotspotQuickPppoePassword = self.refs.hotspotQuickPppoePassword ? self.refs.hotspotQuickPppoePassword.value : (self.state.hotspotQuickPppoePassword || '');
+		if (self.refs.hotspotQuickWanConnectionType)
+			self.refs.hotspotQuickWanConnectionType.onchange = function() {
+				if (self.refs.hotspotQuickPppoeWrapper)
+					self.refs.hotspotQuickPppoeWrapper.style.display = (self.refs.hotspotQuickWanConnectionType.value == 'pppoe') ? '' : 'none';
+			};
 		self.state.hotspotQuickSubscriberInterface = self.refs.hotspotQuickSubscriberInterface ? self.refs.hotspotQuickSubscriberInterface.value.trim() : (self.state.hotspotQuickSubscriberInterface || 'hotspot');
 		self.state.hotspotQuickSsid1 = self.refs.hotspotQuickSsid1 ? self.refs.hotspotQuickSsid1.value.trim() : (self.state.hotspotQuickSsid1 || 'Hotspot-1');
 		self.state.hotspotQuickGateway1 = self.refs.hotspotQuickGateway1 ? self.refs.hotspotQuickGateway1.value.trim() : (self.state.hotspotQuickGateway1 || '192.168.10.1');
@@ -3756,6 +3774,11 @@ return view.extend({
 		if (state.hotspotQuickEnabled) {
 			uci.remove('wireless', hotspotIface);
 			uci.set('setup', 'default', 'hotspot_enabled_from_wizard', '0');
+			ensureNamedSection('hotspot_openwrt', 'main', 'main');
+			uci.set('hotspot_openwrt', 'main', 'wan_connection_type', state.hotspotQuickWanConnectionType == 'pppoe' ? 'pppoe' : 'dhcp');
+			uci.set('hotspot_openwrt', 'main', 'wan_pppoe_device', state.hotspotQuickPppoeDevice || 'eth0');
+			uci.set('hotspot_openwrt', 'main', 'wan_pppoe_username', state.hotspotQuickPppoeUsername || '');
+			uci.set('hotspot_openwrt', 'main', 'wan_pppoe_password', state.hotspotQuickPppoePassword || '');
 			return;
 		}
 
@@ -4409,6 +4432,10 @@ return view.extend({
 			uci.set('setup', 'default', 'mesh_band', self.state.meshBand);
 			uci.set('setup', 'default', 'hotspot_quick_enabled', self.state.hotspotQuickEnabled ? '1' : '0');
 			uci.set('setup', 'default', 'hotspot_quick_wan_interface', self.state.hotspotQuickWanInterface);
+			uci.set('setup', 'default', 'hotspot_quick_pppoe_enabled', self.state.hotspotQuickWanConnectionType == 'pppoe' ? '1' : '0');
+			uci.set('setup', 'default', 'hotspot_quick_pppoe_device', self.state.hotspotQuickPppoeDevice || 'eth0');
+			uci.set('setup', 'default', 'hotspot_quick_pppoe_username', self.state.hotspotQuickPppoeUsername || '');
+			uci.set('setup', 'default', 'hotspot_quick_pppoe_password', self.state.hotspotQuickPppoePassword || '');
 			uci.set('setup', 'default', 'hotspot_quick_subscriber_interface', self.state.hotspotQuickSubscriberInterface);
 			uci.set('setup', 'default', 'hotspot_quick_subscriber_interface_2', self.state.hotspotQuickSubscriberInterface2 || 'hotspot2');
 			uci.set('setup', 'default', 'hotspot_quick_ssid_1', self.state.hotspotQuickSsid1 || 'Hotspot-1');
@@ -5001,6 +5028,14 @@ return view.extend({
 		self.refs.rebootEnabled.checked = self.state.rebootEnabled;
 		self.refs.rebootHours = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'min': '1', 'step': '1', 'value': self.state.rebootHours, 'style': 'max-width:140px;' });
 		self.refs.hotspotQuickWanInterface = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickWanInterface || 'lan', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickWanConnectionType = E('select', { 'class': 'cbi-input-select', 'style': 'max-width:220px;' }, [
+			E('option', { 'value': 'dhcp' }, _('DHCP تلقائي')),
+			E('option', { 'value': 'pppoe' }, _('PPPoE (حساب مستخدم)'))
+		]);
+		self.refs.hotspotQuickWanConnectionType.value = self.state.hotspotQuickWanConnectionType || 'dhcp';
+		self.refs.hotspotQuickPppoeDevice = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickPppoeDevice || 'eth0', 'style': 'max-width:220px;' });
+		self.refs.hotspotQuickPppoeUsername = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickPppoeUsername || '', 'style': 'max-width:280px;' });
+		self.refs.hotspotQuickPppoePassword = E('input', { 'class': 'cbi-input-text', 'type': 'password', 'value': self.state.hotspotQuickPppoePassword || '', 'style': 'max-width:280px;' });
 		self.refs.hotspotQuickSubscriberInterface = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickSubscriberInterface || 'hotspot', 'style': 'max-width:220px;' });
 		self.refs.hotspotQuickSsid1 = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'value': self.state.hotspotQuickSsid1 || 'Hotspot-1', 'style': 'max-width:280px;' });
 		self.refs.hotspotQuickGateway1 = E('input', { 
@@ -5204,6 +5239,13 @@ return view.extend({
 				[
 					(self.refs.hotspotQuickDetailsWrapper = E('div', { 'class': 'alemprator-responsive-fields', 'style': 'display:none;' }, [
 						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('واجهة الإنترنت')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickWanInterface ]) ]),
+					E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title', 'style': 'color:#D4AF37; font-weight:bold;' }, _('نوع اتصال الإنترنت (WAN)')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickWanConnectionType ]) ]),
+					(self.refs.hotspotQuickPppoeWrapper = E('div', { 'style': 'display:' + (self.state.hotspotQuickWanConnectionType == 'pppoe' ? '' : 'none') + ';' }, [
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('واجهة PPPoE الفيزيائية')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickPppoeDevice ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم مستخدم PPPoE')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickPppoeUsername ]) ]),
+						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('كلمة سر PPPoE')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickPppoePassword ]) ])
+					])),
+					E('div', { 'style': 'margin: 20px 0; border-top: 1px dashed #D4AF37;' }),
 						E('div', { 'class': 'cbi-value', 'style': 'display:none;' }, [ E('label', { 'class': 'cbi-value-title' }, _('واجهة المشتركين')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickSubscriberInterface ]) ]),
 						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('اسم الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickSsid1 ]) ]),
 						E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title' }, _('IP الشبكة الأولى')), E('div', { 'class': 'cbi-value-field' }, [ self.refs.hotspotQuickGateway1 ]) ]),

@@ -168,6 +168,19 @@
 
 ---
 
+### v1.0-r42 / v1.0-r43 — دعم PPPoE client في واجهة اللوسي + معالج الإعداد
+- **`luci-app-hotspot-openwrt` (r162 + r163):**
+  - إضافة حقول **PPPoE client** في صفحة الهوتسبوت (`hotspot-openwrt.js` مجموعة `server`): `wan_connection_type` (dhcp/pppoe)، `wan_pppoe_device` (افتراضي `eth0`)، `wan_pppoe_username`، `wan_pppoe_password`.
+  - تحديث `apply` بإضافة `setup_wan_connection()` الذي يضبط `network.wan` (`proto=pppoe` + `device`/`username`/`password`) عند اختيار PPPoE، أو `proto=dhcp` افتراضياً.
+  - إضافة نفس الحقول في **معالج البرمجة السريعة** (`luci-app-setup` `setup.js` → بطاقة `hotspotQuickCard`) مع إظهار/إخفاء تلقائي لحقول PPPoE حسب نوع الاتصال، وحفظها في `hotspot_openwrt.main` عند التطبيق.
+  - تحديث `etc/config/hotspot_openwrt` بخيارات PPPoE الافتراضية.
+- **`alemprator-android-app` (سابق r162/e99474b):** دعم PPPoE مدمج مسبقاً في `Device.kt` + `DeviceFormScreen` + `ScriptGenerator` (يضبط `network.wan` عبر SSH).
+- المعمارية: MikroTik = PPPoE server + User Manager؛ كل راوتر له user/pass PPPoE خاص؛ WAN=PPPoE client عبر `eth0`؛ الهوتسبوت فوقه.
+- أرشفة في `releases/v1.0-r43/km14/` (factory/sysupgrade + ipk r162).
+  - SHA256 factory: `8ece1c9a7e3cefcbcdc1d205cffa682cec0408623c5047e1edaad086336f1302`
+
+---
+
 ## ملخص التغييرات لكل ملف
 
 | الملف | r13 | r14 | r15 | r16 | r17 | r18 | r19 | r20 |
