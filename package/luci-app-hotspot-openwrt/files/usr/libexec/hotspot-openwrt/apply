@@ -784,7 +784,9 @@ speedtest_url="$(uci -q get hotspot_openwrt.main.speedtest_url)"
 
 	# Validate RADIUS secret (only blocks when the hotspot is actually enabled;
 	# WAN/PPPoE configuration must succeed independently of the hotspot).
-	if [ "$hotspot_enabled" = '1' ]; then
+	# In quick/local mode chilli runs without a central RADIUS server, so the
+	# secret is not required there and the check is skipped.
+	if [ "$hotspot_enabled" = '1' ] && [ "$quick_setup_enabled" != '1' ]; then
 		if [ -z "$radius_secret" ]; then
 			logger -t hotspot-audit "FATAL: RADIUS secret is empty"
 			printf 'FATAL: RADIUS secret is empty\n' >&2
