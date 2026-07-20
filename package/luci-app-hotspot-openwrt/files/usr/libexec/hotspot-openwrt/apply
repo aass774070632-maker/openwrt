@@ -687,6 +687,7 @@ apply_config() {
 	# even when the hotspot is misconfigured.
 	setup_wan_connection
 	uci commit network
+	ifup wan >/dev/null 2>&1 || true
 	hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip)"
 	hotspot_cidr="$(uci -q get hotspot_openwrt.main.hotspot_cidr)"
 	mtu="$(uci -q get hotspot_openwrt.main.mtu)"
