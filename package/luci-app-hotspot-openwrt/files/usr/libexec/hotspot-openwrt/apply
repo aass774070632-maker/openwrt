@@ -680,6 +680,13 @@ apply_config() {
 	wan_pppoe_vlan="$(uci -q get hotspot_openwrt.main.wan_pppoe_vlan)"
 	hotspot_enabled="$(uci -q get hotspot_openwrt.main.enabled)"
 	[ "$hotspot_enabled" = '1' ] || hotspot_enabled='0'
+
+	# Configure the WAN/PPPoE uplink up front so it always applies,
+	# independently of the hotspot/RADIUS validation below (which may abort
+	# the rest of this function). See DEVELOPER_WORKFLOW: WAN must succeed
+	# even when the hotspot is misconfigured.
+	setup_wan_connection
+	uci commit network
 	hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip)"
 	hotspot_cidr="$(uci -q get hotspot_openwrt.main.hotspot_cidr)"
 	mtu="$(uci -q get hotspot_openwrt.main.mtu)"
@@ -975,8 +982,6 @@ speedtest_url="$(uci -q get hotspot_openwrt.main.speedtest_url)"
 		uci -q delete network.${old_secondary_subscriber_interface}_dev
 		uci -q delete network.$old_secondary_subscriber_interface
 	fi
-	setup_wan_connection
-	uci commit network
 
 	uci -q delete dhcp.$subscriber_interface.dhcp_option
 	if [ "$runtime_mode" = 'dnsmasq' ]; then
