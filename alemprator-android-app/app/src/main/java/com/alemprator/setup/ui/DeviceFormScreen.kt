@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import com.alemprator.setup.db.Device
 import com.alemprator.setup.logic.IPValidationEngine
 import kotlinx.coroutines.launch
@@ -89,6 +91,11 @@ fun DeviceFormScreen(
     // Hotspot Network settings
     var hotspotWanInterface by remember { mutableStateOf("wan") }
     var hotspotSubscriberInterface by remember { mutableStateOf("hotspot") }
+    // Internet (WAN) connection type: dhcp | pppoe
+    var wanConnectionType by remember { mutableStateOf("dhcp") }
+    var wanPppoeUser by remember { mutableStateOf("") }
+    var wanPppoePassword by remember { mutableStateOf("") }
+    var wanPppoeDevice by remember { mutableStateOf("wan") }
     var hotspotPrimaryIp by remember { mutableStateOf("192.168.10.1") }
     var hotspotPrimaryPoolStart by remember { mutableStateOf("192.168.10.10") }
     var hotspotPrimaryPoolEnd by remember { mutableStateOf("192.168.10.199") }
@@ -250,6 +257,10 @@ fun DeviceFormScreen(
         rootPassword = t.rootPassword ?: ""
         hotspotWanInterface = t.hotspotWanInterface
         hotspotSubscriberInterface = t.hotspotSubscriberInterface
+        wanConnectionType = t.wanConnectionType
+        wanPppoeUser = t.wanPppoeUser ?: ""
+        wanPppoePassword = t.wanPppoePassword ?: ""
+        wanPppoeDevice = t.wanPppoeDevice ?: "wan"
         hotspotPrimaryIp = t.hotspotPrimaryIp
         hotspotPrimaryPoolStart = t.hotspotPrimaryPoolStart ?: ""
         hotspotPrimaryPoolEnd = t.hotspotPrimaryPoolEnd ?: ""
@@ -912,6 +923,44 @@ fun DeviceFormScreen(
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
+                                // Internet (WAN) connection type: DHCP or PPPoE client.
+                                // PPPoE is used when the central MikroTik serves internet
+                                // per-router over a PPPoE session (user/pass per router).
+                                PremiumDropdownField(
+                                    label = "نوع اتصال الإنترنت (WAN)",
+                                    selectedValue = wanConnectionType,
+                                    options = listOf("dhcp", "pppoe"),
+                                    optionLabels = mapOf(
+                                        "dhcp" to "DHCP (تلقائي من الميكروتك)",
+                                        "pppoe" to "PPPoE (اسم مستخدم + كلمة سر)"
+                                    ),
+                                    onValueChange = { wanConnectionType = it }
+                                )
+                                if (wanConnectionType == "pppoe") {
+                                    OutlinedTextField(
+                                        value = wanPppoeDevice,
+                                        onValueChange = { wanPppoeDevice = it },
+                                        label = { Text("منفذ دخول الإنترنت (PPPoE device)", color = Color.Gray) },
+                                        placeholder = { Text("wan (أو eth0/eth1 حسب الجهاز)", color = Color.Gray) },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = wanPppoeUser,
+                                        onValueChange = { wanPppoeUser = it },
+                                        label = { Text("اسم مستخدم PPPoE", color = Color.Gray) },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = wanPppoePassword,
+                                        onValueChange = { wanPppoePassword = it },
+                                        label = { Text("كلمة سر PPPoE", color = Color.Gray) },
+                                        visualTransformation = PasswordVisualTransformation(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
                                 OutlinedTextField(
                                     value = hotspotDnsName,
                                     onValueChange = { hotspotDnsName = it },
@@ -1490,6 +1539,10 @@ fun DeviceFormScreen(
                                 rootPassword = if (rootPassword.isNotEmpty()) rootPassword else null,
                                 hotspotWanInterface = hotspotWanInterface,
                                 hotspotSubscriberInterface = hotspotSubscriberInterface,
+                                wanConnectionType = wanConnectionType,
+                                wanPppoeUser = if (wanPppoeUser.isNotEmpty()) wanPppoeUser else null,
+                                wanPppoePassword = if (wanPppoePassword.isNotEmpty()) wanPppoePassword else null,
+                                wanPppoeDevice = if (wanPppoeDevice.isNotEmpty()) wanPppoeDevice else null,
                                 hotspotPrimaryIp = hotspotPrimaryIp,
                                 hotspotPrimaryPoolStart = if (hotspotPrimaryPoolStart.isNotEmpty()) hotspotPrimaryPoolStart else null,
                                 hotspotPrimaryPoolEnd = if (hotspotPrimaryPoolEnd.isNotEmpty()) hotspotPrimaryPoolEnd else null,

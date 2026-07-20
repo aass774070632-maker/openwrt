@@ -47,6 +47,12 @@ data class Device(
     // Hotspot Network settings
     val hotspotWanInterface: String = "wan",
     val hotspotSubscriberInterface: String = "hotspot",
+    // Internet (WAN) connection: dhcp | pppoe. PPPoE client credentials for
+    // the central MikroTik that serves internet per-router over PPPoE.
+    val wanConnectionType: String = "dhcp",
+    val wanPppoeUser: String? = null,
+    val wanPppoePassword: String? = null,
+    val wanPppoeDevice: String? = null,
     val hotspotPrimaryIp: String = "192.168.10.1",
     val hotspotPrimaryPoolStart: String? = null,
     val hotspotPrimaryPoolEnd: String? = null,

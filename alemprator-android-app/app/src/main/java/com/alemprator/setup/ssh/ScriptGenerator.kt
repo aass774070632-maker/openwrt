@@ -127,6 +127,23 @@ class ScriptGenerator {
         val restHost = device.radiusServer.trim().ifBlank { "192.168.1.2" }
         val wanInterface = normalizeInterface(device.hotspotWanInterface, "lan")
 
+        // Configure the router's internet (WAN) connection. When the central
+        // MikroTik serves internet per-router over PPPoE, set the WAN interface
+        // as a PPPoE client with the per-router user/pass and chosen device.
+        when (device.wanConnectionType) {
+            "pppoe" -> {
+                set("network.wan.proto", "pppoe")
+                set("network.wan.username", device.wanPppoeUser ?: "")
+                set("network.wan.password", device.wanPppoePassword ?: "")
+                set("network.wan.device", device.wanPppoeDevice?.takeIf { it.isNotBlank() } ?: "wan")
+                set("hotspot_openwrt.main.wan_interface", "wan")
+            }
+            else -> {
+                set("network.wan.proto", "dhcp")
+                set("hotspot_openwrt.main.wan_interface", "wan")
+            }
+        }
+
         set("setup.default.hotspot_quick_enabled", "1")
         set("setup.default.hotspot_quick_wan_interface", wanInterface)
         set("setup.default.hotspot_quick_subscriber_interface", primaryInterface)
