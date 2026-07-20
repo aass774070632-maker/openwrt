@@ -95,7 +95,8 @@ fun DeviceFormScreen(
     var wanConnectionType by remember { mutableStateOf("dhcp") }
     var wanPppoeUser by remember { mutableStateOf("") }
     var wanPppoePassword by remember { mutableStateOf("") }
-    var wanPppoeDevice by remember { mutableStateOf("eth0") }
+    var wanPppoeDevice by remember { mutableStateOf("br-lan") }
+    var wanPppoeVlan by remember { mutableStateOf("") }
     var hotspotPrimaryIp by remember { mutableStateOf("192.168.10.1") }
     var hotspotPrimaryPoolStart by remember { mutableStateOf("192.168.10.10") }
     var hotspotPrimaryPoolEnd by remember { mutableStateOf("192.168.10.199") }
@@ -260,7 +261,8 @@ fun DeviceFormScreen(
         wanConnectionType = t.wanConnectionType
         wanPppoeUser = t.wanPppoeUser ?: ""
         wanPppoePassword = t.wanPppoePassword ?: ""
-        wanPppoeDevice = t.wanPppoeDevice ?: "wan"
+        wanPppoeDevice = t.wanPppoeDevice ?: "br-lan"
+        wanPppoeVlan = t.wanPppoeVlan ?: ""
         hotspotPrimaryIp = t.hotspotPrimaryIp
         hotspotPrimaryPoolStart = t.hotspotPrimaryPoolStart ?: ""
         hotspotPrimaryPoolEnd = t.hotspotPrimaryPoolEnd ?: ""
@@ -940,8 +942,16 @@ fun DeviceFormScreen(
                                     OutlinedTextField(
                                         value = wanPppoeDevice,
                                         onValueChange = { wanPppoeDevice = it },
-                                        label = { Text("منفذ دخول الإنترنت (PPPoE device)", color = Color.Gray) },
-                                        placeholder = { Text("eth0 (الواجهة الفيزيائية للإنترنت)", color = Color.Gray) },
+                                        label = { Text("واجهة PPPoE الأساسية", color = Color.Gray) },
+                                        placeholder = { Text("br-lan (الواجهة التي يُشغَّل عليها PPPoE)", color = Color.Gray) },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = wanPppoeVlan,
+                                        onValueChange = { wanPppoeVlan = it },
+                                        label = { Text("رقم VLAN للإنترنت (اختياري)", color = Color.Gray) },
+                                        placeholder = { Text("20 — يُنشأ br-lan.20، اتركه فارغاً للعمل بلا VLAN", color = Color.Gray) },
                                         colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                         modifier = Modifier.fillMaxWidth()
                                     )
@@ -1543,6 +1553,7 @@ fun DeviceFormScreen(
                                 wanPppoeUser = if (wanPppoeUser.isNotEmpty()) wanPppoeUser else null,
                                 wanPppoePassword = if (wanPppoePassword.isNotEmpty()) wanPppoePassword else null,
                                 wanPppoeDevice = if (wanPppoeDevice.isNotEmpty()) wanPppoeDevice else null,
+                                wanPppoeVlan = if (wanPppoeVlan.isNotEmpty()) wanPppoeVlan else null,
                                 hotspotPrimaryIp = hotspotPrimaryIp,
                                 hotspotPrimaryPoolStart = if (hotspotPrimaryPoolStart.isNotEmpty()) hotspotPrimaryPoolStart else null,
                                 hotspotPrimaryPoolEnd = if (hotspotPrimaryPoolEnd.isNotEmpty()) hotspotPrimaryPoolEnd else null,

@@ -132,10 +132,15 @@ class ScriptGenerator {
         // as a PPPoE client with the per-router user/pass and chosen device.
         when (device.wanConnectionType) {
             "pppoe" -> {
+                val baseDevice = device.wanPppoeDevice?.takeIf { it.isNotBlank() } ?: "br-lan"
+                val vlan = device.wanPppoeVlan?.takeIf { it.isNotBlank() }
+                val finalDevice = if (vlan != null) "$baseDevice.$vlan" else baseDevice
                 set("network.wan.proto", "pppoe")
                 set("network.wan.username", device.wanPppoeUser ?: "")
                 set("network.wan.password", device.wanPppoePassword ?: "")
-                set("network.wan.device", device.wanPppoeDevice?.takeIf { it.isNotBlank() } ?: "wan")
+                set("network.wan.device", finalDevice)
+                set("hotspot_openwrt.main.wan_pppoe_device", baseDevice)
+                set("hotspot_openwrt.main.wan_pppoe_vlan", vlan ?: "")
                 set("hotspot_openwrt.main.wan_interface", "wan")
             }
             else -> {
