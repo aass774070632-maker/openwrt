@@ -7,6 +7,41 @@ import com.alemprator.setup.db.SubnetPool
 class IPValidationEngine(private val deviceDao: DeviceDao) {
 
     /**
+     * Validates the structure of an IPv4 address (four octets 0-255).
+     * Accepts any range the user types — including public ranges — because the
+     * router (hotspot apply) can bridge/serve any subnet. Returns false for
+     * blank or malformed input.
+     */
+    fun isValidIp(ip: String): Boolean {
+        val trimmed = ip.trim()
+        if (trimmed.isEmpty()) return false
+        val parts = trimmed.split('.')
+        if (parts.size != 4) return false
+        for (p in parts) {
+            val octet = p.toIntOrNull() ?: return false
+            if (octet < 0 || octet > 255) return false
+        }
+        return true
+    }
+
+    /**
+     * Returns true if the IPv4 address belongs to an RFC1918 private range
+     * (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16). Used to warn (not block)
+     * when a user types a public range such as 192.167.x.x, which would work
+     * locally but cannot be NATed to the internet via the WAN interface.
+     */
+    fun isPrivateIp(ip: String): Boolean {
+        if (!isValidIp(ip)) return false
+        val parts = ip.trim().split('.').map { it.toInt() }
+        return when (parts[0]) {
+            10 -> true
+            172 -> parts[1] in 16..31
+            192 -> parts[1] == 168
+            else -> false
+        }
+    }
+
+    /**
      * Checks if a LAN IP is already assigned to a different MAC address.
      * Returns the conflicting Device if exists, null otherwise.
      */

@@ -43,6 +43,9 @@ fun DeviceFormScreen(
     var ipConflictMessage by remember { mutableStateOf<String?>(null) }
     var isIpValid by remember { mutableStateOf(true) }
 
+    // Hotspot range validation: structure check + private-range warning.
+    var hotspotIpError by remember { mutableStateOf<String?>(null) }
+
     // Wi-Fi basic settings state variables
     var wifiSsid by remember { mutableStateOf("ALEMPRATOR_AP") }
     var wifiKey by remember { mutableStateOf("123456789") }
@@ -84,7 +87,7 @@ fun DeviceFormScreen(
     var confirmRootPassword by remember { mutableStateOf("") }
 
     // Hotspot Network settings
-    var hotspotWanInterface by remember { mutableStateOf("lan") }
+    var hotspotWanInterface by remember { mutableStateOf("wan") }
     var hotspotSubscriberInterface by remember { mutableStateOf("hotspot") }
     var hotspotPrimaryIp by remember { mutableStateOf("192.168.10.1") }
     var hotspotPrimaryPoolStart by remember { mutableStateOf("192.168.10.10") }
@@ -342,19 +345,21 @@ fun DeviceFormScreen(
         lanIp = validationEngine.suggestNextLanIp()
     }
 
-    // Derive hotspot IPs from LAN IP: 192.168.{lastOctet}.1 / 192.167.{lastOctet}.1
+    // Suggest hotspot IPs from LAN IP only when the user has not entered a
+    // custom range. The user may choose ANY private subnet (10/8, 172.16/12,
+    // 192.168/16); we must never overwrite their input with a hardcoded range.
+    // Fix: the secondary range used to be wrongly derived as 192.167.x.x
+    // (a public range) instead of 192.168.x.x.
     LaunchedEffect(lanIp) {
         val parts = lanIp.split(".")
-        if (parts.size == 4) {
+        if (parts.size == 4 && lanIp.isNotBlank()) {
             val last = parts[3]
-            val derivedPrimary = "192.168.$last.1"
-            val derivedSecondary = "192.167.$last.1"
-            if (hotspotPrimaryIp != derivedPrimary) hotspotPrimaryIp = derivedPrimary
-            if (hotspotSecondaryIp != derivedSecondary) hotspotSecondaryIp = derivedSecondary
-            if (hotspotPrimaryPoolStart != "192.168.${last}.10") hotspotPrimaryPoolStart = "192.168.${last}.10"
-            if (hotspotPrimaryPoolEnd != "192.168.${last}.199") hotspotPrimaryPoolEnd = "192.168.${last}.199"
-            if (hotspotSecondaryPoolStart != "192.167.${last}.10") hotspotSecondaryPoolStart = "192.167.${last}.10"
-            if (hotspotSecondaryPoolEnd != "192.167.${last}.199") hotspotSecondaryPoolEnd = "192.167.${last}.199"
+            if (hotspotPrimaryIp.isBlank()) hotspotPrimaryIp = "192.168.$last.1"
+            if (hotspotSecondaryIp.isBlank()) hotspotSecondaryIp = "192.168.$last.1"
+            if (hotspotPrimaryPoolStart.isBlank()) hotspotPrimaryPoolStart = "192.168.${last}.10"
+            if (hotspotPrimaryPoolEnd.isBlank()) hotspotPrimaryPoolEnd = "192.168.${last}.199"
+            if (hotspotSecondaryPoolStart.isBlank()) hotspotSecondaryPoolStart = "192.168.${last}.10"
+            if (hotspotSecondaryPoolEnd.isBlank()) hotspotSecondaryPoolEnd = "192.168.${last}.199"
         }
     }
 
@@ -389,6 +394,32 @@ fun DeviceFormScreen(
                     isIpValid = true
                 }
             }
+        }
+    }
+
+    // Validate hotspot range structure + warn on non-private (public) ranges.
+    // The router accepts any subnet, but a public range (e.g. 192.167.x.x)
+    // cannot be NATed to the internet, so we warn rather than block.
+    LaunchedEffect(
+        hotspotPrimaryIp, hotspotSecondaryIp,
+        hotspotPrimaryPoolStart, hotspotPrimaryPoolEnd,
+        hotspotSecondaryPoolStart, hotspotSecondaryPoolEnd
+    ) {
+        val fields = listOf(
+            hotspotPrimaryIp, hotspotSecondaryIp,
+            hotspotPrimaryPoolStart, hotspotPrimaryPoolEnd,
+            hotspotSecondaryPoolStart, hotspotSecondaryPoolEnd
+        ).filter { it.isNotBlank() }
+        val malformed = fields.firstOrNull { !validationEngine.isValidIp(it) }
+        if (malformed != null) {
+            hotspotIpError = "⚠️ عنوان IP غير صالح: $malformed"
+            return@LaunchedEffect
+        }
+        val public = fields.firstOrNull { !validationEngine.isPrivateIp(it) }
+        hotspotIpError = if (public != null) {
+            "⚠️ النطاق $public ليس خاصاً (RFC1918) — سيعمل محلياً لكن لا إنترنت عبر WAN"
+        } else {
+            null
         }
     }
 
@@ -869,6 +900,7 @@ fun DeviceFormScreen(
                                         value = hotspotWanInterface,
                                         onValueChange = { hotspotWanInterface = it },
                                         label = { Text("واجهة الإنترنت", color = Color.Gray) },
+                                        placeholder = { Text("wan (منفذ الإنترنت)", color = Color.Gray) },
                                         colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                         modifier = Modifier.weight(1f)
                                     )
@@ -1112,14 +1144,18 @@ fun DeviceFormScreen(
                                         value = hotspotSecondaryIp,
                                         onValueChange = { hotspotSecondaryIp = it },
                                         label = { Text("IP الشبكة الثانية (e.g. 192.168.20.1)", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        isError = hotspotIpError != null,
+                                        supportingText = hotspotIpError?.let { { Text(it, color = Color.Red) } },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray, errorBorderColor = Color.Red, errorLabelColor = Color.Red),
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                     OutlinedTextField(
                                         value = hotspotSecondaryPoolStart,
                                         onValueChange = { hotspotSecondaryPoolStart = it },
                                         label = { Text("بداية توزيع الآي بي (e.g. 192.168.20.10)", color = Color.Gray) },
-                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
+                                        isError = hotspotIpError != null,
+                                        supportingText = hotspotIpError?.let { { Text(it, color = Color.Red) } },
+                                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray, errorBorderColor = Color.Red, errorLabelColor = Color.Red),
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                     OutlinedTextField(

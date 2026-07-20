@@ -70,7 +70,7 @@ config hotspot 'main'
 	option speedtest_url 'https://speed.cloudflare.com/__down?bytes=1048576'
 	option quick_setup_enabled '0'
 
-	option quick_wan_interface 'lan'
+	option quick_wan_interface 'wan'
 	option quick_subscriber_interface 'hotspot'
 	option quick_subscriber_interface_secondary 'hotspot2'
 	option quick_runtime_dual_enabled '0'

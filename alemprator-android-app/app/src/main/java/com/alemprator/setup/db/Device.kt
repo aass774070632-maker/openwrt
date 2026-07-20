@@ -45,7 +45,7 @@ data class Device(
     val rootPassword: String? = null,
 
     // Hotspot Network settings
-    val hotspotWanInterface: String = "lan",
+    val hotspotWanInterface: String = "wan",
     val hotspotSubscriberInterface: String = "hotspot",
     val hotspotPrimaryIp: String = "192.168.10.1",
     val hotspotPrimaryPoolStart: String? = null,
