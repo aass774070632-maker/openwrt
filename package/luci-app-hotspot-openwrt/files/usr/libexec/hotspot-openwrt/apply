@@ -616,7 +616,12 @@ setup_wan_connection() {
 
 	case "$wan_connection_type" in
 		pppoe)
-			[ -n "$wan_pppoe_device" ] || wan_pppoe_device='wan'
+			[ -n "$wan_pppoe_device" ] || wan_pppoe_device='br-lan'
+			# If a VLAN ID is given, build a tagged VLAN device on top of
+			# the base interface (e.g. br-lan.20) for the PPPoE uplink.
+			if [ -n "$wan_pppoe_vlan" ] && [ "$wan_pppoe_vlan" -eq "$wan_pppoe_vlan" ] 2>/dev/null && [ "$wan_pppoe_vlan" -ge 1 ] && [ "$wan_pppoe_vlan" -le 4094 ]; then
+				wan_pppoe_device="${wan_pppoe_device}.${wan_pppoe_vlan}"
+			fi
 			uci -q batch <<-EOF
 				set network.wan.proto='pppoe'
 				set network.wan.device='$wan_pppoe_device'
@@ -658,7 +663,7 @@ apply_config() {
 	local secondary_subscriber_interface secondary_hotspot_ip secondary_hotspot_cidr secondary_pool_start secondary_pool_end
 	local secondary_calc_output secondary_network_addr secondary_netmask secondary_dhcp_start secondary_dhcp_end secondary_dhcp_limit
 	local secondary_device_section secondary_device_name
-	local wan_connection_type wan_pppoe_device wan_pppoe_username wan_pppoe_password
+	local wan_connection_type wan_pppoe_device wan_pppoe_vlan wan_pppoe_username wan_pppoe_password
 	local primary_bandwidth_up primary_bandwidth_down primary_shared_users
 	local secondary_bandwidth_up secondary_bandwidth_down secondary_shared_users
 	local primary_limits secondary_limits runtime_error secondary_runtime_error
@@ -672,6 +677,7 @@ apply_config() {
 	wan_pppoe_device="$(uci -q get hotspot_openwrt.main.wan_pppoe_device)"
 	wan_pppoe_username="$(uci -q get hotspot_openwrt.main.wan_pppoe_username)"
 	wan_pppoe_password="$(uci -q get hotspot_openwrt.main.wan_pppoe_password)"
+	wan_pppoe_vlan="$(uci -q get hotspot_openwrt.main.wan_pppoe_vlan)"
 	hotspot_enabled="$(uci -q get hotspot_openwrt.main.enabled)"
 	[ "$hotspot_enabled" = '1' ] || hotspot_enabled='0'
 	hotspot_ip="$(uci -q get hotspot_openwrt.main.hotspot_ip)"

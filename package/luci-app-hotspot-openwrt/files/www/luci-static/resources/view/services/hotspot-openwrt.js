@@ -73,7 +73,8 @@ var FIELD_GROUPS = {
 			{ value: 'dhcp', label: 'DHCP تلقائي (افتراضي)' },
 			{ value: 'pppoe', label: 'PPPoE (حساب مستخدم وكلمة سر)' }
 		], default: 'dhcp' },
-		{ option: 'wan_pppoe_device', label: 'واجهة PPPoE الفيزيائية', hint: 'الواجهة الفيزيائية التي يأتي منها اتصال PPPoE (غالباً eth0 على KM14-102H).', placeholder: 'eth0' },
+		{ option: 'wan_pppoe_device', label: 'واجهة PPPoE الأساسية', hint: 'الواجهة التي يُشغَّل عليها اتصال PPPoE. على KM14-102H الإنترنت يأتي عبر جسر br-lan، لذا الافتراضي br-lan.', placeholder: 'br-lan' },
+		{ option: 'wan_pppoe_vlan', label: 'رقم VLAN للإنترنت (اختياري)', hint: 'إن كان الإنترنت يأتي عبر VLAN موسوم من MikroTik، اكتب رقمه (مثل 20) ليُنشأ داخل الواجهة الأساسية (br-lan.20). اتركه فارغاً للعمل مباشرة عبر الواجهة الأساسية بلا VLAN.', placeholder: '20' },
 		{ option: 'wan_pppoe_username', label: 'اسم مستخدم PPPoE', hint: 'الحساب المُعطى من MikroTik User Manager ل this الراوتر.', placeholder: 'emp-r1' },
 		{ option: 'wan_pppoe_password', label: 'كلمة سر PPPoE', hint: 'كلمة سر حساب PPPoE.', placeholder: '', password: true }
 	],
@@ -452,7 +453,9 @@ function getValue(option) {
 	if (option == 'walled_garden_ip')
 		return readList('walled_garden_ip').join('\n');
 	if (option == 'wan_pppoe_device')
-		return val || uci.get('setup', 'default', 'hotspot_quick_pppoe_device') || 'wan';
+		return val || uci.get('setup', 'default', 'hotspot_quick_pppoe_device') || 'br-lan';
+	if (option == 'wan_pppoe_vlan')
+		return val || uci.get('setup', 'default', 'hotspot_quick_pppoe_vlan') || '';
 	if (option == 'wan_connection_type')
 		return val || uci.get('setup', 'default', 'hotspot_quick_pppoe_enabled') == '1' ? 'pppoe' : 'dhcp';
 	if (option == 'ip_binding')
