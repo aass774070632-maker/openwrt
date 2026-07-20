@@ -1405,6 +1405,7 @@ speedtest_url="$(uci -q get hotspot_openwrt.main.speedtest_url)"
 		done
 	fi
 
+	if [ "$hotspot_enabled" = '1' ]; then
 	/etc/init.d/radius-proxy enable >/dev/null 2>&1 || true
 	/etc/init.d/radius-proxy restart >/dev/null 2>&1 || true
 	/etc/init.d/chilli enable >/dev/null 2>&1 || true
@@ -1449,6 +1450,7 @@ speedtest_url="$(uci -q get hotspot_openwrt.main.speedtest_url)"
 			logger -t hotspot-openwrt "Warning: Boot-time runtime verification failed: $runtime_error. Retrying services may be needed."
 			exit 1
 		fi
+	fi
 	fi
 
 	# Advanced tuning

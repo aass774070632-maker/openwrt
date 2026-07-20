@@ -4,12 +4,13 @@ START=91
 USE_PROCD=1
 
 start_service() {
-	[ "$(uci -q get hotspot_openwrt.main.enabled)" = '1' ] || return 0
-
-	# Run apply once (one-shot) at boot — NOT wrapped in procd respawn.
-	# apply --start configures chilli/network and then exits; procd must NOT
-	# restart it as a daemon or chilli will never stay running.
+	# Always run apply at boot so the WAN/PPPoE uplink is configured even
+	# when the hotspot is disabled. The apply script applies WAN
+	# independently of the hotspot and only starts hotspot services
+	# (chilli/radius-proxy) when the hotspot is actually enabled.
 	/usr/libexec/hotspot-openwrt/apply --start > /tmp/hotspot-apply-boot.log 2>&1
+
+	[ "$(uci -q get hotspot_openwrt.main.enabled)" = '1' ] || return 0
 
 	# Start presence-watchdog via procd
 	if [ -x /usr/libexec/hotspot-openwrt/presence-watchdog ]; then
