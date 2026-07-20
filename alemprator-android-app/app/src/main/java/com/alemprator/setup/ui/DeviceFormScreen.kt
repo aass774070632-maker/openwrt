@@ -95,7 +95,7 @@ fun DeviceFormScreen(
     var wanConnectionType by remember { mutableStateOf("dhcp") }
     var wanPppoeUser by remember { mutableStateOf("") }
     var wanPppoePassword by remember { mutableStateOf("") }
-    var wanPppoeDevice by remember { mutableStateOf("wan") }
+    var wanPppoeDevice by remember { mutableStateOf("eth0") }
     var hotspotPrimaryIp by remember { mutableStateOf("192.168.10.1") }
     var hotspotPrimaryPoolStart by remember { mutableStateOf("192.168.10.10") }
     var hotspotPrimaryPoolEnd by remember { mutableStateOf("192.168.10.199") }
@@ -941,7 +941,7 @@ fun DeviceFormScreen(
                                         value = wanPppoeDevice,
                                         onValueChange = { wanPppoeDevice = it },
                                         label = { Text("منفذ دخول الإنترنت (PPPoE device)", color = Color.Gray) },
-                                        placeholder = { Text("wan (أو eth0/eth1 حسب الجهاز)", color = Color.Gray) },
+                                        placeholder = { Text("eth0 (الواجهة الفيزيائية للإنترنت)", color = Color.Gray) },
                                         colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color.DarkGray),
                                         modifier = Modifier.fillMaxWidth()
                                     )

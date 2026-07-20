@@ -52,7 +52,7 @@ data class Device(
     val wanConnectionType: String = "dhcp",
     val wanPppoeUser: String? = null,
     val wanPppoePassword: String? = null,
-    val wanPppoeDevice: String? = null,
+    val wanPppoeDevice: String? = "eth0",
     val hotspotPrimaryIp: String = "192.168.10.1",
     val hotspotPrimaryPoolStart: String? = null,
     val hotspotPrimaryPoolEnd: String? = null,
