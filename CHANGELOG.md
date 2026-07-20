@@ -221,6 +221,7 @@
 - **`luci-app-hotspot-openwrt` r168:** إزالة الحارس المبكر في `init.d/hotspot-openwrt` الذي كان يمنع تشغيل `apply --start` عند `enabled != '1'` (مما ترك `network.wan` على dhcp بعد الريست/الإقلاع رغم ضبط PPPoE). وحصر تشغيل خدمات `chilli`/`radius-proxy` بـ `enabled='1'` داخل `apply`.
 - يضمن هذا أن PPPoE/VLAN يُطبَّق تلقائياً عند الإقلاع بعد الريست دون الحاجة لضغط "حفظ وتطبيق" يدوياً.
 - أرشفة في `releases/v1.0-r49/km14/`.
+  - SHA256 factory: `f7f5cc96032fa15e31d734fdc0dfcae2e4045f4ff43c8b328d50b0a14c24fbfd`
 
 ---
 
