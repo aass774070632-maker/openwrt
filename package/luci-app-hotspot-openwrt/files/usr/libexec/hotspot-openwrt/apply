@@ -609,7 +609,28 @@ configure_firewall_nft_compat() {
 # Configure the router WAN connection (internet uplink to MikroTik).
 # Supports DHCP (default) and PPPoE client modes.
 setup_wan_connection() {
-	[ "$wan_connection_type" = 'pppoe' ] || wan_connection_type='dhcp'
+	# Read UCI directly because caller's local vars aren't visible in ash functions
+	local wt
+	wt="$(uci -q get hotspot_openwrt.main.wan_connection_type)"
+	[ "$wt" = 'pppoe' ] || wt='dhcp'
+	wan_connection_type="$wt"
+
+	local wpd
+	wpd="$(uci -q get hotspot_openwrt.main.wan_pppoe_device)"
+	[ -n "$wpd" ] || wpd='br-lan'
+	wan_pppoe_device="$wpd"
+
+	local wpu
+	wpu="$(uci -q get hotspot_openwrt.main.wan_pppoe_username)"
+	wan_pppoe_username="$wpu"
+
+	local wpp
+	wpp="$(uci -q get hotspot_openwrt.main.wan_pppoe_password)"
+	wan_pppoe_password="$wpp"
+
+	local wpv
+	wpv="$(uci -q get hotspot_openwrt.main.wan_pppoe_vlan)"
+	wan_pppoe_vlan="$wpv"
 
 	# Ensure the wan network section exists.
 	uci -q get network.wan >/dev/null 2>&1 || uci set network.wan='interface'
@@ -678,6 +699,7 @@ apply_config() {
 	wan_pppoe_username="$(uci -q get hotspot_openwrt.main.wan_pppoe_username)"
 	wan_pppoe_password="$(uci -q get hotspot_openwrt.main.wan_pppoe_password)"
 	wan_pppoe_vlan="$(uci -q get hotspot_openwrt.main.wan_pppoe_vlan)"
+	logger -t hotspot-openwrt "DEBUG: wan_connection_type='$wan_connection_type' wan_pppoe_vlan='$wan_pppoe_vlan' wan_pppoe_device='$wan_pppoe_device'"
 	hotspot_enabled="$(uci -q get hotspot_openwrt.main.enabled)"
 	[ "$hotspot_enabled" = '1' ] || hotspot_enabled='0'
 
