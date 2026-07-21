@@ -233,7 +233,12 @@
 
 ---
 
+### v1.0-r51 — إصلاح: auto-attach الواجهات وزيادة مهلة verify_runtime للوضع المزدوج
+- **`luci-app-hotspot-openwrt` r170:** إصلاح auto-attach في `apply`: ربط `phy0-ap0` → `br-hotspot` و `phy1-ap0` → `br-hotspot2` بدلاً من ربط جميع واجهات AP بكلا الجسرين (السبب الجذري لتعطّل `dual_quick_mode`).
+- **زيادة مهلة `verify_runtime`:** الأساسي من 20→40 ثانية، الثانوي من 20→60 ثانية لمنع التعطيل المبكر عند بطء بدء chilli الثاني.
+- تم بناء الحزمة واختبارها على الراوتر بنجاح: `dual_quick_mode=true` بعد `apply restart` مع بقاء 2 chilli و bridge سليمين.
 
+---
 
 ## ملخص التغييرات لكل ملف
 
