@@ -240,6 +240,12 @@
 
 ---
 
+### v1.0-r52 — إصلاح: تسجيل تشخيصي لـ wan_connection_type في apply
+- **`luci-app-hotspot-openwrt` r171:** إضافة سجل تشخيصي (`logger -t hotspot-openwrt "DEBUG: wan_connection_type=..."`) في `apply` لتسجيل القيمة المقروءة من UCI قبل تنفيذ `setup_wan_connection`، لتسهيل تتبع مشكلة PPPoE+VLAN.
+- بناء كامل بعد `make clean`.
+
+---
+
 ## ملخص التغييرات لكل ملف
 
 | الملف | r13 | r14 | r15 | r16 | r17 | r18 | r19 | r20 |
