@@ -120,7 +120,7 @@ class ScriptGenerator {
         val secondaryPoolStart = device.hotspotSecondaryPoolStart?.takeIf { it.isNotBlank() } ?: derivePoolIp(secondaryGateway, "10")
         val secondaryPoolEnd = device.hotspotSecondaryPoolEnd?.takeIf { it.isNotBlank() } ?: derivePoolIp(secondaryGateway, "199")
         val loginMode = if (device.hotspotCardPage == "username") "username" else "both"
-        val dnsList = listOf(device.hotspotDns1, device.hotspotDns2).map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
+        val dnsServers = listOf(device.hotspotDns1, device.hotspotDns2).map { it.trim() }.filter { it.isNotEmpty() }
         val radiusSecret = device.radiusSecret.orEmpty()
         val radiusServer2 = device.radiusServerBackup.orEmpty()
         val walledGarden = device.hotspotWalledGarden.orEmpty()
@@ -249,7 +249,10 @@ class ScriptGenerator {
         set("hotspot_openwrt.main.bridge_ageing_time", device.hotspotBridgeAgeingTime)
         set("hotspot_openwrt.main.network_name", primarySsid)
         set("hotspot_openwrt.main.domain", device.hotspotDnsName)
-        set("hotspot_openwrt.main.dns", dnsList)
+        deleteOption("hotspot_openwrt.main.dns")
+        for (dns in dnsServers) {
+            add("uci add_list hotspot_openwrt.main.dns=${sh(dns)}")
+        }
         set("hotspot_openwrt.main.login_mode", loginMode)
         set("hotspot_openwrt.main.rate_limit_rx_tx", device.hotspotRateLimit)
         set("hotspot_openwrt.main.mac_cookie_enabled", bool(device.hotspotMacCookie))
@@ -470,8 +473,7 @@ class ScriptGenerator {
         add("uci -q delete dhcp.alemprator_captive 2>/dev/null || true")
         add("uci -q delete firewall.alemprator_setup 2>/dev/null || true")
         add("uci -q delete wireless.alemprator_firstboot 2>/dev/null || true")
-        add("for s in \$(uci show wireless 2>/dev/null | grep \"network='alemprator_setup'\" | cut -d. -f2 | cut -d= -f1); do uci -q delete wireless.\$s 2>/dev/null || true; done")
-        add("for s in \$(uci show wireless 2>/dev/null | grep -i -E \"ssid='(ALemprator-KT-|KT-)\" | cut -d. -f2 | cut -d= -f1); do uci -q delete wireless.\$s 2>/dev/null || true; done")
+        add("uci show wireless 2>/dev/null | grep -i -E \"ssid='(ALemprator-KT-|KT-)\" | cut -d. -f2 | cut -d= -f1 | while read -r s; do [ -n \"\$s\" ] && uci -q delete \"wireless.\$s\"; done")
         add("uci -q delete dhcp.@dnsmasq[0].address 2>/dev/null || true")
         add("uci -q del_list uhttpd.main.lua_prefix='/hotspot-detect.html=/www/captive-portal.html' 2>/dev/null || true")
         add("uci -q set alemprator_firstboot.main.enabled='0' 2>/dev/null || true")
