@@ -1351,14 +1351,18 @@ speedtest_url="$(uci -q get hotspot_openwrt.main.speedtest_url)"
 	for dev in $(iw dev 2>/dev/null | sed -n 's/^[[:space:]]*Interface[[:space:]]*//p'); do
 		case "$dev" in
 			phy*-ap*)
-				for bridge in br-hotspot br-hotspot2; do
-					if ip link show "$bridge" >/dev/null 2>&1 && \
-					   ! ip link show "$dev" master 2>/dev/null | grep -q "$bridge"; then
-						brctl addif "$bridge" "$dev" 2>/dev/null || \
-							ip link set "$dev" master "$bridge" 2>/dev/null || true
-						logger -t hotspot-openwrt "Attached $dev to $bridge"
-					fi
-				done
+				local bridge='br-hotspot'
+				if [ "$dual_quick_mode" = '1' ]; then
+					local radio_num="${dev#phy}"
+					radio_num="${radio_num%%-*}"
+					[ "$radio_num" = '1' ] && bridge='br-hotspot2'
+				fi
+				if ip link show "$bridge" >/dev/null 2>&1 && \
+				   ! ip link show "$dev" master 2>/dev/null | grep -q "$bridge"; then
+					brctl addif "$bridge" "$dev" 2>/dev/null || \
+						ip link set "$dev" master "$bridge" 2>/dev/null || true
+					logger -t hotspot-openwrt "Attached $dev to $bridge"
+				fi
 				;;
 		esac
 	done
@@ -1414,7 +1418,7 @@ speedtest_url="$(uci -q get hotspot_openwrt.main.speedtest_url)"
 	/etc/init.d/chilli restart >/dev/null 2>&1 || true
 
 	runtime_error=''
-	for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+	for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do
 		if runtime_error="$(verify_runtime "$subscriber_interface" "$hotspot_ip" 'tun0')"; then
 			runtime_error=''
 			break
@@ -1424,7 +1428,7 @@ speedtest_url="$(uci -q get hotspot_openwrt.main.speedtest_url)"
 
 	secondary_runtime_error=''
 	if [ -z "$runtime_error" ] && [ "$dual_quick_mode" = '1' ]; then
-		for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+		for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60; do
 			if secondary_runtime_error="$(verify_runtime "$secondary_subscriber_interface" "$secondary_hotspot_ip" 'tun1')"; then
 				secondary_runtime_error=''
 				break
