@@ -56,9 +56,7 @@ class RouterSshClient(
                 channel.setCommand(cmd)
                 
                 val outputStream = ByteArrayOutputStream()
-                val errorStream = ByteArrayOutputStream()
                 channel.outputStream = outputStream
-                channel.errStream = errorStream
                 
                 channel.connect()
                 
@@ -67,13 +65,11 @@ class RouterSshClient(
                 }
                 
                 val out = outputStream.toString().trim()
-                val err = errorStream.toString().trim()
                 val exitStatus = channel.exitStatus
                 channel.disconnect()
                 
                 outputLog.append("\n$ $cmd\n")
                 if (out.isNotEmpty()) outputLog.append("$out\n")
-                if (err.isNotEmpty()) outputLog.append("[stderr] $err\n")
                 
                 if (exitStatus != 0) {
                     outputLog.append("[exit code: $exitStatus]")
