@@ -1,10 +1,16 @@
 package com.alemprator.setup
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.alemprator.setup.db.AppDatabase
 import com.alemprator.setup.db.Device
@@ -15,6 +21,7 @@ import com.alemprator.setup.ssh.RouterSshClient
 import com.alemprator.setup.ssh.ScriptGenerator
 import com.alemprator.setup.ui.DeviceFormScreen
 import com.alemprator.setup.ui.DeviceListScreen
+import com.alemprator.setup.ui.ScriptPreviewScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -24,6 +31,10 @@ class MainActivity : ComponentActivity() {
     private val scannedMac = mutableStateOf("")
     private val showDeviceList = mutableStateOf(false)
     private val deviceList = mutableStateOf<List<Device>>(emptyList())
+    private val showPreview = mutableStateOf(false)
+    private val previewScript = mutableStateOf("")
+    private val previewCommands = mutableStateOf<List<String>>(emptyList())
+    private val previewDevice = mutableStateOf<Device?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,54 +89,91 @@ class MainActivity : ComponentActivity() {
                     }
                 )
             } else {
-                DeviceFormScreen(
-                    validationEngine = validationEngine,
-                    onSaveDevice = { device ->
-                        saveAndConfigureDevice(device)
-                    },
-                    onScanMacClick = {
-                        lifecycleScope.launch {
-                            Toast.makeText(this@MainActivity, "جاري قراءة الماك الفعلي من الراوتر...", Toast.LENGTH_SHORT).show()
-                            val sshClient = RouterSshClient(host = "192.168.8.1")
-                            val mac = sshClient.fetchMacAddress()
-                            if (mac != null) {
-                                scannedMac.value = mac
-                                Toast.makeText(this@MainActivity, "تم جلب الماك: $mac", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(this@MainActivity, "تعذر جلب الماك. تأكد من اتصالك بالواي فاي للراوتر!", Toast.LENGTH_LONG).show()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    DeviceFormScreen(
+                        validationEngine = validationEngine,
+                        onSaveDevice = { device ->
+                            lifecycleScope.launch {
+                                val existing = database.deviceDao().getDeviceByMac(device.macAddress)
+                                if (existing != null) {
+                                    database.deviceDao().deleteDevice(existing)
+                                }
+                                database.deviceDao().insertDevice(device.copy(isTemplate = true))
+
+                                val generator = ScriptGenerator()
+                                val allCommands = generator.generateCommands(device)
+
+                                previewDevice.value = device
+                                previewCommands.value = allCommands
+                                previewScript.value = allCommands.joinToString("\n")
+                                showPreview.value = true
                             }
+                        },
+                        onScanMacClick = {
+                            lifecycleScope.launch {
+                                Toast.makeText(this@MainActivity, "جاري قراءة الماك الفعلي من الراوتر...", Toast.LENGTH_SHORT).show()
+                                val sshClient = RouterSshClient(host = "192.168.8.1")
+                                val mac = sshClient.fetchMacAddress()
+                                if (mac != null) {
+                                    scannedMac.value = mac
+                                    Toast.makeText(this@MainActivity, "تم جلب الماك: $mac", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(this@MainActivity, "تعذر جلب الماك. تأكد من اتصالك بالواي فاي للراوتر!", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        onShowDeviceList = {
+                            lifecycleScope.launch {
+                                deviceList.value = database.deviceDao().getAllDevices()
+                                showDeviceList.value = true
+                            }
+                        },
+                        scannedMac = scannedMac.value,
+                        lookupDeviceByMac = { mac -> database.deviceDao().getDeviceByMac(mac) },
+                        deriveTemplateForType = { type ->
+                            val all = database.deviceDao().getAllDevices()
+                            TemplateDeriver.derive(type, all)
                         }
-                    },
-                    onShowDeviceList = {
-                        lifecycleScope.launch {
-                            deviceList.value = database.deviceDao().getAllDevices()
-                            showDeviceList.value = true
-                        }
-                    },
-                    scannedMac = scannedMac.value,
-                    lookupDeviceByMac = { mac -> database.deviceDao().getDeviceByMac(mac) },
-                    deriveTemplateForType = { type ->
-                        val all = database.deviceDao().getAllDevices()
-                        TemplateDeriver.derive(type, all)
+                    )
+
+                    if (showPreview.value) {
+                        ScriptPreviewScreen(
+                            script = previewScript.value,
+                            onExecute = {
+                                showPreview.value = false
+                                val device = previewDevice.value
+                                val allCommands = previewCommands.value
+                                if (device != null && allCommands.isNotEmpty()) {
+                                    lifecycleScope.launch {
+                                        saveAndConfigureDevice(device, allCommands)
+                                    }
+                                }
+                            },
+                            onCancel = { showPreview.value = false },
+                            onCopy = {
+                                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("Script", previewScript.value)
+                                clipboard.setPrimaryClip(clip)
+                                Toast.makeText(this@MainActivity, "تم النسخ", Toast.LENGTH_SHORT).show()
+                            }
+                        )
                     }
-                )
+                }
             }
         }
     }
 
-    private fun saveAndConfigureDevice(device: Device) {
+    private fun saveAndConfigureDevice(device: Device, commands: List<String>? = null) {
         lifecycleScope.launch {
-            // Remove old entry with same MAC to avoid duplicates
-            val existing = database.deviceDao().getDeviceByMac(device.macAddress)
-            if (existing != null) {
-                database.deviceDao().deleteDevice(existing)
+            val allCommands = commands ?: run {
+                val existing = database.deviceDao().getDeviceByMac(device.macAddress)
+                if (existing != null) {
+                    database.deviceDao().deleteDevice(existing)
+                }
+                database.deviceDao().insertDevice(device.copy(isTemplate = true))
+                val generator = ScriptGenerator()
+                generator.generateCommands(device)
             }
-
-            // Mark as template and save
-            database.deviceDao().insertDevice(device.copy(isTemplate = true))
-
-            val generator = ScriptGenerator()
-            val allCommands = generator.generateCommands(device)
 
             // Split: config commands (UCI safe) vs reload commands (may disrupt SSH)
             val reloadMarker = allCommands.indexOfFirst { it.startsWith("echo '=== تطبيق") }
@@ -138,7 +186,12 @@ class MainActivity : ComponentActivity() {
             val result = sshClient.executeCommands(configCmds)
 
             if (result.first) {
-                Toast.makeText(this@MainActivity, "تمت برمجة الجهاز بنجاح!", Toast.LENGTH_LONG).show()
+                val output = result.second
+                if (output.contains("[exit code:") || output.contains("FATAL")) {
+                    Toast.makeText(this@MainActivity, "تم التنفيذ مع تحذيرات (انظر المخرجات)", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this@MainActivity, "تمت برمجة الجهاز بنجاح!", Toast.LENGTH_LONG).show()
+                }
                 // Run reload commands in background (they may disconnect WiFi)
                 if (reloadCmds.isNotEmpty()) {
                     try {

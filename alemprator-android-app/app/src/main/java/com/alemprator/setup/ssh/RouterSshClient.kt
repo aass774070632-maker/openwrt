@@ -35,12 +35,15 @@ class RouterSshClient(
 
     /**
      * Executes a list of shell commands on the router sequentially.
-     * Returns true if all commands execute successfully.
+     * Continues on non-zero exit (doesn't stop at first failure).
+     * Returns true if SSH connection succeeded and all commands were submitted.
+     * Non-zero exit codes are appended to the output for caller to inspect.
      */
     suspend fun executeCommands(commands: List<String>): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         val jsch = JSch()
         var session: Session? = null
         val outputLog = StringBuilder()
+        var hadNonZero = false
         
         try {
             val candidatePasswords = listOf(password, "123456", "", "testing321", "admin")
@@ -53,7 +56,9 @@ class RouterSshClient(
                 channel.setCommand(cmd)
                 
                 val outputStream = ByteArrayOutputStream()
+                val errorStream = ByteArrayOutputStream()
                 channel.outputStream = outputStream
+                channel.errStream = errorStream
                 
                 channel.connect()
                 
@@ -62,18 +67,22 @@ class RouterSshClient(
                 }
                 
                 val out = outputStream.toString().trim()
+                val err = errorStream.toString().trim()
                 val exitStatus = channel.exitStatus
                 channel.disconnect()
                 
                 outputLog.append("\n$ $cmd\n")
-                if (out.isNotEmpty()) outputLog.append(out)
+                if (out.isNotEmpty()) outputLog.append("$out\n")
+                if (err.isNotEmpty()) outputLog.append("[stderr] $err\n")
                 
                 if (exitStatus != 0) {
-                    return@withContext Pair(false, "فشل تنفيذ الأمر: $cmd")
+                    outputLog.append("[exit code: $exitStatus]")
+                    hadNonZero = true
                 }
             }
             
-            return@withContext Pair(true, outputLog.toString().ifEmpty { "تم تطبيق الإعدادات" })
+            val message = outputLog.toString().ifEmpty { "تم تطبيق الإعدادات" }
+            return@withContext Pair(true, message)
             
         } catch (e: Exception) {
             return@withContext Pair(false, "فشل الاتصال بـ SSH: ${e.message}")
