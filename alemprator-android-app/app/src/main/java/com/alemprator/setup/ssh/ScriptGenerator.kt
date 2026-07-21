@@ -141,10 +141,12 @@ class ScriptGenerator {
                 set("network.wan.device", finalDevice)
                 set("hotspot_openwrt.main.wan_pppoe_device", baseDevice)
                 set("hotspot_openwrt.main.wan_pppoe_vlan", vlan ?: "")
+                set("hotspot_openwrt.main.wan_connection_type", "pppoe")
                 set("hotspot_openwrt.main.wan_interface", "wan")
             }
             else -> {
                 set("network.wan.proto", "dhcp")
+                set("hotspot_openwrt.main.wan_connection_type", "dhcp")
                 set("hotspot_openwrt.main.wan_interface", "wan")
             }
         }
